@@ -1,7 +1,7 @@
 ---
 stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional']
 classification:
-  projectType: On-Premise Enterprise Web App (RBAC 6 profils + RLS, FSM 7 états incl. RETARD, Async In-Memory Scheduler, Audit Trail)
+  projectType: On-Premise Enterprise Web App (RBAC 6 profils + RLS, FSM 5 états + flag OVERDUE, Async In-Memory Scheduler, Audit Trail)
   domain: Fintech / RegTech
   complexity: HIGH
   projectContext: Greenfield
@@ -19,9 +19,9 @@ Sentinel est une démarche de conformité active conçue pour répondre aux exig
 ### What Makes This Special
 
 Sentinel est une **Enterprise Web App à haute valeur probatoire** dont l'architecture même force le respect du processus canonique d'audit :
-- **Rigueur Automatisée (FSM 7 états) :** Le cycle de vie d'une recommandation est régi par une machine à états finis inviolable, gérant les chemins nominaux, les rejets hiérarchiques, et détectant proactivement les délais dépassés (statut `OVERDUE`).
+- **Rigueur Automatisée (FSM 5 états + flag OVERDUE) :** Le cycle de vie d'une recommandation est régi par une machine à états finis inviolable (`ASSIGNED` → `IN_PROGRESS` → `PENDING_DM_REVIEW` → `PENDING_AUDIT_REVIEW` → `CLOSED_RESOLVED`), gérant les chemins nominaux, les rejets itératifs (retour à `IN_PROGRESS`), et détectant proactivement les délais dépassés via un flag `OVERDUE` superposé.
 - **Sécurité et Ségrégation (RBAC & RLS) :** La Row-Level Security intégrée nativement en base de données empêche techniquement, au-delà de la simple couche applicative, toute fuite d'information métiers entre les 6 profils d'accès.
-- **Réactivité Asynchrone :** Un ordonnanceur (Scheduler In-Memory/Database) scrute silencieusement le système pour calculer les taux de franchissement (40/60/80%), basculer les dossiers en retard et envoyer les relances sans saturer l'infrastructure de la banque.
+- **Réactivité Asynchrone :** Un ordonnanceur (Scheduler In-Memory/Database) scrute silencieusement le système pour détecter les échéances approchantes (alerte J-7), basculer les dossiers en retard et envoyer les rappels quotidiens sans saturer l'infrastructure de la banque.
 - **Immuabilité (Audit Trail) :** Les preuves sont archivées de manière immuable avec empreinte d'intégrité (SHA-256), rendant l'historique opposable en cas de contrôle des autorités de régulation financière.
 
 ## Project Classification
@@ -50,19 +50,33 @@ Sentinel est une **Enterprise Web App à haute valeur probatoire** dont l'archit
 - **Durée moyenne de validation (Goulots d'étranglement) :** Le temps passé *exclusivement* dans les états transitoires d'approbation humaine (`PENDING_DM_REVIEW` et `PENDING_AUDIT_REVIEW`) doit être inférieur à 48 heures ouvrées. *Note : Cette métrique exclut volontairement l'état `IN_PROGRESS`, car la correction technique ou métier d'une recommandation par un ETP peut pertinemment nécessiter un délai de 3 à 6 mois.*
 - **Taux de reports justifiés (OVERDUE) :** > 90% des recommandations tombant en retard doivent avoir fait l'objet d'une sollicitation de délai supplémentaire tracée dans la FSM *avant* l'échéance.
 
+### KPIs Opérationnels (Cibles à 6 mois post-déploiement)
+
+| KPI | Description | Cible |
+|---|---|---|
+| Taux d'adoption active | % d'ETP et DM connectés ≥ 1x/semaine | > 95% |
+| Délai moyen de résolution | % de recommandations clôturées avant échéance | > 85% |
+| Taux de rejet Audit | % de preuves validées par DM mais rejetées par l'Audit | < 5% |
+| Taux de rejet Métier | % de preuves rejetées par DM vers ETP | < 15% |
+| Durée moyenne par statut | Temps passé à chaque étape du workflow (hors `IN_PROGRESS`) | < 48h |
+| Taux de reports tracés | % de retards ayant fait l'objet d'une demande formelle de prolongation | > 90% |
+
+**North Star Metric :** *Réduction du délai moyen d'éradication d'un risque critique* + *100% de conformité de l'audit trail*.
+
 ## Product Scope
 
 ### MVP - Minimum Viable Product
-- **Workflow & FSM :** Machine à 7 états (`DRAFT` à `CLOSED_RESOLVED`) gérant les 5 acteurs y compris les statuts d'exceptions (`OVERDUE`, `REJECTED`).
+- **Workflow & FSM :** Machine à 5 états (`ASSIGNED` → `IN_PROGRESS` → `PENDING_DM_REVIEW` → `PENDING_AUDIT_REVIEW` → `CLOSED_RESOLVED`) + flag `OVERDUE` superposé. Tout rejet (DM ou Audit) ramène à `IN_PROGRESS` avec versioning des preuves (pas d'état terminal `REJECTED`).
 - **Sécurité :** RBAC 6 profils, Row-Level Security (RLS) en base de données, SSO Active Directory.
-- **Async & Notifications :** Ordonnanceur BDD (In-Memory Scheduler) pour les relances dynamiques (40/60/80%) et le basculement automatique des statuts.
+- **Async & Notifications :** Ordonnanceur BDD (In-Memory Scheduler) pour les alertes J-7 avant échéance et le basculement automatique en `OVERDUE` avec rappels quotidiens.
 - **Preuves & Audit Trail :** Upload de preuves textuelles ou fichiers avec justification obligatoire, scellement par empreinte d'intégrité à la clôture.
 - **Export Légal :** Génération de l'archive cryptée complète (Preuves + Journal) à destination de l'auditeur externe.
 - **Reprise de l'Historique :** Module d'import massif (Excel) pour intégrer les recommandations dormantes ou passées (Indispensable pour l'adoption V1).
 
 ### Growth Features (Post-MVP)
 - Portail de consultation interactive sécurisé (DMZ) pour les Auditeurs Externes.
-- Reconnaissance Optique de Caractères (OCR) pour pré-validation des preuves scannées.
+- Seuils de relance proportionnels (40/60/80% du délai) avec dédoublonnage intelligent.
+- Hash SHA-256 quotidien global (Niveau 2) pour détection d'altération rétroactive.
 
 ### Vision (Future)
 - **Hub de Conformité SaaS On-Premise :** Standardisation de l'outil pour commercialisation sécurisée au sein d'autres banques de la zone CEMAC.
@@ -77,7 +91,7 @@ Sentinel est une **Enterprise Web App à haute valeur probatoire** dont l'archit
 
 ### 2. Parcours d'Exception : Le Goulot et le Rejet (Edge Case)
 **Personas impliqués :** Sarah (Directrice Métier), Luc (ETP Opérationnel).
-**Le scénario :** Luc soumet ses preuves (`PENDING_DM_REVIEW`). Sarah part en congé sans déléguer ses droits. L'ordonnanceur asynchrone détecte l'échéance : 48h passent et au terme du délai initial, le dossier bascule en `OVERDUE` (En retard) avec notification à la DG. À son retour, Sarah ouvre le dossier, trouve les preuves incomplètes, et clique sur "Rejeter" (`REJECTED`) avec le motif "Signature DSI manquante". Luc doit fournir de nouvelles preuves pour sortir du retard.
+**Le scénario :** Luc soumet ses preuves (`PENDING_DM_REVIEW`). Sarah part en congé sans déléguer ses droits. L'ordonnanceur asynchrone détecte l'échéance : le délai initial est franchi, le système ajoute le flag `OVERDUE` avec notification à la DG. À son retour, Sarah ouvre le dossier, trouve les preuves incomplètes, et clique sur "Rejeter" avec le motif "Signature DSI manquante". Le statut repasse à `IN_PROGRESS` (les preuves rejetées sont taguées `REJECTED_V1` et restent visibles dans l'historique). Luc doit fournir de nouvelles preuves.
 **Bénéfice :** La FSM attribue factuellement le goulot d'étranglement au bon acteur (Sarah) sans bloquer l'exécutant éternellement dans le silence.
 
 ### 3. Parcours de l'Auditeur Externe : La Mission COBAC (Compliance Path)
@@ -152,7 +166,7 @@ En tant que **On-Premise Enterprise Web App**, Sentinel se détache des architec
 - **Choix :** Un framework monolithique "Headless" (exposant uniquement une API REST pour le Frontend React).
 - **Justification de la pertinence :** 
   - *Option A (Django + Celery) :* Sentinel repose sur un ordonnanceur asynchrone (Celery). L'écosystème Python/Django s'intègre nativement à Celery + Redis pour gérer les alertes, les relances et la génération de PDF sans ralentir l'utilisateur. De plus, Django possède un système d'ORB/Transitions qui gère parfaitement les machines à états finis (FSM).
-  - *Option B (Java Spring Boot) :* Si la Direction IT de la BICEC impose le langage Java par standardisation. Spring State Machine est exceptionnellement robuste pour garantir l'inaltérabilité des 7 états du cycle de vie. Mais c'est un choix plus "lourd" à démarrer que Django.
+  - *Option B (Java Spring Boot) :* Si la Direction IT de la BICEC impose le langage Java par standardisation. Spring State Machine est exceptionnellement robuste pour garantir l'inaltérabilité des 5 états du cycle de vie. Mais c'est un choix plus "lourd" à démarrer que Django.
 
 ### Implementation Considerations : Gestion de l'Organigramme
 - **Création des Départements / Agences :** 
@@ -172,10 +186,10 @@ En tant que **On-Premise Enterprise Web App**, Sentinel se détache des architec
 - Mission d'inspection inopinée avec génération de preuve cryptée ("Compliance Path").
 
 **Must-Have Capabilities:**
-- FSM 7 états et RBAC 6 profils.
+- FSM 5 états + flag `OVERDUE` et RBAC 6 profils.
 - Base de données Single-Tenant avec Row-Level Security.
 - Frontend Single Page Application optimisé pour la fluidité.
-- Scheduler asynchrone interne (Relances & Changements d'états).
+- Scheduler asynchrone interne (Alertes J-7 & basculement `OVERDUE` & rappels quotidiens).
 - Architecture "API Régulateur Ready" (Module d'export natif).
 - Interface d'administration pour gestion 100% manuelle de l'organigramme.
 - Module central d'Import Massif d'Historique (Excel) pour intégrer les encours existants.
@@ -183,8 +197,8 @@ En tant que **On-Premise Enterprise Web App**, Sentinel se détache des architec
 ### Post-MVP Features
 **Phase 2 (Growth):**
 - Portail DMZ "Read-Only" pour auditeurs externes non-salariés.
-- Pré-lecture OCR des preuves scannées.
-
+- Seuils de relance proportionnels (40/60/80%) avec dédoublonnage intelligent.
+- Hash SHA-256 quotidien global (Niveau 2).
 **Phase 3 (Expansion):**
 - Intégration complète en temps réel "Machine-to-Machine" avec les API du Régulateur.
 - Architecture SaaS "Hub de conformité" (Multi-tenant) pour commercialisation intra-groupe.
@@ -205,37 +219,261 @@ En tant que **On-Premise Enterprise Web App**, Sentinel se détache des architec
 - FR6: Le Système révoque automatiquement la session d'un utilisateur si son compte Active Directory est désactivé.
 
 ### 2. Core Workflow & Validation FSM
-- FR7: L'Audit Interne peut créer une nouvelle recommandation et l'assigner à une Direction Métier avec une échéance fixée.
-- FR8: Le Directeur Métier peut réassigner une recommandation reçue à un Employé Traitant (ETP) de son équipe.
-- FR9: L'Employé Traitant peut soumettre une ou plusieurs preuves pour demander la clôture d'une recommandation.
+- FR7: L'Audit Interne peut créer une nouvelle recommandation et l'assigner à une Direction Métier avec une échéance fixée. La création exige les champs suivants :
+
+  | Champ | Type | Obligatoire | Description |
+  |---|---|---|---|
+  | `titre` | Texte (255 car.) | ✅ | Intitulé de la recommandation |
+  | `description` | Texte long | ✅ | Corps détaillé de la recommandation |
+  | `source` | Enum | ✅ | COBAC / BEAC / NIF / CAC / Consultant Externe / Audit Interne |
+  | `categorie` | Enum | ✅ | Ex : Crédit, Opérationnel, Conformité, Trésorerie… (configurable) |
+  | `priorite` | Enum | ✅ | Critique / Haute / Moyenne / Faible |
+  | `date_emission` | Date | ✅ | Date d'émission officielle de la recommandation |
+  | `date_echeance` | Date | ✅ | Délai de résolution fixé |
+  | `directeur_metier` | FK User (DM) | ✅ | DM affecté à cette recommandation |
+  | `reference_externe` | Texte | ✅ | Référence officielle du régulateur (ex: COBAC-2025-REF-042) |
+  | `document_source` | Fichier | ✅ | Document officiel source (rapport d'inspection, etc.) |
+  | `tags` | Texte[] | ❌ | Tags optionnels pour faciliter la recherche et le filtrage |
+
+- FR8: Le Directeur Métier peut réassigner une recommandation reçue à **un seul** Employé Traitant (ETP) de son équipe. *Note MVP : une recommandation = un seul ETP.*
+- FR9: L'Employé Traitant peut soumettre des preuves pour demander la clôture d'une recommandation. La soumission exige un **commentaire justificatif obligatoire** (minimum 50 caractères) expliquant comment la preuve répond à la recommandation. La soumission est bloquée sans ce champ.
+- FR9b: L'Employé Traitant peut **sauvegarder en brouillon** ses preuves et commentaires avant de soumettre définitivement.
 - FR10: L'Employé Traitant peut soumettre de nouvelles versions de preuves sur une même recommandation s'il subit un rejet hiérarchique, créant ainsi un cycle itératif d'allers-retours tracé jusqu'à l'obtention d'une validation.
-- FR11: Le Directeur Métier peut valider ou rejeter la preuve soumise par son Employé Traitant.
-- FR12: L'Audit Interne peut valider ou rejeter la preuve avalisée par le Directeur Métier.
-- FR13: L'Audit Interne peut modifier la date limite d'une recommandation active, sous réserve d'une justification obligatoire et tracée dans l'historique.
-- FR14: L'Audit Interne peut clôturer positivement la recommandation (`CLOSED_RESOLVED`) après validation des preuves.
-- FR15: L'Audit Interne peut forcer la clôture d'une recommandation (ex: inspection inopinée terrain prouvant la résolution) sans nécessiter de soumission préalable par l'ETP/DM.
+- FR11: Le Directeur Métier peut valider ou rejeter la preuve soumise par son Employé Traitant. **Tout rejet nécessite un motif obligatoire** — le rejet est bloqué sans motif renseigné. En cas de rejet, le statut **repasse à `IN_PROGRESS`** et les preuves rejetées sont taguées (`REJECTED_V1`, `REJECTED_V2`…) et restent visibles dans l'historique. Le DM peut optionnellement joindre un PV de recette lors de l'approbation.
+- FR12: L'Audit Interne peut valider ou rejeter la preuve avalisée par le Directeur Métier. **Tout rejet nécessite un motif obligatoire.** En cas de rejet, le statut **repasse à `IN_PROGRESS`** (les preuves rejetées sont taguées et historisées). Lors de la validation, l'Audit Interne doit définir un **taux de réalisation** (0–100%). Une clôture partielle est possible si le taux est jugé acceptable. Ce taux est figé dans l'audit trail à la clôture.
+- FR13 *(Modification unilatérale de l'échéance par l'Audit)* : L'Audit Interne peut modifier la date limite d'une recommandation active dans les deux sens (avancer ou reculer), sous réserve d'une justification obligatoire et tracée dans l'historique. C'est un pouvoir régalien de l'Audit.
+- FR13b *(Demande de prolongation soumise par le Métier)* : Le DM ou l'ETP peut **soumettre une demande formelle de prolongation de délai** via le système. Cette demande est notifiée à l'Audit Interne qui peut l'approuver ou la refuser (avec motif obligatoire). L'ensemble du workflow de prolongation est tracé dans l'audit trail.
+- FR14: L'Audit Interne peut clôturer positivement la recommandation (`CLOSED_RESOLVED`) après validation des preuves, avec attribution du taux de réalisation.
+- FR14b: La réaffectation d'une recommandation d'un DM vers un autre DM nécessite la **validation explicite de l'Audit Interne**. Elle est tracée dans l'audit trail avec justification.
+- FR15: L'Audit Interne peut forcer la clôture d'une recommandation (ex: inspection inopinée terrain prouvant la résolution) sans nécessiter de soumission préalable par l'ETP/DM.( à discuter)
 
 ### 3. Proofs & Audit Trail
-- FR16: Les Utilisateurs peuvent uploader des fichiers multiformats (PDF, Images, Excel, Word, Logs système) en pièce jointe lors d'une soumission de preuve.
-- FR17: Toutes les preuves soumises (acceptées ou rejetées) restent archivées et indélébiles. Toute suppression de preuve est techniquement impossible.
-- FR18: Le Système génère une empreinte cryptographique (SHA-256) inaltérable de la recommandation et de la preuve exacte utilisée au moment de la clôture.
-- FR19: Le Système enregistre un journal immuable de chaque événement du workflow (Qui, Quand, Ancien État, Nouvel État, modification de date limite, Motif de rejet).
-- FR20: Le Système bloque logiciellement l'auto-validation (Séparation des Tâches : un ETP ne peut cumuler le rôle de valideur DM sur le dossier qu'il a soumis).
+- FR16: Les Utilisateurs peuvent uploader des fichiers multiformats (PDF, DOCX, XLSX, JPEG, PNG, TXT, LOG) en pièce jointe lors d'une soumission de preuve. Chaque preuve est horodatée (timestamp UTC) et associée à l'utilisateur qui l'a uploadée.
+- FR17: Toutes les preuves soumises (acceptées ou rejetées) restent archivées et indélébiles (principe **append-only**). Toute suppression de preuve est techniquement impossible. Un utilisateur peut soumettre des preuves complémentaires en cas de rejet, sans effacer les précédentes.
+- FR18: Le Système génère une empreinte cryptographique (SHA-256) par recommandation :
+  - **Hash par recommandation :** À la clôture, un hash final est calculé sur l'ensemble de l'audit trail de cette recommandation. Ce hash est permanent et figé.
+
+  ```
+  Recommandation #INT-2026-042
+  │
+  ├── Action 1 : Création par Marc         (01/03 09:00)
+  ├── Action 2 : Affectation à Sarah       (01/03 09:01)
+  ├── Action 3 : Délégation à Luc          (01/03 10:30)
+  ├── Action 4 : Soumission preuves Luc    (05/03 14:00)
+  ├── Action 5 : Validation Sarah          (06/03 11:00)
+  └── Action 6 : Clôture Marc              (07/03 16:00)
+            │
+            ▼
+     SHA-256 de TOUT ça
+            │
+            ▼
+     hash_final = "a3f8c2d9..." ← FIGÉ DÉFINITIVEMENT
+  ```
+
+  - **Chaînage :** Chaque entrée de l'audit trail inclut le hash de l'entrée précédente (`hash_precedent`), formant une chaîne cryptographique. Toute altération d'une entrée historique invalide les hashes de toutes les entrées suivantes.
+  - **Post-MVP (Niveau 2) :** Un hash de période sera calculé quotidiennement sur l'ensemble des entrées d'audit trail de la journée, pour détecter toute altération rétroactive.
+- FR19: Le Système enregistre un journal immuable de chaque événement du workflow. Chaque entrée de l'audit trail contient :
+
+  | Champ | Description |
+  |---|---|
+  | `id_action` | Identifiant unique de l'action |
+  | `timestamp` | Horodatage UTC précis (millisecondes) |
+  | `utilisateur_id` | ID de l'acteur |
+  | `utilisateur_nom` | Nom complet (snapshot au moment de l'action) |
+  | `role_contexte` | Rôle de l'acteur sur cette recommandation au moment de l'action |
+  | `type_action` | Enum : création, affectation, soumission_preuve, validation, rejet, clôture, prolongation, réaffectation, etc. |
+  | `statut_avant` | Statut de la recommandation avant l'action |
+  | `statut_apres` | Statut de la recommandation après l'action |
+  | `commentaire` | Commentaire justificatif ou motif (quand applicable) |
+  | `fichiers_joints` | Liste des fichiers joints à cette action |
+  | `hash_precedent` | Hash SHA-256 de l'entrée précédente (chaînage) |
+  | `hash_courant` | Hash SHA-256 de l'entrée courante |
+
+- FR20: Le Système applique la Séparation des Tâches (SoD) selon le contexte :
+  - **Cas ETP → DM → Audit :** Un ETP ne peut pas valider ses propres preuves au niveau DM. La validation métier est assurée par le DM.
+  - **Cas DM traite lui-même :** Lorsque le DM prend en charge directement une recommandation (sans délégation à un ETP), sa soumission de preuves **passe directement en `PENDING_AUDIT_REVIEW`**, sautant l'étape de validation métier. La SoD est garantie par l'Audit Interne qui reste le valideur final indépendant.
+  - **Invariant :** Aucun acteur ne peut être à la fois soumetteur de preuve ET valideur sur le même dossier au même niveau hiérarchique.
 
 ### 4. Notifications (In-App & Email) & Scheduler
-- FR21: Le Système envoie des alertes emails internes sécurisées aux acteurs dès qu'une action est requise de leur part.
+- FR21: Le Système envoie des alertes emails internes sécurisées (serveur SMTP interne BICEC) aux acteurs dès qu'une action est requise de leur part.
 - FR22: Le Système expose un "Centre de Notifications In-App" comportant : une icône avec badge (non-lus), une liste chronologique cliquable redirigeant vers la recommandation, et une conservation des logs de 90 jours.
-- FR23: Le Système émet des rappels automatiques d'échéance à 40%, 60% et 80% du délai imparti.
-- FR24: Le Système bascule automatiquement le statut de la recommandation en `OVERDUE` (En Retard) si le délai d'échéance est franchi sans soumission en attente.
+- FR23: Le Système émet un rappel automatique **J-7** avant l'échéance aux DM + ETP + Audit Interne concernés. *Post-MVP : ajout de seuils proportionnels (40/60/80% du délai) avec dédoublonnage intelligent.*
+- FR24: Le Système bascule automatiquement le flag `OVERDUE` (En Retard) si le délai d'échéance est franchi. Le flag `OVERDUE` est **superposé** aux autres statuts — une recommandation peut être simultanément `PENDING_AUDIT_REVIEW` ET `OVERDUE`. Un rappel quotidien est envoyé tant que le retard persiste.
+
+**Matrice des Notifications :**
+
+| Événement | Destinataire(s) | Trigger |
+|---|---|---|
+| Nouvelle recommandation affectée | DM concerné | Immédiat |
+| Délégation vers ETP | ETP concerné | Immédiat |
+| Preuve soumise par ETP | DM concerné | Immédiat |
+| Preuve validée par DM | Audit Interne | Immédiat |
+| Rejet DM → ETP (retour `IN_PROGRESS`) | ETP concerné | Immédiat |
+| Rejet Audit → DM/ETP (retour `IN_PROGRESS`) | DM + ETP concernés | Immédiat |
+| Recommandation clôturée | DM + ETP + Audit Interne | Immédiat |
+| Alerte J-7 avant échéance | DM + ETP + Audit Interne | Automatique |
+| Dépassement d'échéance (`OVERDUE`) | DM + ETP + Audit Interne | Immédiat + rappel quotidien |
+| Remontée hiérarchique (absence) | Supérieur hiérarchique | Immédiat |
+| Demande de prolongation soumise | Audit Interne | Immédiat |
+| Prolongation approuvée/refusée | Demandeur (DM/ETP) | Immédiat |
 
 ### 5. Reporting, Dashboards & Exports
-- FR25: Le Système génère des indicateurs limités calculant le temps passé dans les goulots d'étranglement de validation (< 48h).
-- FR26: Le Système affiche un tableau de bord global de pilotage (Lecture seule pour Direction Générale et Audit) comprenant : Taux de conformité global, Répartition par statut (Graphique), Recommandations en retard par métier, et Évolution mensuelle.
-- FR27: La Direction Générale peut exporter les rapports issus du tableau de bord consolidé.
-- FR28: L'Auditeur Externe accède en lecture seule stricte aux recommandations de son périmètre préalablement défini par l'Audit Interne.
+- FR25: Le Système génère des indicateurs calculant le temps passé dans les goulots d'étranglement de validation (< 48h) et les KPIs opérationnels définis dans la section Success Criteria.
+- FR26: Le Système affiche des tableaux de bord distincts par profil :
+
+  **Dashboard Audit Interne / Direction Générale :**
+  | Widget | Description |
+  |---|---|
+  | Répartition par statut | Graphique en secteurs ou barres : nombre de recos par statut |
+  | Taux de clôture global | % de recos clôturées sur total actif |
+  | Taux de clôture par source | Comparatif COBAC / BEAC / CAC / Interne / NIF / Consultants |
+  | Progression par Direction Métier | Tableau : chaque DM, nb de recos, % clôturé, nb en retard |
+  | Recommandations en retard | Liste filtrée avec responsable, date d'échéance, jours de retard |
+  | Taux de rejet Audit vs Métier | Indicateurs de qualité du circuit de validation |
+  | Délai moyen de résolution | Délai global et par DM / ETP |
+  | Alertes actives | J-7, dépassements — liste consolidée |
+
+  **Dashboard Directeur Métier (DM) :**
+  - Liste "À valider" (en attente de sa validation)
+  - Liste de toutes ses recommandations avec statut en temps réel
+  - % de progression de son périmètre
+  - Alertes sur ses échéances à venir
+
+  **Dashboard ETP (vue "To-Do") :**
+  - Liste des recommandations assignées avec statut et délai
+  - Indicateur visuel d'urgence (Normal / Bientôt / En retard)
+  - Accès direct à la soumission de preuves
+
+- FR27: Le Système supporte 4 types d'exports :
+
+  | Export | Format | Déclencheur | Destinataire |
+  |---|---|---|---|
+  | Dossier complet d'une recommandation | PDF | À la demande, sur toute reco clôturée ou active | Audit Interne, Auditeur Externe |
+  | Liste filtrée des recommandations | Excel (.xlsx) | À la demande avec filtres actifs | Audit Interne, DG |
+  | Rapport de synthèse | PDF | À la demande (période choisie) | DG, Comité de Direction |
+  | Audit trail brut | CSV ou JSON | À la demande (par reco ou par période) | Auditeur Externe, Audit Interne |
+
+- FR28: L'Auditeur Externe accède en lecture seule stricte aux recommandations de son périmètre préalablement défini par l'Audit Interne. Les Auditeurs Externes utilisent des credentials locaux gérés par l'Admin IT (hors Active Directory).
 - FR29: L'Auditeur Externe peut télécharger les preuves rattachées aux recommandations de son périmètre d'inspection.
-- FR30: L'Audit Interne peut demander la génération asynchrone d'une archive ZIP contenant le journal et les preuves d'une recommandation clôturée.
-- FR31: L'Audit Interne peut (après double validation à "4-yeux") déclencher l'envoi d'un payload cryptographique vers l'API du Régulateur COBAC.
+- FR30 (MVP simplifié) : L'Audit Interne peut 
+générer et télécharger une archive ZIP d'une 
+recommandation clôturée contenant : Le journal d'audit en PDF, toutes les preuves soumises, Le hash SHA-256 final de référence
+
+
 
 ### 6. Data Initialization (MVP)
-- FR32: L'équipe Support/RCC peut uploader un fichier plat (Excel/CSV) pour importer massivement l'historique des recommandations dormantes dans la base de données.
+- FR32 : Le Support/RSSI, sous supervision 
+de l'Audit Interne, peut importer 
+massivement les recommandations historiques 
+via un fichier Excel/CSV conforme au 
+template fourni par Sentinel.
+
+Règles d'import :
+1. Un template Excel normalisé est fourni
+   par le système (colonnes et formats fixes)
+
+2. Seul l'Audit Interne peut déclencher
+   l'import final (pas le Support seul)
+
+3. Toute recommandation importée entre en 
+   statut ASSIGNED avec un tag "IMPORTED" 
+   permanent dans l'audit trail
+
+
+## Règles Métier Critiques
+
+Les règles suivantes constituent des invariants du système qui ne doivent jamais être contournés :
+
+| # | Règle | Description |
+|---|---|---|
+| R1 | Commentaire justificatif obligatoire | Tout ETP soumettant des preuves doit renseigner un commentaire ≥ 50 caractères. La soumission est bloquée sans ce champ. |
+| R2 | Motif de rejet obligatoire | Tout rejet (DM → ETP ou Audit → DM/ETP) nécessite un motif. Le rejet est bloqué sans motif. |
+| R3 | Taux de réalisation | Seul l'Audit Interne définit un taux (0–100%) à la clôture. Figé dans l'audit trail. |
+| R4 | Réaffectation entre DM | Nécessite la validation explicite de l'Audit Interne. Tracée dans l'audit trail. |
+| R5 | Un ETP par recommandation (MVP) | Une recommandation est assignée à un seul ETP. Multi-ETP prévu en Post-MVP. |
+| R6 | Flag `OVERDUE` superposé | Calculé automatiquement par le système. Superposé aux autres statuts actifs. |
+| R7 | Remontée hiérarchique automatique | En cas d'absence (flag activé par l'Admin), les recos remontent au supérieur hiérarchique avec notification. |
+| R8 | Versioning des preuves rejetées | Tout rejet (DM ou Audit) ramène le statut à `IN_PROGRESS`. Les preuves rejetées sont taguées (`REJECTED_V1`, `REJECTED_V2`…) et restent visibles dans l'historique. |
+| R9 | Prolongation et retard | Quand une prolongation est approuvée sur une reco en `OVERDUE`, le flag est automatiquement recalculé. Si la nouvelle échéance est dans le futur, le flag `OVERDUE` est retiré. L'historique de retard reste conservé dans l'audit trail. |
+
+## Non-Functional Requirements (NFR)
+
+| Contrainte | Cible |
+|---|---|
+| Disponibilité | 99.5% pendant les heures ouvrables (lun–ven, 7h–20h) |
+| Performance pages | Chargement d'une page < 2 secondes |
+| Performance exports | Génération de PDF < 30 secondes |
+| Sécurité réseau | HTTPS obligatoire |
+| Sécurité données | Chiffrement des données au repos (AES-256) |
+| Session timeout | Expiration après 30 minutes d'inactivité (configurable) |
+| Sauvegarde | Backup quotidien automatique + vérification d'intégrité |
+| Scalabilité | Supporter jusqu'à 200 utilisateurs simultanés |
+| Journal système | Toute connexion/déconnexion est tracée dans le journal système |
+
+## Conformité Réglementaire
+
+### Conformité Loi Camerounaise 2024-017
+
+| Exigence | Implémentation Sentinel |
+|---|---|
+| Hébergement des données personnelles | On-Premise — serveurs BICEC en territoire camerounais |
+| Contrôle d'accès strict | 6 profils RBAC + RLS par recommandation |
+| Traçabilité des accès | Journal système : toute consultation est enregistrée |
+| Consentement & finalité | Usage interne délimité, données liées au contexte professionnel |
+| Droit d'accès / rectification | Processus défini via le support IT/RSSI |
+
+### Conformité COBAC R-2023/01
+
+| Exigence | Implémentation Sentinel |
+|---|---|
+| Traçabilité du cycle de vie | Audit trail exhaustif par recommandation (12 champs) |
+| Preuve de mise en œuvre des corrections | Preuves multi-formats + commentaires justificatifs ≥ 50 car. |
+| Valeur probatoire des documents | Hash SHA-256 chaîné par recommandation — intégrité vérifiable |
+| Accès des inspecteurs | Portail Read-Only dédié avec credentials locaux + exports |
+
+## Critères d'Acceptance du MVP
+
+### Critères Fonctionnels
+- ✅ Une recommandation peut être créée, affectée, traitée et clôturée de bout en bout sans sortir de Sentinel.
+- ✅ L'audit trail de chaque recommandation clôturée contient 100% des actions avec hash SHA-256 vérifiable.
+- ✅ Un Auditeur Externe peut se connecter, visualiser un dossier autorisé et exporter l'audit trail.
+- ✅ Les alertes J-7 sont envoyées automatiquement par email ET in-app aux bons destinataires.
+- ✅ Le flag `OVERDUE` est activé automatiquement au dépassement d'échéance avec rappels quotidiens.
+- ✅ Un rapport de synthèse PDF peut être généré en moins de 30 secondes.
+- ✅ L'ETP peut sauvegarder un brouillon avant soumission définitive.
+
+### Critères Réglementaires
+- ✅ La BICEC peut démontrer à un inspecteur COBAC/BEAC : qui a fait quoi, quand, avec quelles preuves, sur chaque recommandation.
+- ✅ L'intégrité de l'audit trail est vérifiable via le hash SHA-256 chaîné.
+- ✅ Excel n'est plus utilisé pour le suivi centralisé (adoption ≥ 95% à J+30).
+
+### Critères Techniques
+- ✅ L'application fonctionne entièrement On-Premise sur l'infrastructure BICEC.
+- ✅ L'authentification SSO via Active Directory est opérationnelle.
+- ✅ Les temps de réponse respectent les cibles NFR (pages < 2s, PDF < 30s).
+- ✅ Les backups quotidiens sont configurés et testés.
+
+## Glossaire
+
+| Terme | Définition |
+|---|---|
+| AI | Audit Interne BICEC |
+| DM | Directeur Métier — responsable d'une direction opérationnelle |
+| ETP | Employé Traitant — collaborateur opérationnel chargé de l'exécution |
+| DG | Direction Générale |
+| CAC | Commissaires aux Comptes |
+| COBAC | Commission Bancaire de l'Afrique Centrale |
+| BEAC | Banque des États de l'Afrique Centrale |
+| NIF | Numéro d'Identification Fiscale (autorité fiscale camerounaise) |
+| CEMAC | Communauté Économique et Monétaire de l'Afrique Centrale |
+| SHA-256 | Algorithme de hachage cryptographique (Secure Hash Algorithm 256 bits) |
+| On-Premise | Hébergement sur les serveurs physiques internes de la BICEC |
+| Audit Trail | Journal immuable et horodaté de toutes les actions sur une recommandation |
+| Taux de réalisation | Pourcentage d'accomplissement, défini par l'Audit Interne à la clôture |
+| SSO | Single Sign-On — authentification unique via Active Directory |
+| PV de recette | Procès-Verbal de Recette — document optionnel joint par le DM |
+| Append-only | Principe d'architecture où les données ne peuvent être qu'ajoutées, jamais modifiées ou supprimées |
+| RCC | Responsable du Contrôle de Conformité — profil Admin dans Sentinel |
+| FSM | Finite State Machine — machine à états finis régissant le cycle de vie |
+| RLS | Row-Level Security — cloisonnement des données au niveau de la base de données |
+| SoD | Separation of Duties — séparation des tâches |

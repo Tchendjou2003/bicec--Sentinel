@@ -70,13 +70,12 @@ Sentinel est une **Enterprise Web App à haute valeur probatoire** dont l'archit
 - **Sécurité :** RBAC 6 profils, Row-Level Security (RLS) en base de données, SSO Active Directory.
 - **Async & Notifications :** Ordonnanceur BDD (In-Memory Scheduler) pour les alertes J-7 avant échéance et le basculement automatique en `OVERDUE` avec rappels quotidiens.
 - **Preuves & Audit Trail :** Upload de preuves textuelles ou fichiers avec justification obligatoire, scellement par empreinte d'intégrité à la clôture.
-- **Export Légal :** Génération de l'archive cryptée complète (Preuves + Journal) à destination de l'auditeur externe.
+- **Export Légal :** Génération de l'archive cryptée (Preuves + Synthèse de conformité) à destination de l'auditeur externe. **L'audit trail complet (journal des actions) est exclu de l'export externe** — seul l'Audit Interne peut le consulter.
 - **Reprise de l'Historique :** Module d'import massif (Excel) pour intégrer les recommandations dormantes ou passées (Indispensable pour l'adoption V1).
 
 ### Growth Features (Post-MVP)
 - Portail de consultation interactive sécurisé (DMZ) pour les Auditeurs Externes.
 - Seuils de relance proportionnels (40/60/80% du délai) avec dédoublonnage intelligent.
-- Hash SHA-256 quotidien global (Niveau 2) pour détection d'altération rétroactive.
 
 ### Vision (Future)
 - **Hub de Conformité SaaS On-Premise :** Standardisation de l'outil pour commercialisation sécurisée au sein d'autres banques de la zone CEMAC.
@@ -96,15 +95,15 @@ Sentinel est une **Enterprise Web App à haute valeur probatoire** dont l'archit
 
 ### 3. Parcours de l'Auditeur Externe : La Mission COBAC (Compliance Path)
 **Persona impliqué :** M. Atangana (Inspecteur COBAC).
-**Le scénario :** M. Atangana effectue un contrôle inopiné à la BICEC. Il reçoit un accès "Auditeur Externe" (Lecture seule cloisonnée par RLS). Via le module de filtrage, il isole son périmètre de mission et clique sur "Générer Export Légal". Un job asynchrone compile un fichier ZIP contenant le registre d'audit trail complet en PDF et l'intégralité des pièces jointes natives indélébiles.
-**Bénéfice :** Transparence immédiate et preuve technique irréfutable de non-altération à posteriori des dossiers.
+**Le scénario :** M. Atangana effectue un contrôle inopiné à la BICEC. Il reçoit un accès "Auditeur Externe" (Lecture seule cloisonnée par RLS). Via le module de filtrage, il isole son périmètre de mission et consulte les recommandations avec leurs preuves associées. Il peut télécharger les pièces jointes de son périmètre. **L'audit trail (journal des actions internes) n'est pas accessible** — seul un résumé de conformité (statut, dates clés, hash SHA-256 de clôture) lui est présenté.
+**Bénéfice :** Transparence suffisante pour le régulateur avec preuve d'intégrité cryptographique, tout en préservant la confidentialité du processus interne de la banque.
 
 ### Journey Requirements Summary
 Ces parcours utilisateurs induisent des exigences techniques spécifiques pour l'implémentation :
 - **Délégation Asynchrone :** Gérer l'affectation N+1 -> N (fonctionnalité de co-affectation ou assignation d'ETP).
 - **Historisation des Rejets :** Versioning des soumissions (un ETP peut soumettre N fois le même dossier avec des commentaires/preuves différents suite à des rejets).
 - **Gestion de l'Intérim :** Nécessité absolue d'un mécanisme de délégation temporaire des droits de validation (vacances DM).
-- **Générateur d'Export Zip Asynchrone :** Service background (`pdf-gen`, `zip-gen`) impératif pour ne pas faire exploser les timeouts HTTP du navigateur lors des requêtes d'auditeurs externes.
+- **Export Zip Synchrone :** Téléchargement direct HTTP de l'archive. L'infrastructure réseau LAN Gigabit On-Premise de la BICEC rend un service de génération asynchrone en arrière-plan superflu pour le MVP.
 
 ## Domain-Specific Requirements
 
@@ -198,7 +197,6 @@ En tant que **On-Premise Enterprise Web App**, Sentinel se détache des architec
 **Phase 2 (Growth):**
 - Portail DMZ "Read-Only" pour auditeurs externes non-salariés.
 - Seuils de relance proportionnels (40/60/80%) avec dédoublonnage intelligent.
-- Hash SHA-256 quotidien global (Niveau 2).
 **Phase 3 (Expansion):**
 - Intégration complète en temps réel "Machine-to-Machine" avec les API du Régulateur.
 - Architecture SaaS "Hub de conformité" (Multi-tenant) pour commercialisation intra-groupe.
@@ -248,6 +246,9 @@ En tant que **On-Premise Enterprise Web App**, Sentinel se détache des architec
 - FR15: L'Audit Interne peut forcer la clôture d'une recommandation (ex: inspection inopinée terrain prouvant la résolution) sans nécessiter de soumission préalable par l'ETP/DM.( à discuter)
 
 ### 3. Proofs & Audit Trail
+
+> [!IMPORTANT]
+> **Restriction d'accès à l'Audit Trail :** L'audit trail (journal des actions) est **exclusivement consultable par l'Audit Interne**. Les Auditeurs Externes, les Directeurs Métiers (DM) et les Employés Traitants (ETP) n'ont **aucun accès** en lecture à l'audit trail. Les DM et ETP voient uniquement l'historique des preuves et des statuts de leurs recommandations, sans le détail du journal d'audit. Les Auditeurs Externes accèdent aux preuves et à une synthèse de conformité (statut, dates clés, hash SHA-256).
 - FR16: Les Utilisateurs peuvent uploader des fichiers multiformats (PDF, DOCX, XLSX, JPEG, PNG, TXT, LOG) en pièce jointe lors d'une soumission de preuve. Chaque preuve est horodatée (timestamp UTC) et associée à l'utilisateur qui l'a uploadée.
 - FR17: Toutes les preuves soumises (acceptées ou rejetées) restent archivées et indélébiles (principe **append-only**). Toute suppression de preuve est techniquement impossible. Un utilisateur peut soumettre des preuves complémentaires en cas de rejet, sans effacer les précédentes.
 - FR18: Le Système génère une empreinte cryptographique (SHA-256) par recommandation :
@@ -271,7 +272,6 @@ En tant que **On-Premise Enterprise Web App**, Sentinel se détache des architec
   ```
 
   - **Chaînage :** Chaque entrée de l'audit trail inclut le hash de l'entrée précédente (`hash_precedent`), formant une chaîne cryptographique. Toute altération d'une entrée historique invalide les hashes de toutes les entrées suivantes.
-  - **Post-MVP (Niveau 2) :** Un hash de période sera calculé quotidiennement sur l'ensemble des entrées d'audit trail de la journée, pour détecter toute altération rétroactive.
 - FR19: Le Système enregistre un journal immuable de chaque événement du workflow. Chaque entrée de l'audit trail contient :
 
   | Champ | Description |
@@ -348,12 +348,12 @@ En tant que **On-Premise Enterprise Web App**, Sentinel se détache des architec
 
   | Export | Format | Déclencheur | Destinataire |
   |---|---|---|---|
-  | Dossier complet d'une recommandation | PDF | À la demande, sur toute reco clôturée ou active | Audit Interne, Auditeur Externe |
+  | Dossier complet d'une recommandation (preuves + synthèse de conformité, **sans audit trail**) | PDF | À la demande, sur toute reco clôturée ou active | Audit Interne, Auditeur Externe |
   | Liste filtrée des recommandations | Excel (.xlsx) | À la demande avec filtres actifs | Audit Interne, DG |
   | Rapport de synthèse | PDF | À la demande (période choisie) | DG, Comité de Direction |
-  | Audit trail brut | CSV ou JSON | À la demande (par reco ou par période) | Auditeur Externe, Audit Interne |
+  | Audit trail brut | CSV ou JSON | À la demande (par reco ou par période) | **Audit Interne uniquement** |
 
-- FR28: L'Auditeur Externe accède en lecture seule stricte aux recommandations de son périmètre préalablement défini par l'Audit Interne. Les Auditeurs Externes utilisent des credentials locaux gérés par l'Admin IT (hors Active Directory).
+- FR28: L'Auditeur Externe accède en lecture seule stricte aux recommandations de son périmètre préalablement défini par l'Audit Interne. **L'Auditeur Externe ne peut pas consulter l'audit trail (journal des actions).** Il a accès uniquement aux preuves, aux statuts et à une fiche de synthèse de conformité (dates clés + hash SHA-256 de clôture). Les Auditeurs Externes utilisent des credentials locaux gérés par l'Admin IT (hors Active Directory).
 - FR29: L'Auditeur Externe peut télécharger les preuves rattachées aux recommandations de son périmètre d'inspection.
 - FR30 (MVP simplifié) : L'Audit Interne peut 
 générer et télécharger une archive ZIP d'une 
@@ -429,14 +429,14 @@ Les règles suivantes constituent des invariants du système qui ne doivent jama
 | Traçabilité du cycle de vie | Audit trail exhaustif par recommandation (12 champs) |
 | Preuve de mise en œuvre des corrections | Preuves multi-formats + commentaires justificatifs ≥ 50 car. |
 | Valeur probatoire des documents | Hash SHA-256 chaîné par recommandation — intégrité vérifiable |
-| Accès des inspecteurs | Portail Read-Only dédié avec credentials locaux + exports |
+| Accès des inspecteurs | Portail Read-Only dédié avec credentials locaux + exports (preuves et synthèse de conformité — **audit trail exclu**) |
 
 ## Critères d'Acceptance du MVP
 
 ### Critères Fonctionnels
 - ✅ Une recommandation peut être créée, affectée, traitée et clôturée de bout en bout sans sortir de Sentinel.
 - ✅ L'audit trail de chaque recommandation clôturée contient 100% des actions avec hash SHA-256 vérifiable.
-- ✅ Un Auditeur Externe peut se connecter, visualiser un dossier autorisé et exporter l'audit trail.
+- ✅ Un Auditeur Externe peut se connecter, visualiser un dossier autorisé, consulter les preuves et télécharger une synthèse de conformité (**sans accès à l'audit trail**).
 - ✅ Les alertes J-7 sont envoyées automatiquement par email ET in-app aux bons destinataires.
 - ✅ Le flag `OVERDUE` est activé automatiquement au dépassement d'échéance avec rappels quotidiens.
 - ✅ Un rapport de synthèse PDF peut être généré en moins de 30 secondes.

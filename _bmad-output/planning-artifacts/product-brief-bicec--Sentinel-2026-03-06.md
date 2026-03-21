@@ -152,7 +152,7 @@ Fonctionnalités clés :
 **6. Sandra O. — Admin IT** *(Support / RCC)*
 - **Usage :** Maintien du SSO, gestion en cas de modification d'organigramme (turnover), supervision de sécurité.
 
-### User Journey : Cycle de traitement de la recommandation d'audit
+ 
 
 1. **RÉCEPTION / LANCEMENT :** Une recommandation de contrôle (interne/COBAC/autres) est enregistrée par l'Audit Interne dans Sentinel, catégorisée et affectée à un **Directeur Métier (DM)** avec un délai.
 2. **AFFECTATION / DÉLÉGATION :** Le DM examine la recommandation. Il peut la traiter lui-même **OU** la déléguer à une sous-direction métier ou un collaborateur opérationnel (**ETP**) pour exécution.

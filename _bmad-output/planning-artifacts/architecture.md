@@ -1,365 +1,488 @@
 ---
 stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 inputDocuments:
-  - planning-artifacts/prd.md
-  - planning-artifacts/product-brief-bicec--Sentinel-2026-03-06.md
+  - planning-artifacts/prd-v2.md
+  - planning-artifacts/product-brief-v2.md
+  - planning-artifacts/research/market-sentinel-grc-cemac-research-2026-03-21.md
+  - planning-artifacts/research/domain-audit-interne-cemac-research-2026-03-21.md
 workflowType: 'architecture'
 project_name: 'bicec--Sentinel'
 user_name: 'Dave Lahe'
-date: '2026-03-16'
-lastStep: 8
-status: 'complete'
-completedAt: '2026-03-17'
+date: '2026-03-23'
+status: 'FINAL'
 ---
 
-# Architecture Decision Document — Sentinel (BICEC)
+# Architecture Decision Document (Sentinel)
 
-_Ce document se construit collaborativement, étape par étape. Chaque section est ajoutée au fur et à mesure de nos décisions architecturales._
+> **Executive Summary**
+> Sentinel est une Single-Page Application (SPA) sécurisée, conçue pour opérer on-premise sous contraintes COBAC. L'architecture retenue est un **Custom Monorepo** propulsé par **Django/DRF** en backend et **React (Template Premium)** en frontend, liés au build par `django-vite`.
+> Le défi technique central (Workflow d'Audit & Sécurité des données) est résolu par un **RLS PostgreSQL Intégral** (Tenant-Isolation), le framework **django-fsm** pour le moteur d'états, et une architecture Clean (HackSoft) pour garantir un code testable. L'application supporte le multithreading massif via Gunicorn pour la manipulation asynchrone sécurisée de preuves documentaires de grande taille.
 
-## Project Context Analysis
+## Analyse du Contexte Projet
 
-### Requirements Overview
+### Vue d'ensemble des Exigences
 
-**Functional Requirements:**
-Le système repose sur une Machine à États Finis (FSM - via `django-fsm`) stricte pour orchestrer un workflow de validation à double niveau. Il requiert un profilage complexe (6 rôles, délégations d'intérim), une gestion de fichiers volumineux pour les preuves, et la génération d'archives dynamiques (ZIP/PDF). Le besoin d'une traçabilité absolue impose un mécanisme d'Audit Trail cryptographique (SHA-256) fonctionnant en "append-only".
+#### Exigences Fonctionnelles (31 FR — 7 domaines)
 
-**Non-Functional Requirements:**
-- Sécurité des données maximale (AES-256 au repos, intégration AD SSO).
-- Performance et asynchronisme : Chargement UI < 2s, traitement des exports < 30s.
-- Haute disponibilité (99.5%) pour un maximum de 200 utilisateurs simultanés.
+| Domaine | FRs | Implications architecturales |
+|---|---|---|
+| **Gestion Utilisateurs & Auth** | FR1–FR4 | SSO Active Directory (Read-Only) + credentials locaux Auditeurs Externes. RBAC multi-rôle contextuel (un même utilisateur peut être DM sur une reco et ETP sur une autre). |
+| **Initialisation & Import** | FR5–FR9 | Import transactionnel atomique (tout-ou-rien). Soft delete. Bulk create. Tag `IMPORTED` inaltérable dans l'audit trail. Template normalisé téléchargeable exclusivement par l'Audit. |
+| **Workflow & Triage** | FR10–FR14 | FSM strict 5 états (`ASSIGNED` → `IN_PROGRESS` → `PENDING_DM_REVIEW` → `PENDING_AUDIT_REVIEW` → `CLOSED_RESOLVED`) + flag `OVERDUE` + statut transitoire d'extension. Demande de report formalisée (DM → Audit). |
+| **Soumission & Validation Preuves** | FR15–FR20 | Upload 50 Mo max (validation magic bytes PDF/JPG/PNG). Versioning des preuves (historique des rejets conservé). PV de recette signé par DM. Double validation (DM → Audit). |
+| **Notifications & Rappels** | FR21–FR23 | Scheduler asynchrone (CRON nocturne). Emails **consolidés par utilisateur** (1 email = toutes les recos en retard de l'utilisateur). Alertes **proactives J-7 avant échéance**. Quotidien (Critique) / Hebdo (autres). HTML basique compatible Outlook. |
+| **Audit Cryptographique & Export** | FR24–FR27 | Sceau HMAC-SHA256 calculé à la clôture. Archive ZIP synchrone < 5s par recommandation. Timeline audit trail (frise chronologique). Append-only strict. |
+| **Dashboards** | FR28–FR31 | Accès filtré par périmètre organisationnel (RBAC applicatif). Filtres multi-critères (source, priorité, statut, aging). Code couleur urgence (Rouge/Orange/Vert). CSS `@media print` pour export DG. |
 
-**Scale & Complexity:**
-Le projet s'inscrit dans un cadre RegTech critique ("Compliance-First") sous forte contrainte réglementaire (CEMAC/COBAC), exigeant une robustesse transactionnelle à toute épreuve.
+#### Exigences Non-Fonctionnelles (13 NFR — 4 catégories)
 
-- Primary domain: Full-Stack Enterprise Web App (Single-Tenant On-Premise)
-- Complexity level: HIGH
-- Estimated architectural components: 4 principaux (Frontend SPA, Backend API REST, Worker Asynchrone, SGBDR avec RLS)
+| Catégorie | NFRs clés | Impact architectural |
+|---|---|---|
+| **Sécurité** | TLS 1.2+, session 30min, HMAC-SHA256, Magic Bytes, logs 12 mois | Middleware de sécurité robuste, stockage structuré des logs d'activité |
+| **Performance** | Accès filtré < 10ms, UI < 1s (P95), HMAC < 500ms, ZIP < 5s | Pré-calcul du périmètre organisationnel dans le token/session |
+| **Scalabilité** | 50 Mo/fichier × 5 max, ~2 000 recos + ~8 000 fichiers historiques, ~200 users concurrents | Dimensionnement mono-serveur suffisant |
+| **Fiabilité** | Fail-safe (0 ligne si contexte absent), RPO 24h, RTO 4h, Uptime 99,5% | Backup incrémental nocturne chiffré, RLS minimaliste comme filet de sécurité |
 
-### Technical Constraints & Dependencies
+### Échelle & Complexité
 
-- Hébergement On-Premise obligatoire sur l'infrastructure BICEC.
-- Authentification couplée à l'Active Directory existant (LDAP/SAML).
-- SGBDR PostgreSQL ciblé pour sa gestion native de la Row-Level Security (RLS).
-- Absence d'intégration API externe (Core Banking, RH) pour le MVP, limitant la complexité d'interfaçage.
+- **Domaine technique principal :** Application web full-stack On-Premise (SPA React + API REST + PostgreSQL)
+- **Niveau de complexité :** **HIGH** — Accumulation de sous-systèmes MEDIUM (workflow FSM, notifications, uploads, dashboards) + conformité réglementaire HIGH (COBAC R-2016/04, Loi 2024-017)
+- **Composants architecturaux estimés :** ~12 modules (Auth/SSO, RBAC, FSM Workflow, Import Engine, File Storage, Notification Scheduler, Crypto Seal, Audit Trail, Dashboard Engine, User Management, Organigramme, Export/Archive)
+- **Volume de données :** ~2 000 recommandations, ~8 000 fichiers de preuves, ~200 utilisateurs concurrents max
 
-### Cross-Cutting Concerns Identified
+### Contraintes Techniques & Dépendances
 
-- **Sécurité et Habilitations :** Application de la *Séparation des Tâches (SoD)* et de la *Row-Level Security (RLS)*.
-- **Ordonnancement Asynchrone :** Tâches planifiées (alertes J-7, basculement OVERDUE, rapports).
-- **Audit et Immuabilité :** Traçabilité cryptographique de chaque mutation d'état protégée par des Triggers BDD (Append-Only).
-- **Manipulation de Fichiers :** Upload sécurisé, stockage pérenne orienté Object Storage (S3/MinIO WORM) et compression ZIP/PDF des preuves.
-- **Résilience Système :** Calcul dynamique de secours pour l'état OVERDUE et compte d'urgence "Break-Glass" hors AD.
+| Contrainte | Détail |
+|---|---|
+| **On-Premise isolé** | Aucune dépendance Cloud. Tout le runtime doit être auto-contenu sur le réseau interne BICEC. |
+| **Active Directory (SSO)** | Intégration Read-Only LDAP. Révocation instantanée via désactivation du compte AD. |
+| **PostgreSQL obligatoire** | Triggers d'audit natifs, extensions crypto (pgcrypto pour HMAC-SHA256), RLS minimaliste disponible. |
+| **Mono-serveur MVP** | API + BDD sur la même machine/VM. Simplifie TLS interne (pas de chiffrement API↔BDD nécessaire). |
+| **SPA React** | Frontend Single Page Application (décision PRD). |
+| **Pas de ClamAV MVP** | Sécurité fichiers allégée : validation magic bytes + whitelist extensions uniquement. |
 
-## Starter Template Evaluation
+### Préoccupations Transversales
 
-### Primary Technology Domain
+1. **Sécurité & Conformité** — Traverse TOUS les composants : chaque endpoint vérifie le RBAC, chaque requête SQL filtre par périmètre, chaque mutation est tracée dans l'audit trail.
+2. **Audit Trail (Append-Only)** — Triggers PostgreSQL sur chaque table métier. Aucune suppression physique. Capture : utilisateur, horodatage, IP, valeurs avant/après.
+3. **Gestion des Fichiers** — Upload sécurisé (magic bytes), stockage versionné (preuves rejetées conservées), génération ZIP synchrone, limite mémoire serveur (5 fichiers × 50 Mo max par requête).
+4. **Scheduler Asynchrone** — Calcul quotidien OVERDUE, envoi emails consolidés nocturnes, alertes proactives J-7, indépendant du cycle requête/réponse.
+5. **Périmètre Organisationnel** — Pré-calcul du périmètre (directions accessibles) dans le token/session JWT pour des requêtes filtrées < 10ms.
 
-Full-Stack Enterprise Web App (Architecture découplée : React SPA + Django REST API) basé sur l'analyse des exigences du projet.
+### Décisions Architecturales Issues de l'Élicitation Avancée
 
-### Starter Options Considered
+#### ADR-01 : RLS Intégral (Tenant-Isolation) + RBAC Applicatif
 
-1.  **Pre-packaged Full-Stack Boilerplates (ex: divers `django-react-boilerplate` sur GitHub)**
-    -   *Avantages :* Rapide à lancer, inclut souvent Docker et l'authentification de base pré-câblée.
-    -   *Inconvénients :* Fortement opiniâtre. Ces starters imposent souvent l'authentification par Token JWT (peu adaptée à notre besoin de SSO Active Directory fluide) et incluent des modèles User génériques qui compliqueraient l'intégration propre de notre Row-Level Security (RLS) PostgreSQL.
+**Contexte :** Une politique "RLS minimaliste" (ne vérifiant que l'authentification) laissait la responsabilité du filtrage des données (par Direction) aux développeurs Django. C'est une vulnérabilité critique de fuite de données (CWE-862) identifiée lors de l'Audit de Sécurité.
 
-2.  **Enterprise Custom Foundation (Vite React TS + Pure Django-Admin)**
-    -   *Avantages :* Contrôle absolu sur la chaîne de sécurité. Permet d'intégrer `django-fsm` proprement dès le jour 1, de configurer le SSO Active Directory sans conflits de librairies tierces, et de mettre en place une architecture frontend Vite/TypeScript moderne et performante.
-    -   *Inconvénients :* Nécessite de configurer manuellement le pont CORS et l'infrastructure asynchrone (Celery/Redis) lors du sprint d'initialisation.
+**Décision :**
+- **RLS Intégral Strict (Base de données) :** Le `Direction_id` (Tenant) est injecté de force dans le contexte PostgreSQL via un middleware Django (`set_config('app.tenant_id', ...)`). Les Policies RLS interdisent **physiquement** au moteur SQL de retourner les recommandations d'une autre direction.
+- **RBAC applicatif (Backend) :** DRF gère les droits applicatifs (ex: un DM ne peut pas utiliser l'action "Valider").
+- **Auditeur Externe COBAC** : RLS spécifique l'autorisant à lire uniquement les recommandations liées à son `perimetre_mission_id`.
 
-### Selected Starter: Enterprise Custom Foundation (Vite React TypeScript + Django Pure)
+**Conséquences :** Sécurité de type "Fail-Closed" garantie. Même si un développeur omet un `.filter()` dans une requête ORM complexe, la BDD bloque la fuite de données d'une autre Direction. Conformité stricte NFR-REL-01.
 
-**Rationale for Selection:**
-Pour une application RegTech où la sécurité (RLS) et l'Audit Trail immuable sont vitaux, utiliser un boilerplate monolithique générique introduit des risques de sécurité et de la dette technique en forçant l'équipe de développement à détricoter des choix par défaut incompatibles. Une fondation sur-mesure utilisant les générateurs officiels modernes (`vite` et `django-admin`) garantit une base saine, 100% maîtrisée, prête pour nos exigences strictes (SSO, WORM, FSM).
+#### ADR-02 : Infrastructure Web — Zéro Nginx + Gunicorn Multithread
 
-**Initialization Command:**
+**Contexte :** Gunicorn utilise par défaut des workers synchrones. Le PRD exige le support d'uploads de 50 Mo (NFR-SCA-01). L'audit a prouvé que si 4 utilisateurs téléchargent 50 Mo sur un réseau lent simultanément, les 4 workers synchrones Gunicorn sont gelés, bloquant toute l'API. Cependant, le projet impose de limiter la complexité de l'infrastructure On-Premise (refus catégorique d'ajouter Nginx ou MinIO au MVP).
 
-```bash
-# Frontend Initialization
-npm create vite@latest sentinel-frontend -- --template react-ts
+**Décision : WhiteNoise + Gunicorn en mode `gthread` (Multithreading).**
+- **Zéro composant réseau externe** : L'architecture reste limitée à l'application Django auto-suffisante.
+- **Configuration Gunicorn Asynchrone (I/O) :** Gunicorn sera explicitement configuré avec `--worker-class gthread --workers 4 --threads 10`. Cela offre une capacité de 40 connexions concurrentes. Le téléchargement d'un gros fichier bloquera un seul thread (et non le processus entier), laissant 39 threads réactifs pour le JSON de l'API.
+- **WhiteNoise** sert les fichiers statiques React (SPA).
+- **Gunicorn** gère lui-même la terminaison TLS.
 
-# Backend Initialization
-python -m venv venv
-source venv/bin/activate
-pip install django djangorestframework django-fsm-2 psycopg2-binary celery redis
-django-admin startproject sentinel_backend .
+**Conséquences :** Le "Juste Milieu" parfait. Le déploiement On-Premise reste ultra-simple (un seul service), tout en neutralisant complètement le risque de blocage par famine (DDoS involontaire) lié aux gros fichiers.
+
+#### ADR-03 : Système de Notifications Consolidé
+
+**Contexte :** Le PRD-v2 (FR23) proposait 1 email distinct par recommandation en retard. Pour un DM avec 15 recos en retard, cela génère 15 emails/nuit → fatigue de notification → adoption compromise.
+
+**Décision :**
+- **1 email consolidé par utilisateur** listant toutes ses recommandations en retard, groupées par priorité
+- **Alerte proactive J-7** avant échéance (mentionnée dans le product brief, absente des FRs formelles → à ajouter)
+- **Fréquence maintenue** : quotidien (Critique), digest hebdomadaire (Haute/Moyenne/Faible)
+- **Format HTML basique** compatible Outlook (inchangé)
+- **Notifications in-app** : badge + liste dans le dashboard utilisateur
+
+**Conséquences :** Implémentation plus simple (1 query → 1 template → 1 envoi par utilisateur). Meilleure adoption. Réduction drastique du volume d'emails.
+
+#### ADR-04 : Framework API — Django REST Framework (DRF)
+
+**Contexte :** Choix entre DRF (standard de facto, 12+ ans) et Django Ninja (plus récent, basé sur Pydantic).
+
+**Décision : DRF.**
+- Écosystème mature : `djangorestframework-simplejwt` (auth), `django-filter` (filtres dashboards), permissions granulaires.
+- Documentation exhaustive, communauté massive.
+- Verbosité acceptée au profit de la fiabilité et de la maintenabilité.
+
+**Conséquences :** Stack Django standard, facilement maintenable par un développeur remplaçant.
+
+#### ADR-05 : Task Queue — Django-Q2 (Mode Résilient)
+
+**Contexte :** Le scheduler nocturne (OVERDUE, notifications) nécessite un système de tâches asynchrones. Options : Celery (Redis/RabbitMQ requis), Django-Q2 (ORM comme broker), APScheduler, CRON natif OS.
+
+**Décision : Django-Q2 avec Résilience Absolue (Timeout/Retry).**
+- **Zéro dépendance externe** : utilise l'ORM Django comme broker (pas de Celery/Redis).
+- **Anticipation des "Tâches Zombies" :** Pour éviter la mort silencieuse du worker lors d'un redémarrage serveur nocturne, la Task Queue sera configurée avec un `timeout` stricts (ex: 60s) et un `retry` (ex: 120s). Toute tâche interrompue sera automatiquement relancée.
+- Monitoring intégré dans l'admin Django (visibilité immédiate pour le RSSI).
+- Table `scheduler_heartbeat` pour détecter si le scheduler ne tourne plus de manière globale.
+
+**Conséquences :** Infrastructure simplifiée. Pas de broker externe. Tâches résilientes sans "Mort Silencieuse", même lors des patchings système de la VM hôte.
+
+#### ADR-06 : Authentification SPA — JWT Cookie HttpOnly
+
+**Contexte :** Choix entre JWT en cookie HttpOnly (stateless) et session Django classique (stateful, cookie de session en BDD).
+
+**Décision : JWT Cookie HttpOnly via `djangorestframework-simplejwt`.**
+- Access token : expiry 30 min (= NFR-SEC-02, session 30 min d'inactivité).
+- Refresh token : expiry 8h (journée de travail BICEC).
+- Flags cookie : `HttpOnly`, `Secure`, `SameSite=Strict`.
+- Validation du statut AD au moment du refresh token (si compte AD désactivé → refresh refusé → déconnexion automatique).
+- **Jamais de stockage JWT en `localStorage`** (vulnérable XSS).
+
+**Conséquences :** Compatible SPA React. Stateless (scalable). Révocation AD effective dans un délai maximal de 30 min (durée du access token).
+
+### Analyse de Sécurité (Security Audit Personas)
+
+#### Vecteurs d'Attaque Identifiés
+
+| Vecteur | Cible | Risque | Mitigation |
+|---|---|---|---|
+| Upload malveillant | Fichier avec magic bytes valides mais contenu piégé | MOYEN | Magic bytes + whitelist extensions (MVP). ClamAV en V2. Fichiers jamais exécutés côté serveur. |
+| Vol de JWT (XSS) | Token volé = usurpation complète | ÉLEVÉ | Cookie `HttpOnly` + `Secure` + `SameSite=Strict`. Expiry court (30min). |
+| CSRF sur SPA React | Django CSRF classique incompatible SPA + JWT | MOYEN | JWT dans cookie `HttpOnly` + header `X-CSRFToken` synchronisé. DRF gère ce pattern. |
+| Élévation de privilèges | ETP accédant aux endpoints Audit | ÉLEVÉ | Middleware RBAC sur 100% des endpoints. Tests d'intégration automatisés vérifiant chaque endpoint × chaque rôle. |
+| Compromission clé HMAC | Recalcul de tous les sceaux SHA-256 | CRITIQUE | Clé HMAC en variable d'environnement, jamais en BDD. Rotation = re-signature. |
+| SQL Injection via raw SQL | Requêtes RLS ou rapports | FAIBLE | Django ORM paramétré. Raw SQL : `cursor.execute(query, params)`, jamais de f-string. |
+
+#### Réponses à l'Inspecteur COBAC
+
+- **Vérification d'intégrité :** Hash HMAC-SHA256 affiché sur chaque fiche close. Script de vérification standalone livré avec l'application.
+- **Immutabilité audit trail :** Triggers PostgreSQL `BEFORE DELETE/UPDATE` sur la table audit. Risque résiduel DBA accepté, atténué par backups + hash de clôture.
+- **Export preuves :** ZIP synchrone par recommandation (FR26).
+
+### Analyse des Modes de Défaillance
+
+| Composant | Mode de défaillance | Impact | Mitigation |
+|---|---|---|---|
+| Scheduler (Django-Q2) | Ne s'exécute pas | 🔴 OVERDUE jamais flaggé | Table `scheduler_heartbeat` + alerte si pas de run > 25h |
+| Email SMTP | Serveur mail indisponible | 🟡 Notifications perdues | Queue avec retry (3 tentatives). Log des échecs. Notifications in-app comme backup. |
+| Active Directory | AD indisponible | 🔴 Personne ne peut se connecter | Tolérer le downtime (aligné sur RTO IT BICEC). Comptes Auditeur Externe en local (non impactés). |
+| Stockage fichiers | Disque plein (~40 Go estimés) | 🔴 Uploads échouent | Monitoring disque. Alerte à 80% capacité. |
+| Gunicorn | Process crash | 🟡 Service momentanément indisponible | `systemd` auto-restart. Workers multiples. |
+| PostgreSQL | Crash / corruption | 🔴 Perte données (RPO 24h) | Backup incrémental nocturne chiffré. Test de restauration mensuel. |
+| JWT Secret | Secret compromis | 🔴 Tokens falsifiables | Rotation planifiée. Secret en variable d'environnement. |
+
+### Analyse Pre-mortem — Risques d'Échec Projet
+
+| Cause probable d'échec | Probabilité | Prévention architecturale |
+|---|---|---|
+| DM n'adoptent pas — UX trop complexe | Élevée | Dashboard DM = priorité UX #1. Max 3 clics pour valider. |
+| Scheduler silencieusement mort | Moyenne | `scheduler_heartbeat` + alerte > 25h sans run |
+| Emails dans les SPAM | Élevée | SPF/DKIM configurés. Notifications in-app comme backup. |
+| COBAC ne peut pas vérifier le HMAC | Moyenne | Script de vérification standalone livré |
+| Import initial corrompu | Moyenne | Preview obligatoire avant import définitif |
+| Développeur principal quitte | Élevée | Architecture Django standard. Ce document. Tests automatisés. |
+
+### Stack Technique Recommandé (Matrice Comparative)
+
+| Composant | Choix | Justification |
+|---|---|---|
+| **Backend** | Django + DRF | Écosystème mature, sécurité native, ORM puissant |
+| **Frontend** | React (SPA) | Décision PRD |
+| **Base de données** | PostgreSQL | Triggers audit, pgcrypto (HMAC), RLS minimaliste |
+| **Task Queue** | Django-Q2 | Zéro dépendance externe, monitoring admin intégré |
+| **Auth** | JWT Cookie HttpOnly (SimpleJWT) | Standard SPA, stateless, compatible DRF |
+| **Static Files** | WhiteNoise | Élimine Nginx au MVP |
+| **Serveur WSGI** | Gunicorn | Standard Django production |
+| **Reverse Proxy** | Sans (MVP) / Nginx (option) | WhiteNoise + Gunicorn suffisent |
+
+## Évaluation Starter Template / Stack technique
+
+### Domaine Technologique Principal
+
+**Application Web Full-Stack Monorepo (API-Driven)** basé sur l'analyse des exigences :
+- Backend : **Django + Django REST Framework (DRF)** 
+- Frontend : **React (SPA) + Vite**
+- Architecture de déploiement : **Monorepo (Django-first hosting)** où Django sert à la fois l'API et la SPA React compilée via WhiteNoise.
+
+### Options de Starter Évaluées
+
+1. **SaaS Boilerplates (SaaS Pegasus, Hyper, etc.)** : Trop orientés B2C/SaaS (Stripe, abonnements, multi-tenant cloud). Inadaptés pour notre contexte bancaire On-Premise strictement cloisonné.
+2. **Setup Séparé (Frontend repo / Backend repo)** : Frontend CRA/Vite isolé communiquant avec l'API. Ajoute une complexité de déploiement inutile (gestion CORS complexe, 2 pipelines CI/CD) pour une équipe réduite et un trafic modéré (~200 users).
+3. **Monorepo Django-Vite (`django-vite`)** : Intégration de Vite directement dans le projet Django. Le frontend React vit dans un sous-dossier (`frontend/`). En dev, Vite offre le HMR (Hot Module Replacement) ; en prod, Vite compile les assets statiques que Django/WhiteNoise sert directement. **(Choix recommandé)**
+
+### Starter Sélectionné : Custom Monorepo via `django-vite`
+
+Plutôt que d'utiliser un boilerplate externe souvent surchargé, la meilleure pratique 2026 pour ce volume est un **Custom Monorepo structuré**. Le socle sera généré via les CLI officiels puis connecté.
+
+**Pourquoi cette approche ?**
+- Élimine la dette technique d'un boilerplate générique.
+- Évite les problèmes de CORS en production (même domaine origin).
+- Simplifie le déploiement On-Premise (1 seul artefact à déployer : le projet Django contenant le build React).
+- Active le HMR instantané pour React pendant le développement via `django-vite`.
+
+### Décisions Architecturales Transversales Induites
+
+**Langage & Runtime :**
+- Backend : Python 3.12+ (Typage strict avec `mypy` hautement recommandé).
+- Frontend : TypeScript + React 18+ via Vite.
+
+**Solution de Styling :**
+- **TailwindCSS** : Standard de facto avec Vite.
+- Composants UI : **shadcn/ui** (recommandé) pour des composants accessibles et complets (DataTables, Modals) sans dépendance lourde.
+
+#### ADR-07 : Moteur de Workflow — `django-fsm`
+
+**Contexte :** Le PRD spécifie (FR10) un cycle de vie strict à 5 états (`ASSIGNED` → `IN_PROGRESS` → `PENDING_DM_REVIEW` → `PENDING_AUDIT_REVIEW` → `CLOSED_RESOLVED`). Faut-il coder cette logique manuellement (des simples `if/else` sur les vues) ou utiliser une librairie métier ?
+
+**Décision : Utiliser `django-fsm` (Finite State Machine).**
+- **Excellente adéquation** : correspond exactement au besoin de workflow strict. 
+- **Sécurité des transitions** : garantit au niveau de l'ORM qu'une recommandation ne peut pas passer de `ASSIGNED` à `CLOSED_RESOLVED` directement.
+- **Gestion des permissions** : permet de lier une transition à un profil (`has_transition_perm`), assurant que seul l'Audit peut passer une reco en `CLOSED_RESOLVED`.
+- **Hooks pré/post transition** : idéal pour déclencher la génération du PDF de recette, le calcul du saut HMAC, ou l'envoi d'emails (via Django-Q2) *exactement* quand l'état change.
+
+**Conséquences :** Moins de bugs de logique d'état. Le code métier (les règles de transition) est centralisé dans le modèle Django plutôt qu'éparpillé dans les vues de l'API. C'est l'outil parfait pour ce besoin.
+
+**Organisation du Code (Monorepo) :**
+```text
+/bicec--sentinel/
+├── config/             # Settings Django globaux
+├── apps/               # Applications Django
+│   ├── users/          # Auth, RBAC, Intégration AD
+│   ├── workflow/       # Modèles FSM (django-fsm), Preuves, Commentaires
+│   └── notifications/  # Moteur Django-Q2
+├── frontend/           # Application React (Vite)
+│   ├── src/
+│   │   ├── components/ # Composants UI génériques (shadcn)
+│   │   └── features/   # Modules métiers (Recommandations, Dashboards)
+│   └── vite.config.ts
+└── manage.py
 ```
 
-**Architectural Decisions Provided by Starter:**
+## Décisions Architecturales de Base (Étape 4)
 
-**Language & Runtime:**
-- Frontend : TypeScript strict (garantit la robustesse du typage pour les données bancaires) sur Node.js.
-- Backend : Python 3.12+ avec Django 5.x.
+Cette section établit les fondations techniques de l'application (API, Données, Fichiers, Sécurité) basées sur l'élicitation *First Principles* et l'anticipation des modes de défaillance.
 
-**Styling Solution:**
-- Tailwind CSS (Standard de facto pour Vite) couplé à des composants type Shadcn UI pour une interface financière sobre, lisible et ultra-performante sans surcharge CSS.
+### 4.1. Conception de Base de Données (Data Model)
 
-**Build Tooling:**
-- Frontend : Vite (builds Rollup ultra-rapides, Hot Module Replacement instantané).
-- Backend : Gunicorn/Uvicorn pour la production sécurisée.
+#### Audit Trail (Traçabilité)
+- **Défi :** Volume de requêtes potentiellement élevé sur 2000 recos, risque d'explosion de l'espace disque si chaque ligne est clonée.
+- **Modèle :** `AuditLog` (table unique).
+  - Colonne `changes` de type `JSONB` pour stocker de façon différentielle les changements d'états (ex: `{"status": ["IN_PROGRESS", "PENDING_AUDIT_REVIEW"]}`).
+  - Colonne `action` (`CREATE`, `UPDATE`, `DELETE`, `LOGIN`).
+  - Lien lâche `object_id` et `content_type` (Generic ForeignKey Django) pour attacher le log à n'importe quelle entité.
+- **Indexation :** Index B-Tree composite sur `(content_type_id, object_id)` pour un rendu instantané de la Timeline Frontend.
 
-**Testing Framework:**
-- Frontend : Vitest (plus rapide que Jest avec Vite) + React Testing Library.
-- Backend : Pytest-django.
+#### Versioning des Preuves (Fichiers)
+- **Modèle :** L'entité `Proof` possède 3 champs clés : `file_path`, `status` (`PENDING`, `ACCEPTED`, `REJECTED`), et `version` (entier).
+- **Règle métier :** Une preuve `REJECTED` n'est jamais supprimée du disque ni de la base (exigence d'audit). Un nouvel upload par le DM crée une nouvelle instance `Proof` avec `version = n+1` et le statut `PENDING`.
 
-**Code Organization:**
-- Frontend ségrégé par "Features" (Architecture *Feature-Sliced Design* ou ségrégation par domaine métiers ex: `features/audit`, `features/workflow`) plutôt que technique.
-- Backend organisé en petites Applications Django modulaires (`apps.core`, `apps.recommandations`, `apps.audit_trail`).
+### 4.2. Conception API (API Design)
 
-**Development Experience:**
-- Hot Reloading natif ultra-rapide côté React et API.
-- Typage fort bout-en-bout : génération de types TypeScript à partir de l'API Django (via OpenAPI/Swagger).
+- **Paradigme :** Interface REST stricte via Django REST Framework (DRF). Le GraphQL n'est pas retenu car le schéma de données est rigide et le nombre d'utilisateurs (~200) ne justifie pas la complexité d'optimisation over-fetching.
+- **Agrégation / Tableaux de Bord :**
+  - Utilisation de `django-filter` pour générer les vues "Dashboard" via query parameters (ex: `GET /api/recommendations/?status=OVERDUE&priority=CRITICAL`).
+  - Standardisation de la pagination sur tous les endpoints de listes (`LimitOffsetPagination` ou `PageNumberPagination`).
+- **Format de Sortie :** JSON formaté (CamelCase pour React, géré via un renderer DRF comme `djangorestframework-camel-case` pour respecter les conventions JS frontend tout en gardant du snake_case Python backend).
 
-**Note:** Project initialization using this command should be the first implementation story.
+### 4.3. Gestion Sécurisée des Fichiers (File Storage)
 
-## Core Architectural Decisions
+L'analyse de menace (STRIDE) sur le composant critique d'upload On-Premise (50 Mo max) impose les règles suivantes :
 
-### Decision Priority Analysis
+1. **Renommage Systématique :** Le fichier uploadé (`rapport_audit_v2.pdf`) est **toujours** renommé par le backend avec un `UUIDv4` (ex: `f47ac10b...a1.pdf`) sur le disque. Cela neutralise toute tentative de *Path Traversal* (`../../../etc/passwd`). Le nom original est stocké uniquement en base pour l'affichage UI.
+2. **Double Validation (Filtre) :**
+   - Validation de l'extension `.pdf, .jpg, .png`.
+   - Validation en mémoire des **Magic Bytes** avant l'écriture sur le disque (`python-magic` ou équivalent) pour s'assurer qu'un fichier malveillant `.php` renommé en `.pdf` soit rejeté.
+3. **Prévention d'Exécution :** Le serveur statique (WhiteNoise ou Nginx) servant le dossier `/media/` forcera le header `Content-Disposition: attachment` ou `Content-Type: application/octet-stream` pour prévenir l'exécution accidentelle dans le navigateur d'un payload XSS caché.
 
-**Critical Decisions (Block Implementation):**
-- Authentication Mechanism (Session Auth)
-- Identity Provider Integration (LDAP)
-- State Machine Engine (`django-fsm`)
+### 4.4. Sequence Diagram : Flux de Soumission d'une Preuve
 
-**Important Decisions (Shape Architecture):**
-- Frontend State Management (TanStack Query)
-- Background Task Engine (Django-Q2)
+Ce flux centralise la logique asynchrone et les intégrations, définissant le rôle de chaque composant pour l'exigence FR15-FR20 et FR24 (HMAC différé).
 
-### Data Architecture
+```mermaid
+sequenceDiagram
+    autonumber
+    actor DM as Direction Métier
+    participant SPA as React Frontend
+    participant API as Django DRF
+    participant FSM as django-fsm (ORM)
+    participant Disk as File Storage
+    participant Q2 as Django-Q2 (Task Queue)
 
-- **SGBDR**: PostgreSQL (Provided by Starter/Context). *Rationale*: Native Row-Level Security (RLS) support is mandatory for strictly isolating audit recommendations by department/user.
-- **File Storage**: Object Storage S3-Compatible (MinIO) On-Premise. *Rationale*: Allows WORM (Write Once Read Many) policy, preventing system administrators from deleting audit evidence.
-- **State Machine**: `django-fsm` (ou fork moderne). *Rationale*: Sécurité maximale via le code, RLS native directe sur le modèle, intégrité transactionnelle avec l'Audit Trail.
+    DM->>SPA: Upload preuve (max 50 Mo)
+    SPA->>API: POST /api/recos/{id}/proofs/ (multipart)
+    API->>API: Valide Extension & Magic Bytes
+    API->>Disk: Sauvegarde as UUIDv4
+    Disk-->>API: file_path
+    API->>FSM: reco.submit_proof() (if allowed)
+    FSM->>FSM: Change status (IN_PROGRESS -> PENDING_AUDIT_REVIEW)
+    FSM-->>Q2: async_task('send_audit_notification', reco_id)
+    API-->>SPA: 201 Created (Proof JSON)
+    SPA-->>DM: Succès UI
+    
+    note over API: Note: Le sceau HMAC FR24 n'est<br/>calculé qu'à la clôture finale.
+```
 
-### Authentication & Security
+### 4.5. Logique des États Limites (Edge Cases FSM)
 
-- **Authentication Method**: Session-based Auth with CSRF (Cookies `HttpOnly`). *Rationale*: Le standard le plus sécurisé contre le vol de session (XSS) pour une architecture On-Premise sur domaine interne commun. Évite la complexité fragile des JWT.
-- **SSO Protocol**: LDAP Direct via `django-auth-ldap`. *Rationale*: Intégration simple, directe et robuste avec l'Active Directory interne de la BICEC.
+La machine à états finis (`django-fsm`) est configurée pour traiter ces exceptions critiques :
+- **Soft Delete de Preuve :** Un DM peut supprimer une preuve pour corriger une erreur, **uniquement** si son statut FSM est `PENDING_AUDIT_REVIEW` et que le statut de la Preuve est `PENDING`. Si l'Auditeur la note `ACCEPTED` ou `REJECTED`, la suppression est bloquée au niveau de l'ORM.
+- **Mutations de Clôture :** Une fois le statut `CLOSED_RESOLVED` atteint, l'API intercepte et bloque toute requête `POST/PUT/DELETE` (y compris commentaires) concernant cette recommandation.
+- **Race Conditions (Concurrence) :** Les transitions FSM manipulant le statut d'une recommandation exécuteront un `select_for_update()` sur le row PostgreSQL. Si deux auditeurs valident simultanément, la base sérialisera les requêtes, empêchant la validation multiple.
 
-### Frontend Architecture
+## Patterns Architecturaux (Étape 5)
 
-- **State Management (Data Fetching)**: `@tanstack/react-query` (v5+). *Rationale*: Standard moderne, gère nativement le cache, le chargement et les erreurs des requêtes API REST.
-- **State Management (UI Local)**: `zustand`. *Rationale*: Mini-store léger pour l'état de l'interface non lié à l'API (ex: menu ouvert/fermé).
-- **Routing**: `react-router` (v7). *Rationale*: "Boring Technology", standard de l'industrie, stable et maîtrisé par 100% des développeurs React.
+Cette section définit les "règles d'or" d'écriture du code (Design Patterns et Anti-Patterns) pour garantir la maintenabilité de Sentinel sur le long terme.
 
-### Infrastructure & Deployment
+### 5.1. Backend : Clean Architecture (HackSoft Styleguide)
 
-- **Background Tasks Engine**: `django-q2` (v1.9+). *Rationale*: Utilise PostgreSQL comme broker (file d'attente). Beaucoup plus léger à maintenir en On-Premise que Celery (qui nécessite Redis ou RabbitMQ). La charge base de données supplémentaire est négligeable pour <200 utilisateurs.
+Afin d'éviter le couplage fort et l'éparpillement de la logique métier (typiques des projets Django mal structurés), l'architectureBackend suit strictement le pattern **Service Layer / Selector** popularisé par HackSoft :
 
-### Decision Impact Analysis
+- **`models.py`** : Définit uniquement la structure de données (colonnes) et les états explicites (`django-fsm`). Ne contient **aucune** logique d'envoi d'email ou de calcul complexe (Anti-Pattern : *God Model*).
+- **`selectors.py`** : Centralise toutes les requêtes de lecture complexes (QuerySets, jointures, agrégations pour les dashboards). *Ex: `get_overdue_recommendations(user) -> list`*. Les vues ne doivent pas construire de requêtes complexes elles-mêmes.
+- **`services.py`** : Encapsule toute l'écriture et la mutation de données. C'est ici que vit le "métier". *Ex: `submit_proof(...)`, `generate_hmac_seal(...)`*.
+- **`views.py` / `api.py`** : Couche HTTP pure. Ne fait que router la requête, valider les inputs (Serializers), appeler un Service ou un Selector, et renvoyer la réponse (`200 OK`, `400 Bad Request`). (Anti-Pattern évité : *Fat Views*).
 
-**Implementation Sequence:**
-1. Setup PostgreSQL Database & Django Backend with Session Auth + LDAP Configuration.
-2. Initialize React Frontend + React Router + TanStack Query.
-3. Configure Django-Q2 & Django-FSM.
+### 5.2. GoF Patterns & Événementiel
 
-**Cross-Component Dependencies:**
-Le choix de Session Auth + CSRF implique que le Frontend React et le Backend Django doivent absolument être servis sous le même "Site" (ex: Frontend sur `sentinel.bicec.cm` et Backend sur `api.sentinel.bicec.cm` avec domaine de cookie `.sentinel.bicec.cm`, ou via un Reverse Proxy Nginx).
+| Pattern / Approche | Cas d'Usage dans Sentinel | Implémentation |
+|---|---|---|
+| **Strategy Pattern** | Exportation des données (FR24-FR26) | Une interface commune `ExportStrategy` avec deux implémentations concrètes : `ZipArchiveExport` et `PdfReceiptExport`. Le service appelle `exporter.generate()`. |
+| **State Pattern** | Workflow des Recommandations (FR10) | Totalement géré par `django-fsm`, garantissant l'intégrité des transitions d'un état à l'autre. |
+| **Événementiel Explicite** | Calcul HMAC, Notifications Email | **Interdiction stricte des Django Signals (`post_save`).** Les événements asynchrones sont déclenchés explicitement via des hooks de transition FSM (`@transition(..., hooks=[send_notification])`) ajoutant des requêtes à `django-q2`. |
 
-## Implementation Patterns & Consistency Rules
+### 5.3. Frontend React Patterns
 
-### Pattern Categories Defined
+L'application React de Sentinel adopte des conventions modernes pour gérer sa complexité croissante :
 
-**Critical Conflict Points Identified:**
-4 domaines où les agents IA pourraient faire des choix différents (nommage, structure et échange de données) sont désormais standardisés.
+- **Custom Hooks API** : Toute la logique de communication HTTP avec DRF est isolée dans des hooks personnalisés (ex: `useRecommendations()`, `useAuth()`). Les composants UI s'abonnent à la donnée mais ignorent comment elle est fetchée. (Séparation UI / Data).
+- **Compound Components** : Pour les interfaces denses (ex: la fiche détaillée d'une Recommandation vue par un Auditeur contenant Onglets, Historique, Commentaires), nous évitons les composants monolithiques géants en décomposant : `<RecommendationModal.Header />`, `<RecommendationModal.Proofs />`, etc.
+- **Context API pour le RBAC** : L'accès aux droits de l'utilisateur (ex: cacher le bouton "Valider" si l'utilisateur est un DM) est géré globalement via un Context Provider React (`AuthContext`). Cela évite le *Prop Drilling* (passer la variable `role="DM"` à travers 5 composants enfants).
 
-### Naming Patterns
+#### ADR-08 : Utilisation d'un Template Admin React Premium
 
-**API & Data Variables:**
-- **Full Snake Case**: Le backend Django dicte le format. Le Frontend React consommera et enverra des variables réseau en `snake_case` (ex: `user_id`, `date_creation`).
+**Contexte :** Le projet impose un délai de développement serré (2 mois + 2 semaines de test/déploiement). Développer une UI "from scratch" (Tableaux, Modales, Sidebar, Layout) avec `Tailwind` + `shadcn/ui` consommerait ~50% de ce temps.
 
-**Code Naming Conventions (Frontend):**
-- **PascalCase** : Les fichiers contenant des composants React doivent impérativement utiliser le PascalCase (Ex: `UserCard.tsx`, `UploadProof.tsx`).
-- Les variables et fonctions internes purement JavaScript/TypeScript (non liées au payload API) restent en `camelCase`.
+**Décision : Acheter et adapter un Template Admin React Premium (ex: MUI, Metronic, Vuexy).**
+- L'équipe Frontend ne construira **pas** de composants UI génériques, elle se contentera de lier les modèles de données (composants métiers) au Layout fourni par le template.
+- Le design system (couleurs, espacements, typographie) sera dicté par le template (adapté aux couleurs BICEC).
+- Les composants complexes (DataGrid, Uploader, Timeline) seront issus de l'écosystème du template.
 
-### Structure Patterns
+**Conséquences :**
+- **Points forts :** Accélération phénoménale du Frontend (économie estimée à 3-4 semaines). Rendu final immensément plus professionnel ("Whaou effect" instantané) favorisant l'adoption. Budget de temps transféré sur le Backend complexe (FSM, RLS, AD).
+- **Points de vigilance :** Risque de "Bloatware". La première tâche du développeur Frontend (Sprint 0) sera d'épurer agressivement le template de toutes les pages démo et librairies inutilisées pour garantir des performances optimales.
 
-**Project Organization (Frontend):**
-- **Feature-Sliced Design (Par Domaine) :** L'application React est structurée autour des fonctionnalités métiers (ex: `src/features/audit-trail/`, `src/features/recommandations/`). Chaque feature encapsule ses propres composants locaux, ses hooks purs et ses appels API (services).
+## Structure du Projet (Étape 6)
 
-### Format Patterns
+L'architecture retenue est un **Monorepo Django-Vite**, intégrant une API backend respectant la *Clean Architecture (HackSoft)* et une SPA React issue d'un template premium, épurée et structurée.
 
-**API Formats:**
-- **Wrapped Responses (Enveloppées) :** L'API Django REST Framework (via des middlewares ou serializers custom) renvoie systématiquement une structure enveloppée :
-  - Succès : `{"status": "success", "data": <payload>, "error": null}`
-  - Erreur : `{"status": "error", "data": null, "message": "Description claire de l'erreur (ex: RLS bloquée)"}`
+### 6.1. Architecture Monorepo Globale
 
-### Enforcement Guidelines & AI Safeguards
-
-**All AI Agents MUST:**
-- Utiliser rigoureusement le `snake_case` pour toutes les interfaces TypeScript mappant des données de l'API.
-- Placer tout nouveau composant métier React dans le dossier de `feature` correspondante, et réserver un dossier global `src/components/ui/` uniquement pour les composants visuels purs et agnostiques (ex: Boutons génériques, Inputs).
-- Déballer la propriété `data` ou vérifier `message` de l'enveloppe API lors de la création des requêtes avec TanStack Query.
-
-**Blue Team Anti-Hallucination Directives (Critical constraints for Backend Agents):**
-1. **Directive "Zero Trust API"** : Les agents ne doivent *jamais* faire un `.objects.get()` sans filtrer par le `request.user` ou sans passer par un queryset pré-filtré par la politique RLS.
-2. **Directive "FSM Native"** : L'agent ne doit jamais changer le champ `status` manuellement (`reco.status = 'PENDING'`). Il doit OBLIGATOIREMENT appeler la méthode de transition générée par `django-fsm` (`reco.submit_to_audit()`) qui vérifiera les conditions préalables.
-3. **Directive "Audit Hook"** : L'agent qui code le backend n'a pas le droit d'écrire une "Vue" (Endpoint) API responsable d'une mutation sans vérifier formellement que cette modification déclenche bien le signal ou le trigger d'insertion dans l'Audit Trail immuable.
-
-### Advanced Resilience & Security Patterns
-
-Issues issues de l'élicitation *Risk & Stress-Testing* :
-
-**Policy "Context-Bound Filters" (RLS Hardening) :**
-- L'API ne doit *JAMAIS* faire confiance aux IDs de département ou de rôle fournis dans la requête réseau par le frontend (vulnérabilité de falsification). Les QuerySets Django (`get_queryset()`) DOIVENT exclusivement extraire le contexte de filtrage depuis le `request.user` (validé via la Session sécurisée).
-
-**Emergency Fallback (Active Directory Failure) :**
-- L'authentification `django-auth-ldap` est le point d'entrée unique, MAIS le système implémente un compte "Break-Glass" (Administrateur/Auditeur Local crypté) natif à `django.contrib.auth`. Un Middleware détecte les pannes LDAP globales (`LDAPError`) et autorise la bascule vers cette authentification d'urgence locale pour maintenir l'opérationnel.
-
-**Atomic FSM & Outbox Pattern (Database Crash) :**
-- La cohérence entre (1) le statut de la recommandation, (2) le hash cryptographique, et (3) la ligne insérée dans l'Audit Trail est vitale. *Toute transition* `django-fsm` doit être enveloppée dans un bloc `transaction.atomic()`.
-- En cas de crash serveur post-upload du fichier de preuve sur MinIO S3 mais pré-commit PostgreSQL, le fichier devient "Orphelin" sur S3. Un "Clean-Up Worker" (Django-Q2) balayera régulièrement le MinIO pour supprimer les preuves non référencées en base.
-
-## Project Structure & Boundaries
-
-### Complete Project Directory Structure
+L'arborescence racine unifie le Backend et le Frontend pour simplifier le CI/CD On-Premise.
 
 ```text
-bicec--Sentinel/
-├── README.md
-├── docker-compose.yml       # Infrastructure de Dev locale (PostgreSQL, MinIO)
-├── docs/                    # Documentation technique et PRD
-├── e2e-tests/               # Tests de bout en bout globaux (Playwright/Cypress)
-├── frontend/                # Vite React TS SPA
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   ├── src/
-│   │   ├── main.tsx
-│   │   ├── app/             # Global Providers (React Query, Router v7)
-│   │   ├── components/      # UI Partagée agnostique (Boutons, Modales)
-│   │   │   ├── ui/
-│   │   │   └── layout/      # Sidebar, Header
-│   │   ├── shared/          # Contexte Global (Session) et hooks partagés inter-features
-│   │   ├── features/        # Découpage par Domaine Métier
-│   │   │   ├── auth/        # Hook de Session, Composant Login
-│   │   │   ├── habilitations/ # Intérims, Matrices de rôles
-│   │   │   ├── recommandations/ # Listes, Formulaires, Actions FSM
-│   │   │   ├── audit-trail/ # Visualisation Historique immuable
-│   │   │   └── dashboard/   # Statistiques et KPIs
-│   │   ├── lib/             # API Client (Axios), Utilitaires API
-│   │   ├── stores/          # Zustand global store (UI State = sidebar ouverte)
-│   │   └── types/           # Interfaces TypeScript partagées globales
-│   └── tests/
-│       └── components/      # Tests Unitaires Vitest UI
-└── backend/                 # Django REST API
-    ├── manage.py
-    ├── requirements.txt
-    ├── config/              # Django settings (base, dev, prod), URLs globales
-    └── apps/                # Applications Django modulaires
-        ├── core/            # Permissions RLS globales, utilitaires de base
-        │   └── tests/
-        ├── users/           # Identity Management (LDAP)
-        │   └── tests/
-        ├── habilitations/   # RBAC, RLS Policies, Intérim/Délégations
-        │   └── tests/
-        ├── recommandations/ # Modèles FSM, Serializers, Vues, Workers (Django-Q2)
-        │   └── tests/
-        ├── audit_trail/     # Modèle Immuable, Calculs SHA-256, Triggers BDD
-        │   └── tests/
-        └── documents/       # Upload sécurisé S3/MinIO
-            └── tests/
+/bicec--sentinel/
+├── config/                 # (Django) Configuration système, WSGI/ASGI, URLs racines
+├── apps/                   # (Django) Code métier backend (voir 6.2)
+├── frontend/               # (React) Code source SPA Vite (voir 6.3)
+├── static/                 # Ressources statiques backend (CSS admin, images)
+├── staticfiles/            # (Auto-généré) Assets compilés pour production (WhiteNoise)
+├── db_backups/             # Scripts et cibles de backup SQL nocturnes
+├── requirements.txt        # Dépendances Python
+├── manage.py               # Entrypoint Django
+└── README.md
 ```
 
-### Architectural Boundaries
+### 6.2. Structure Backend (Django - HackSoft Style)
 
-**API Boundaries:**
-- Le Frontend (React) dialoguera exclusivement avec le Backend (Django) via des endpoints RESTful sous le préfixe `/api/v1/`.
-- L'Authentification (Active Directory) est le premier point d'entrée Backend. Aucune donnée structurelle de l'AD ne traverse vers React, seul le Cookie de Session `HttpOnly` est échangé.
+Contrairement l'approche "1 dossier = 1 app" de base de Django, nous regroupons tout le métier fonctionnel dans les dossiers d'applications sous `apps/`, séparant strictement les Vues, Les Services (mutations) et les Selectors (lectures).
 
-**Component Boundaries (Frontend):**
-- Les modules dans `src/features/*` sont strictement isolés. Pour éviter les dépendances circulaires entre domaines, l'état global et les types transitoires sont levés dans `src/shared/`. L'application connecte les features au niveau du Router principal.
-
-**Data Access Boundaries (Backend):**
-- **Silos de Responsabilité (Habilitations vs Users)** : L'application `users` gère l'identité brute (Qui es-tu, vérifié via Active Directory). L'application `habilitations` gère les droits applicatifs (Que peux-tu faire, Intérims).
-- **Politique de RLS unifiée** : Les autres applications (`recommandations`, `documents`) n'ont pas l'autorité de contourner la politique d'habilitation sans l'aval du contexte de l'utilisateur courant validé par l'app `habilitations`.
-
-### Requirements to Structure Mapping
-
-- **Epic: Workflow & FSM (PRD FR1 à FR6)**
-  - Frontend : `frontend/src/features/recommandations/` (Action Hooks, Formulaires Zod).
-  - Backend : `backend/apps/recommandations/` (`django-fsm` transitions, endpoint mutations).
-- **Epic: Security & RBAC (PRD FR17 à FR18, Intérim)**
-  - Frontend : `frontend/src/features/habilitations/` (Modales ou vues d'attribution, UI Admin).
-  - Backend : `backend/apps/habilitations/` (Modèles de Rôles, Logique de délégation calendaire, Matrices).
-- **Epic: Preuves & Fichiers (PRD FR14 à FR16)**
-  - Backend : `backend/apps/documents/` (Connexion MinIO WORM, API de streaming sécurisé).
-- **Epic: Traçabilité Auditeur & SHA-256 (PRD FR19)**
-  - Backend : `backend/apps/audit_trail/` (Modèles append-only, génération cryptographique sur `post_save`).
-
-### Integration Points
-
-**Internal Communication:**
-- **Appels Asynchrones :** L'application Django communique avec la base de données PostgreSQL pour gérer le broker de sa file d'attente (via `django-q2`), par exemple pour relancer le statut OVERDUE à minuit sans Redis.
-
-**External Integrations:**
-- **LDAP Server :** Intégration par configuration `LDAPBackend` dans l'app `users`, interfaçage avec le réseau de la BICEC.
-- **S3 Object Storage :** Connexion MinIO On-Premise pour le dépôt "WORM" intégré via `django-storages` dans l'app `documents`.
-
-## Architecture Validation Results
-
-### Coherence Validation ✅
-
-**Decision Compatibility:**
-Toutes les décisions technologiques s'alignent parfaitement. L'utilisation de `django-fsm` couplée à PostgreSQL et sa RLS est le standard or pour une RegTech. Le choix de *Session Auth* + *LDAP* élimine les failles de sécurité liées au stockage des tokens (XSS). L'utilisation de *Django-Q2* pour l'asynchrone au lieu de Celery/Redis réduit intelligemment la surface d'attaque et la complexité d'infrastructure "On-Premise".
-
-**Pattern Consistency:**
-Les règles d'agents (Full Snake Case pour l'API, Feature-Sliced Design pour React, Wrapped API Responses) sont strictes et laissent peu de place à l'interprétation. Les "Blue Team Directives" et "Resilience & Security Patterns" (Atomic FSM, Context-Bound RLS, AD Fallback) garantissent que Sentinel restera "Zero Trust" même en cas de crash infrastructurel.
-
-**Structure Alignment:**
-La structure du projet supporte l'architecture : un découpage clair entre applications Django (Core, Users, Habilitations, Recommandations, Audit Trail, Documents), un frontend isolé mais structuré par domaines métiers, avec l'état global remonté dans `shared/`.
-
-### Requirements Coverage Validation ✅
-
-**PRD / Feature Coverage:**
-- Le workflow restrictiel (FSM) est couvert par `django-fsm`.
-- L'intérim et les 6 rôles sont gérés par la nouvelle app modulaire `habilitations`.
-- Le stockage WORM est couvert par l'intégration S3/MinIO locale (`django-storages`).
-- L'Audit Trail immuable est sécurisé par des triggers bases de données et une fonction cryptographique (SHA-256).
-
-### Implementation Readiness Validation ✅
-
-**Decision Completeness:**
-Les limites (Boundaries) sont claires : le frontend est agnostique de la logique métier (qui réside dans l'API), et l'API est construite en "append-only" pour la traçabilité.
-
-### Architecture Completeness Checklist
-
-**✅ Requirements Analysis**
-- [x] Contexte RegTech / On-Premise pleinement assimilé
-- [x] Contraintes techniques (AD, PostgreSQL) fixées
-
-**✅ Architectural Decisions**
-- [x] Décisions critiques (Session Auth, LDAP, FSM) validées
-- [x] Starter (Vite React TS + Django Pure) documenté
-- [x] Validation anti-crash (Atomic FSM, Outbox, Emergency Fallback) sécurisée
-
-**✅ Implementation Patterns & Structure**
-- [x] Règles de nommage (`snake_case` API, `PascalCase` Composants)
-- [x] Directives Anti-Hallucination (Zero Trust API, FSM Native)
-- [x] Arborescence complète validée en configuration "Party Mode"
-
-### Architecture Readiness Assessment
-
-**Overall Status:** READY FOR IMPLEMENTATION
-**Confidence Level:** HIGH
-
-**Key Strengths:**
-La séparation complète `users` (Identité LDAP) vs `habilitations` (Rôles Métiers) est le point fort de cette architecture. Les choix "Boring Technology" (Session Auth, React Router v7) garantissent que les LLMs généreront du code hautement fonctionnel du premier coup. L'architecture respecte les contraintes COBAC via RLS et Audit Trail, avec une empreinte opérationnelle On-Premise réduite.
-
-### Implementation Handoff
-
-**AI Agent Guidelines:**
-- L'Initialisation avec `npm create vite@latest` et `django-admin startproject` doit être la toute première User Story d'implémentation.
-- Respectez les règles de nommage (Snake back / Pascal front) à la lettre.
-- Tout nouveau endpoint API modifiant l'état doit être obligatoirement revu sous le spectre "Audit Hook" et `transaction.atomic()`.
-
-**First Implementation Priority:**
-```bash
-# Frontend Initialization
-npm create vite@latest sentinel-frontend -- --template react-ts
-
-# Backend Initialization
-python -m venv venv
-source venv/bin/activate
-pip install django djangorestframework django-fsm-2 psycopg2-binary celery redis django-q2 django-auth-ldap
-django-admin startproject sentinel_backend .
+```text
+/apps/
+├── users/                  # Domaine Identité & Auth
+│   ├── models.py           # User, Department (Directions)
+│   ├── auth_ad.py          # Logique d'authentification contre l'Active Directory
+│   ├── permissions.py      # Middleware RBAC applicatif (ADR-01)
+│   ├── services.py         # Ex: sync_user_from_ad(username)
+│   └── api/                # DRF Views & Serializers d'authentification
+│
+├── workflow/               # Domaine Cœur FSM (Recommandations)
+│   ├── models.py           # Recommendation (avec django-fsm), Proof, Comment
+│   ├── selectors.py        # Ex: get_overdue_recommendations(), get_dashboard_stats()
+│   ├── services.py         # L'intelligence métier pure (submit_proof, delete_proof)
+│   ├── signals.py          # (Optionnel - limité) Hooks FSM
+│   └── api/                # DRF ViewSets limités au HTTP/JSON
+│
+├── audit/                  # Domaine Traçabilité & Export
+│   ├── models.py           # AuditLog (format JSONB)
+│   ├── crypto.py           # Génération et vérification du sceau HMAC-SHA256
+│   └── exporters.py        # Logique de création des .zip (implémente Strategy Pattern)
+│
+└── notifications/          # Domaine Asynchrone (Django-Q2)
+    ├── tasks.py            # Tâches planifiées (ex: cron_check_overdue)
+    └── emails.py           # Templates et envois SMTP
 ```
+
+### 6.3. Structure Frontend (React Template Adapté)
+
+Le dossier `/frontend/` contient le code source de la SPA. La structure dépendra du template choisi, mais une fois épuré, les principes d'isolation métier s'appliquent :
+
+```text
+/frontend/
+├── src/
+│   ├── layout/             # Cœur du Template Premium (Sidebar, Header, Footer)
+│   ├── core/               # Configuration transverse (Theme, Axios interceptors, AuthContext)
+│   ├── hooks/              # Custom Hooks globaux (ex: useAuth)
+│   ├── components/         # Composants UI partagés (Boutons, Forms du template)
+│   │
+│   ├── features/           # Regroupement par "Domaine Métier" (DDD frontend)
+│   │   ├── recommendations/# Fiches, Liste, Historique FSM
+│   │   ├── dashboards/     # Graphiques DG, Vues filtrées
+│   │   └── audit_trail/    # Affichage Timeline
+│   │
+│   ├── pages/              # Points de montage des routes
+│   │   ├── Login.tsx
+│   │   ├── DashboardPage.tsx
+│   │   └── RecommendationViewPage.tsx
+│   │
+│   ├── App.tsx             # Entrypoint React + Routeur
+│   └── vite-env.d.ts       # Typages TypeScript
+│
+├── vite.config.ts          # Config de compilation (output vers dossier static de Django)
+├── package.json
+└── tsconfig.json
+```
+
+**Workflow de Compilation :**
+En développement, la commande `npm run dev` lance le serveur Vite pour le *Hot Module Replacement* (HMR). Lors du build final, `vite build` injecte les bundles compilés `.js` et `.css` directement dans le dossier géré par la commande Django `collectstatic`, ne formant plus qu'**un seul artefact déployable**.
+
+## Validation Architecturale (Étape 7)
+
+Cette matrice garantit que les choix architecturaux (ADR-01 à ADR-08) répondent strictement aux Exigences Non-Fonctionnelles (NFR) définies dans le PRD et aux contraintes réglementaires COBAC.
+
+### 7.1. Matrice de Validation NFR vs Architecture
+
+| NFR PRD v2 | Exigence | Réponse Architecturale | Statut |
+|---|---|---|:---:|
+| **NFR-SEC-01** | Chiffrement en transit TLS 1.2+ obligatoire. | **WhiteNoise & Gunicorn** (ADR-02) gèrent le TLS natif avec certificats internes. Django `SecurityMiddleware` force le HTTPS Redirect. | ✅ |
+| **NFR-SEC-02** | Session idle timeout = 30 minutes. | **JWT** (ADR-06). `ACCESS_TOKEN_LIFETIME` réglé strictement sur 30 minutes. | ✅ |
+| **NFR-SEC-03** | Intégrité (HMAC-SHA256) sur les clôtures. | Logique isolée dans `audit.crypto` (HackSoft Pattern) déclenchée par les **Hooks FSM** (`django-fsm`). Clé secrète via `.env`. | ✅ |
+| **NFR-SEC-04** | Magic Bytes Validation (fichiers). | Implémenté via `python-magic` dans le `ProofService.submit()`. Le nom du fichier est remplacé par un UUIDv4 sur disque. | ✅ |
+| **NFR-SEC-05** | Audit Trail sur 12 mois (Loi 2024-017). | Modèle `AuditLog` avec données `JSONB`. Conservé indéfiniment. Stratégie de purge inexistante par design (Append-Only). | ✅ |
+| **NFR-PERF-01** | Résolution RLS / Périmètre < 10ms. | Principalement géré en applicatif (ADR-01) via des filtres indexés `direction_id`. Le RLS PostgreSQL n'agit que comme garde-fou passif ultra-rapide. | ✅ |
+| **NFR-PERF-02** | Rendu initial UI < 1s (P95). | **Monorepo SPA React** (ADR-08). Vite garantit un bundle optimisé. Les fichiers statiques sont servis via WhiteNoise avec cache far-future. | ✅ |
+| **NFR-PERF-04** | Archive ZIP prête < 5s (synchrone). | Génération ZIP en mémoire (`io.BytesIO`) par le backend Django. Pour 5 fichiers de 50 Mo, Python génère le ZIP en ~2 secondes. | ✅ |
+| **NFR-SCA-01** | Max 50 Mo par fichier, 5 max/requête. | Validé par l'API (Gunicorn configuré avec les limites de taille de payload adéquates). | ✅ |
+| **NFR-SCA-02** | Support de > 5 000 recommandations. | Architecture dimensionnée pour le MVP (~2000 recos actives). PostgreSQL (avec UUIDs et bons index) supporte allègrement 500k+ lignes sur une machine standard. | ✅ |
+| **NFR-REL-01** | Fail-safe isolation (0 ligne si pas de contexte). | Assuré intégralement par une politique **RLS Stricte Tenant-Isolation** (ADR-01) en base de données. | ✅ |
+
+### 7.2. Bilan de Cohérence
+
+L'architecture **Monorepo Django/React** propose le meilleur compromis possible pour une équipe réduite (1-2 devs) et un délai extrêmement serré (2.5 mois) avec un déploiement On-Premise :
+1. **Vélocité Front** garantie par l'adoption d'un Template Admin Premium (ADR-08) et l'utilisation de React.
+2. **Robustesse Métier** garantie par `django-fsm` (ADR-07) pour le cycle de vie, isolant la logique complexe dans les modèles.
+3. **Sécurité native** grâce au framework Django (CSRF, XSS, HSTS) et à l'approche JWT stateless.
+
+L'architecture est déclarée **VALIDE ET PRÊTE POUR LE DÉVELOPPEMENT**.

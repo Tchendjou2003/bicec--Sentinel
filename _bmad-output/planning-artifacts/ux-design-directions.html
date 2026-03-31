@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Sentinel - Design Directions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-100 text-slate-800 font-sans h-screen flex flex-col" x-data="{ activeTab: 1 }">
+
+    <!-- Header / Tab Switcher -->
+    <div class="bg-slate-900 text-white p-4 shadow-md flex justify-between items-center z-10 relative">
+        <h1 class="text-xl font-bold">Sentinel - Explorations UX</h1>
+        <div class="flex space-x-2">
+            <button @click="activeTab = 1" :class="{'bg-blue-600': activeTab === 1, 'bg-slate-700': activeTab !== 1}" class="px-4 py-2 rounded text-sm font-medium transition">1. "Linear" (Dense & Slide-over)</button>
+            <button @click="activeTab = 2" :class="{'bg-blue-600': activeTab === 2, 'bg-slate-700': activeTab !== 2}" class="px-4 py-2 rounded text-sm font-medium transition">2. "Airtable" (Filtres & Tableaux)</button>
+            <button @click="activeTab = 3" :class="{'bg-blue-600': activeTab === 3, 'bg-slate-700': activeTab !== 3}" class="px-4 py-2 rounded text-sm font-medium transition">3. "Superhuman" (Focus & Triage)</button>
+        </div>
+    </div>
+
+    <!-- Direction 1: Linear-style -->
+    <div x-show="activeTab === 1" class="flex-1 flex overflow-hidden">
+        <!-- Sidebar -->
+        <div class="w-64 bg-slate-50 border-r border-slate-200 p-4 flex flex-col">
+            <div class="font-bold text-slate-400 text-xs tracking-wider mb-4 uppercase">Vues</div>
+            <a href="#" class="flex items-center justify-between text-slate-900 font-medium bg-slate-200 rounded px-2 py-1 mb-1">
+                <span>Action Requise</span>
+                <span class="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">3</span>
+            </a>
+            <a href="#" class="flex items-center text-slate-600 hover:text-slate-900 px-2 py-1 mb-1">En attente d'Audit</a>
+            <a href="#" class="flex items-center text-slate-600 hover:text-slate-900 px-2 py-1">Mes Clôtures</a>
+        </div>
+        <!-- Main Content (List) -->
+        <div class="flex-1 flex flex-col bg-white">
+            <div class="border-b border-slate-200 p-4 flex justify-between items-center">
+                <h2 class="text-lg font-semibold">Action Requise</h2>
+                <button class="bg-white border border-slate-300 text-slate-700 px-3 py-1 rounded text-sm shadow-sm hover:bg-slate-50">Filter</button>
+            </div>
+            <!-- List Items -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-2">
+                <div class="border border-red-200 shadow-sm rounded-lg p-3 flex justify-between items-center bg-red-50 cursor-pointer hover:border-blue-400 hover:shadow-md transition">
+                    <div class="flex items-center space-x-3">
+                        <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <span class="bg-red-600 text-white font-medium text-xs px-2 py-0.5 rounded">J-2</span>
+                        <span class="font-semibold text-slate-800">REC-2023-045</span>
+                        <span class="text-slate-500 text-sm">Absence de signature sur contrat cadre</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Slide-over (Interaction) -->
+        <div class="w-1/3 bg-slate-50 border-l border-slate-200 flex flex-col shadow-2xl relative">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-white">
+                <h3 class="font-semibold text-slate-800">Visualisation de Preuve</h3>
+                <button class="text-slate-400 hover:text-slate-600">&times;</button>
+            </div>
+            <div class="flex-1 p-6 relative flex flex-col">
+                <div class="w-full flex-1 bg-slate-200 rounded flex items-center justify-center text-slate-400 mb-6 border border-slate-300">
+                    [Aperçu PDF Direct]
+                </div>
+                <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded shadow transition">Approuver & Sceller (HMAC)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Direction 2: Airtable-style -->
+    <div x-show="activeTab === 2" class="flex-1 bg-white overflow-hidden flex flex-col">
+        <!-- Toolbar -->
+        <div class="border-b border-slate-200 p-2 flex space-x-2 bg-slate-50 items-center text-sm">
+            <div class="font-semibold px-4 flex items-center">
+                Toutes les Recommandations
+                <span class="ml-2 bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-xs">142</span>
+            </div>
+            <div class="h-4 border-r border-slate-300 mx-2"></div>
+            <button class="text-slate-600 bg-white border border-slate-200 px-3 py-1.5 hover:bg-slate-100 rounded flex items-center shadow-sm"><span class="mr-1">≡</span> Filtrer</button>
+            <button class="text-slate-600 bg-white border border-slate-200 px-3 py-1.5 hover:bg-slate-100 rounded flex items-center shadow-sm"><span class="mr-1">⇅</span> Trier</button>
+            <button class="text-white bg-blue-600 font-medium px-4 py-1.5 hover:bg-blue-700 rounded ml-auto shadow-sm">Clôture Múltiple (0)</button>
+        </div>
+        <!-- Spreadsheet Grid -->
+        <div class="flex-1 overflow-auto">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="bg-white border-b-2 border-slate-300 text-slate-600 font-semibold sticky top-0 shadow-sm z-10">
+                        <th class="p-2 border-r border-slate-200 w-10 text-center"><input type="checkbox"></th>
+                        <th class="p-2 border-r border-slate-200 hover:bg-slate-50 cursor-pointer">ID <span class="text-slate-400 text-xs">▼</span></th>
+                        <th class="p-2 border-r border-slate-200 hover:bg-slate-50 cursor-pointer">Statut <span class="text-slate-400 text-xs">▼</span></th>
+                        <th class="p-2 border-r border-slate-200 hover:bg-slate-50 cursor-pointer">Description <span class="text-slate-400 text-xs">▼</span></th>
+                        <th class="p-2 border-r border-slate-200 hover:bg-slate-50 cursor-pointer">Deadline <span class="text-slate-400 text-xs">▼</span></th>
+                        <th class="p-2 hover:bg-slate-50 cursor-pointer">Assigné <span class="text-slate-400 text-xs">▼</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="border-b border-slate-200 hover:bg-slate-50 bg-red-50/50">
+                        <td class="p-2 border-r border-slate-200 text-center"><input type="checkbox"></td>
+                        <td class="p-2 border-r border-slate-200 font-medium text-slate-900">REC-2023-045</td>
+                        <td class="p-2 border-r border-slate-200"><span class="bg-red-100 border border-red-200 text-red-700 px-2 py-0.5 rounded text-xs font-semibold">OVERDUE</span></td>
+                        <td class="p-2 border-r border-slate-200 text-slate-700 truncate max-w-xs">Absence de signature sur contrat cadre</td>
+                        <td class="p-2 border-r border-slate-200 text-red-600 font-semibold tabular-nums">22 Oct (J-2)</td>
+                        <td class="p-2 text-slate-600 flex items-center"><div class="w-5 h-5 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-xs mr-2 border border-blue-200">JA</div> Jean Audit</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Direction 3: Superhuman-style (Focus) -->
+    <div x-show="activeTab === 3" class="flex-1 bg-slate-900 text-slate-300 flex flex-col items-center justify-center p-8">
+        <div class="mb-4 text-slate-500 font-medium tracking-widest text-sm uppercase">Mode Triage (Directeur Métier)</div>
+        <div class="max-w-3xl w-full bg-slate-800 rounded-xl shadow-2xl overflow-hidden flex flex-col border border-slate-700">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center text-sm bg-slate-800">
+                <span class="font-medium text-slate-400">Dossier <span class="text-white">1</span> sur 3 restantes</span>
+                <span class="bg-slate-700 text-slate-300 px-2 py-1 rounded text-xs border border-slate-600">Raccourci: Espace = Accepter, Backspace = Rejeter</span>
+            </div>
+            <div class="p-8">
+                <div class="inline-block bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs mb-4 uppercase tracking-widest font-bold border border-red-500/30">Urgence J-2</div>
+                <h2 class="text-2xl font-bold text-white mb-2">REC-2023-045 : Absence de signature</h2>
+                <p class="text-slate-400 mb-8 leading-relaxed text-lg">Conformément au rapport de la COBAC, la succursale de Douala doit fournir les contrats cadres contresignés d'ici vendredi.</p>
+                
+                <div class="bg-slate-900 rounded-lg p-6 mb-8 flex justify-between items-center border border-slate-700">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-12 h-12 bg-slate-800 border border-slate-600 rounded flex items-center justify-center text-slate-400">PDF</div>
+                        <div>
+                            <div class="text-white font-medium text-lg">Preuve_Signature_Douala.pdf</div>
+                            <div class="text-slate-500 text-sm">Déposé par ETP Marc • 1.2 MB</div>
+                        </div>
+                    </div>
+                    <button class="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded font-medium transition shadow">Afficher la Preuve</button>
+                </div>
+            </div>
+            <div class="p-4 flex space-x-3 bg-slate-800 border-t border-slate-700">
+                <button class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded text-center transition shadow-lg shadow-emerald-900/20 text-lg">Sceller & Clôturer</button>
+                <button class="w-1/3 bg-transparent border-2 border-slate-600 hover:border-slate-500 text-white font-semibold py-4 rounded text-center transition">Rejeter</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

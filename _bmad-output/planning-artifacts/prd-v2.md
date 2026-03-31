@@ -3,7 +3,7 @@ stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-0
 inputDocuments: ['product-brief-v2.md', 'product-brief-bicec--Sentinel-2026-03-06.md', 'prd.md', 'market-sentinel-grc-cemac-research-2026-03-21.md', 'domain-audit-interne-cemac-research-2026-03-21.md']
 workflowType: 'prd'
 classification:
-  projectType: "On-Premise Compliance Workflow Platform (SPA + API + PostgreSQL + Async Scheduler)"
+  projectType: "On-Premise Compliance Workflow Platform (SSR MPA + HTMX + PostgreSQL + Async Scheduler)"
   domain: "RegTech — Audit Compliance Management (Banking / CEMAC)"
   complexity: "HIGH (accumulation de sous-systèmes MEDIUM + conformité réglementaire HIGH)"
   projectContext: "Process-Mature Greenfield (code neuf, processus métier existant, données historiques à migrer)"
@@ -41,7 +41,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 
 ## Project Classification
 
-- **Project Type :** On-Premise Compliance Workflow Platform
+- **Project Type :** On-Premise Compliance Workflow Platform (SSR MPA)
 - **Domain :** RegTech — Audit Compliance Management (Banking / CEMAC)
 - **Complexity :** HIGH (accumulation de sous-systèmes MEDIUM + conformité réglementaire HIGH)
 - **Project Context :** Process-Mature Greenfield (code neuf, processus métier existant, données historiques à migrer)
@@ -63,11 +63,11 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - **Intégrité cryptographique :** 100% des recommandations clôturées possèdent un hash SHA-256 vérifiable. Aucun utilisateur (y compris le DBA) ne peut altérer une preuve archivée sans briser l'empreinte de contrôle.
 - **Ségrégation holistique :** Le RLS garantit zéro accès croisé entre directions.
 - **HTTPS interne obligatoire** pour toutes les communications.
-- **Contrôle d'intégrité de fichier** : Validation stricte des Magic Bytes sur chaque upload de fichier (le scan récursif par antivirus de type ClamAV étant repoussé post-MVP).
+- **Contrôle d'intégrité de fichier** : Validation stricte adaptative (Magic Bytes pour PDF/Images, contrôle MIME/extension strict pour Excel sans macro, CSV, Mails) + Forçage de téléchargement sécurisé. Le scan récursif par antivirus ClamAV étant repoussé post-MVP.
 
 ### Pré-lancement
 - **Import historique complété** : L'intégralité des recommandations existantes (450+) est importée et validée dans Sentinel avant le Go-Live.
-- **Sprint 0 technique validé** : SSO/Active Directory opérationnel + environnement On-Premise configuré.
+- **Sprint 0 technique validé** : Authentification locale configurée (SSO/Active Directory différé en V2) + environnement On-Premise configuré.
 - **Sprint UX/Design complété** : Maquettes validées par un panel d'utilisateurs cibles (DM + ETP).
 
 ### Measurable Outcomes
@@ -149,13 +149,13 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 
 **Personas :** Aboubakar N. (RSSI / Support)
 
-**Opening Scene :** Le Sprint 0 technique est lancé. Aboubakar configure l'environnement On-Premise : serveur web, base PostgreSQL, certificat HTTPS interne. Il connecte Sentinel à l'Active Directory de la BICEC pour l'authentification SSO. Première validation : un utilisateur test se connecte avec ses identifiants AD.
+**Opening Scene :** Le Sprint 0 technique est lancé. Aboubakar configure l'environnement On-Premise : serveur web, base PostgreSQL, certificat HTTPS interne. Il configure authentification locale (l'AD est prévu pour la V2). Première validation : un utilisateur test se connecte avec ses identifiants locaux.
 
 **Rising Action :** Aboubakar crée l'organigramme dans l'interface d'administration de Sentinel : 12 directions, 45 agences, structure hiérarchique. Il crée les comptes utilisateurs et assigne les rôles métiers (en coordination stricte avec l'Audit Interne qui valide chaque affectation). L'Audit Interne gère exclusivement les ré-assignations manuelles en cas d'absence des DM. Du côté métier, c'est ensuite Jean-Paul (Audit Interne) qui télécharge le template d'import normalisé depuis son espace sécurisé, y transfère ses 450+ recommandations historiques et lance l'import. Lors de la première tentative, le système bloque tout à cause d'une date invalide à la ligne 42 (transaction atomique). Jean-Paul corrige son fichier et valide l'import global avec succès en statut `ASSIGNED` avec le tag `IMPORTED`.
 
 **Climax :** La première connexion réelle des utilisateurs. Aboubakar surveille les logs système : connexions, erreurs SSO, performances. Un DM signale un problème d'accès — son périmètre RLS n'inclut pas sa nouvelle agence. Aboubakar met à jour l'organigramme, le RLS se réapplique instantanément. Problème résolu en 5 minutes.
 
-**Resolution :** L'environnement est opérationnel. L'historique est migré. Les 85 utilisateurs sont formés et connectés. Aboubakar supervise le turnover : quand un collaborateur quitte la BICEC, la désactivation AD révoque instantanément son accès Sentinel.
+**Resolution :** L'environnement est opérationnel. L'historique est migré. Les 85 utilisateurs sont formés et connectés. Aboubakar supervise le turnover : quand un collaborateur quitte la BICEC, la désactivation de son compte révoque instantanément son accès Sentinel.
 
 ---
 
@@ -181,7 +181,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 | **Edge Case & Report** | Ré-assignation manuelle par Audit (en cas d'absence DM), flag OVERDUE, rappels quotidiens (Critique) / digest hebdo, rejet motivé, **demande de report par DM avec justification / validation Audit** |
 | **Compliance** | Compte Auditeur Externe (credentials locaux), RLS, OVERDUE masqué, synthèse conformité (pas d'audit trail), **téléchargement autonome ZIP unitaire par recommandation** |
 | **Data Init (Audit)** | Téléchargement exclusif du template, import transactionnel strict (tout ou rien), rollback sur erreur, tag inaltérable IMPORTED, statut initial ASSIGNED |
-| **Admin/Ops** | Configuration SSO/AD, gestion globale de l'organigramme des directions, monitoring système |
+| **Admin/Ops** | Configuration Auth Locale (AD en V2), gestion globale de l'organigramme des directions, monitoring système |
 | **DG** | Dashboard supervision macro, filtres, export PDF temps réel, rapport Comité de Direction |
 
 ## Domain-Specific Requirements
@@ -199,9 +199,9 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - **Sécurité et Réseau :** HTTPS interne obligatoire ; validation stricte par Magic Bytes (scan antivirus différé en V2).
 
 ### Integration Requirements
-- **SSO Active Directory :** Connexion fluide via l'AD de la BICEC pour assurer l'adoption des DM et ETP.
-- **Cycle de Vie Utilisateurs :** La désactivation d'un compte dans l'AD doit révoquer instantanément l'accès à Sentinel. L'import Excel (initial) fonctionne en mode strict "data-only".
-- **Post-MVP (Future-proofing) :** Architecture API-first pour permettre de futures intégrations avec SPECTRA II et le Core Banking.
+- **Authentification Locale (MVP) / Active Directory (V2) :** Connexion locale gérée par Django pour le MVP. L'intégration SSO Active Directory est différée en V2 pour simplifier l'infrastructure initiale.
+- **Cycle de Vie Utilisateurs :** La désactivation d'un compte révoque instantanément l'accès à Sentinel. L'import Excel (initial) fonctionne en mode strict "data-only".
+- **Post-MVP (Future-proofing) :** Architecture modulaire pour permettre l'ajout futur d'une API de lecture pour d'éventuelles intégrations avec SPECTRA II et le Core Banking.
 
 ### Risk Mitigations
 - **Risque d'Adoption (Rejet des DM) :** Atténué par un plan de notifications graduel (digest vs quotidien), un design UX ultra-rapide et l'exemption de commentaires si présentation du PV de recette signé.
@@ -219,16 +219,16 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 **Core User Journeys Supported :**
 - Happy Path (Assignation → Soumission → Validation DM → Clôture)
 - Edge Case & Report (Rejet, OVERDUE, Demande de délai / ré-assignation Audit)
-- Import Transactionnel Atomique (Historique) & Onboarding SSO AD.
+- Import Transactionnel Atomique (Historique) & Onboarding Auth Locale MVP.
 - Mission COBAC (Création accès local limité).
 
 **Must-Have Capabilities :**
 - Workflow FSM strict (5 états + statut transitoire d'extension)
 - **Création Audit en "Bulk"** (Saisie par lots pour réduire la friction de création)
-- Intégration SSO Active Directory (Read-Only)
-- Isolation des données (RLS PostgreSQL)
+- Authentification locale Django (`django.contrib.auth`), SSO AD différé en V2
+- Isolation des données (RLS Partiel Garde-fou + RBAC Applicatif)
 - Sceau cryptographique de clôture (HMAC-SHA256) et Audit Triggers natifs
-- **Sécurité Fichiers allégée :** Validation par magic bytes + whitelist d'extensions (PDF, JPG, PNG) + limite 50 Mo. (Le scan ClamAV est repoussé en V2 pour économiser l'infra).
+- **Sécurité Fichiers allégée :** Whitelist stricte d'extensions (PDF, JPG, PNG, XLSX, CSV, TXT, MSG/EML) + validation par magic bytes pour les médias + limite 15 Mo. Macros Excel (XLSM) formellement interdites. (Le scan ClamAV est repoussé en V2).
 - Dashboards simplifiés : Vue liste filtrable pour Audit/ETP/DM. Pour le DG : Vue liste agrégée statique ou simple export PDF des retards (Pas de graphiques interactifs complexes en MVP).
 - Moteur de notification asynchrone (Digest vs Alertes temps réel)
 
@@ -248,16 +248,16 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - Intégration API Core Banking & SPECTRA II.
 
 ### Risk Mitigation Strategy
-**Technical Risks (Performance & RLS) :** Protéger le MVP en remplaçant la blockchain logicielle complexe par un Sceau HMAC-SHA256 unique à la clôture. Si le RLS PostgreSQL résiste plus de 5 jours, basculer immédiatement sur un RBAC applicatif — mais activer immédiatement les tests d'isolation automatisés sur chaque endpoint avant de continuer le développement. Ces tests sont bloquants pour le Go-Live.
+**Technical Risks (Performance & RLS) :** Protéger le MVP en remplaçant la blockchain logicielle complexe par un Sceau HMAC-SHA256 unique à la clôture. Le risque de complexité RLS est mitigé par une approche **RLS Partiel (garde-fou) couplée à un RBAC applicatif** (ADR-01). Tests d'isolation automatisés bloquants pour le Go-Live.
 **Adoption Risks (Rejet DM ou Epuisement Audit) :** Ajout de la saisie "Bulk" pour soulager l'Audit à la création. Règle des "≤ 3 clics" pour la validation côté DM avec exemption de commentaire si PV de recette signé.
 **Resource Risks (Temps infra) :** Remplacement de ClamAV par une validation Magic Bytes au MVP pour réduire la surface d'attaque sans dépendance infrastructure, sécurisant ainsi la deadline de 6 mois.
 
 ## Functional Requirements
 
 ### 1. User Management & Authentication
-- **FR1:** Les utilisateurs internes peuvent s'authentifier via leurs identifiants Active Directory (SSO).
+- **FR1:** Les utilisateurs internes s'authentifient via des identifiants locaux sécurisés (Django Auth). L'intégration Active Directory (SSO) est différée en V2.
 - **FR2:** Les Auditeurs Externes peuvent s'authentifier via des identifiants locaux spécifiques au système.
-- **FR3:** L'Audit Interne peut valider et associer les comptes AD aux profils métiers (Audit, DM, ETP, DG, Externe).
+- **FR3:** L'Audit Interne peut valider et associer les comptes locaux aux profils métiers (Audit, DM, ETP, DG, Externe).
 - **FR4:** L'Audit Interne conserve le privilège exclusif de ré-assigner manuellement une recommandation associée à un Directeur Métier absent vers son remplaçant, garantissant ainsi le routage correct des alertes.
 
 ### 2. Recommendation Initialization & Import
@@ -275,7 +275,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - **FR14:** L'Audit Interne peut approuver (en validant la nouvelle date) ou rejeter (maintien de l'échéance initiale) la demande de report.
 
 ### 4. Evidence Submission & Validation
-- **FR15:** L'ETP peut uploader des fichiers comme preuves (max 50 Mo) limités strictement aux formats autorisés (Magic Bytes : PDF, Images).
+- **FR15:** L'ETP peut uploader des fichiers comme preuves (max 15 Mo) limités strictement aux formats autorisés (PDF, Images, Excel XLSX sans macro, CSV, Mails MSG/EML, Logs TXT) avec validation sécurisée adaptative.
 - **FR16:** L'ETP peut soumettre les preuves au DM en y incluant un commentaire justificatif exhaustif.
 - **FR17:** Le Directeur Métier peut valider les preuves de l'ETP, ou les rejeter en fournissant un motif obligatoire de correction à l'ETP.
 - **FR18:** L'ETP peut uploader de nouveaux fichiers et re-soumettre un dossier suite au rejet du DM ou d'un rejet consécutif de l'Audit.
@@ -285,7 +285,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 ### 5. Notifications & Reminders
 - **FR21:** Le système calcule quotidiennement le temps écoulé et bascule automatiquement les recommandations échues au statut OVERDUE.
 - **FR22:** Le système génère et transmet des alertes (Email/In-app) de façon quotidienne pour tout dossier OVERDUE priorisé "Critique".
-- **FR23:** Le système exécute une boucle nocturne générant l'envoi d'une alerte email distincte (texte brut ou HTML basique 1995) pour *chaque* recommandation en état de retard, garantissant 100% de compatibilité Outlook et supprimant le besoin de template d'agrégation complexe.
+- **FR23:** Le système exécute une boucle nocturne générant l'envoi d'**un seul email consolidé par utilisateur** listant toutes ses recommandations en état de retard (Groupées par priorité) et envoyant une alerte proactive à J-7 de l'échéance. Ceci prévient la fatigue de notification et garantit la compatibilité Outlook (Mise à jour suite ADR-03).
 
 ### 6. Cryptographic Auditing & Export
 - **FR24:** Le système calcule un sceau cryptographique global (HMAC-SHA256) au moment exact de la clôture de la recommandation par l'Audit Interne (FR20), verrouillant le dossier complet.
@@ -302,22 +302,22 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 ## Non-Functional Requirements
 
 ### Security & Compliance
-- **NFR-SEC-01 :** Le trafic externe (Client ↔ Serveur) doit impérativement utiliser le protocole **HTTPS (TLS 1.2 minimum)**. Le chiffrement intra-infrastructure (API ↔ BDD) n'est différé à la V2 *que si et seulement si* le déploiement MVP est mono-serveur (API et BDD sur la même machine/VM).
+- **NFR-SEC-01 :** Le trafic externe (Client ↔ Serveur) doit impérativement utiliser le protocole **HTTPS (TLS 1.2 minimum)**. Le chiffrement intra-infrastructure (App ↔ BDD) n'est différé à la V2 *que si et seulement si* le déploiement MVP est mono-serveur (App et BDD sur la même machine/VM).
 - **NFR-SEC-02 :** La session applicative doit expirer automatiquement après **30 minutes d'inactivité absolue** du navigateur (équilibre sécurité / UX pour les sessions de lecture DM).
 - **NFR-SEC-03 :** Le calcul de l'empreinte cryptographique de clôture doit utiliser **HMAC-SHA256** (clé serveur + métadonnées + preuves), sans impliquer de mécanique logicielle de chaînage transactionnel récurrent.
-- **NFR-SEC-04 :** L'API doit refouler instantanément tout fichier dont les **Magic Bytes** ne correspondent pas exactement à une signature PDF, JPG ou PNG autorisée.
+- **NFR-SEC-04 :** L'application doit refouler instantanément tout fichier dont les **Magic Bytes** ne correspondent pas exactement à une signature PDF, JPG ou PNG autorisée.
 - **NFR-SEC-05 :** Les logs systèmes (Activity Logging) doivent être conservés 12 mois et accessibles en mode "Read-Only" par le RSSI (ou extraits via Syslog).
 
 ### Performance
-- **NFR-PERF-01 :** La résolution des règles de **Row-Level Security (RLS)** doit s'exécuter en **< 10ms** par requête (matérialisation des permissions hiérarchiques requise au niveau du token/session pour éviter les jointures récursives bloquantes).
-- **NFR-PERF-02 :** Les opérations de routine de l'interface utilisateur (Changement de statut, Assignation) doivent obtenir une réponse serveur en **< 1 seconde** (95ème percentile).
+- **NFR-PERF-01 :** La résolution des règles de **RBAC / RLS** doit s'exécuter en **< 10ms** par requête (matérialisation des permissions hiérarchiques requise au niveau des sessions applicatives Django pour éviter les jointures récursives bloquantes).
+- **NFR-PERF-02 :** Les opérations de routine de l'interface utilisateur (Changement de statut, Assignation) doivent obtenir une réponse serveur HTML complète en **< 200 millisecondes** (95ème percentile).
 - **NFR-PERF-03 :** L'overhead de calcul du Sceau HMAC-SHA256 lors de la clôture finale ne doit pas dépasser **500 millisecondes**.
 - **NFR-PERF-04 :** La génération et le téléchargement synchrone d'une archive ZIP unitaire (pour une seule recommandation) pour les Auditeurs Externes doit prendre **< 5 secondes**.
 
 ### Scalability & Capacity
-- **NFR-SCA-01 :** Le système autorise un upload unitaire maximal de **50 Mo par fichier**, limité à un lot de **5 fichiers simultanés maximum par requête** pour empêcher la saturation mémoire du serveur (Déni de Service).
+- **NFR-SCA-01 :** Le système autorise un upload unitaire maximal de **15 Mo par fichier**, limité à un lot de **5 fichiers simultanés maximum par requête** pour empêcher la saturation mémoire du serveur (Déni de Service).
 - **NFR-SCA-02 :** L'architecture MVP doit pouvoir ingérer le lancement (Import) de **5 000 recommandations** et **20 000 fichiers de preuves** historiques initiaux.
-- **NFR-SCA-02b :** Le Time-To-Interactive (TTI) de l'application frontend doit rester décorrelé du volume de l'import historique en toile de fond (l'import ne doit pas verrouiller la base de données pour les opérations synchrones de lecture des utilisateurs connectés).
+- **NFR-SCA-02b :** Le temps de rendu des templates (TTFB) de l'application frontend doit rester décorrelé du volume de l'import historique en toile de fond (l'import ne doit pas verrouiller la base de données pour les opérations synchrones de lecture des utilisateurs connectés).
 - **NFR-SCA-03 :** Le système doit garantir des temps de réponse nominaux avec **jusqu'à 500 utilisateurs concurrents** actifs (Périodes de rush : audits trimestriels, fins de mois).
 
 ### Reliability & Data Integrity

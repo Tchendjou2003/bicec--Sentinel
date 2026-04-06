@@ -1,138 +1,729 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <title>Sentinel - Design Directions</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentinel — Design Directions Showcase</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bicec-yellow: #FAB50B;
+      --bicec-yellow-dark: #D89A0A;
+      --bicec-blue: #1A3A5C;
+      --bicec-blue-light: #2B5080;
+      --status-draft: #6B7280;
+      --status-pending: #06B6D4;
+      --status-approved: #10B981;
+      --status-rejected: #EF4444;
+      --status-overdue: #991B1B;
+      --surface-base: #F8F9FB;
+      --surface-card: #FFFFFF;
+      --border-subtle: #E5E7EB;
+      --text-primary: #111827;
+      --text-secondary: #6B7280;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Roboto', sans-serif; background: #0F172A; color: white; }
+
+    /* Navigation */
+    .showcase-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px);
+      border-bottom: 2px solid var(--bicec-yellow);
+      padding: 16px 32px; display: flex; align-items: center; gap: 24px;
+    }
+    .showcase-nav h1 { font-size: 18px; font-weight: 700; color: var(--bicec-yellow); }
+    .showcase-nav .tabs { display: flex; gap: 8px; margin-left: auto; }
+    .showcase-nav .tab {
+      padding: 8px 20px; border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 600; border: 1px solid rgba(255,255,255,0.15);
+      background: transparent; color: rgba(255,255,255,0.7); transition: all 0.3s;
+    }
+    .showcase-nav .tab:hover { border-color: var(--bicec-yellow); color: white; }
+    .showcase-nav .tab.active { background: var(--bicec-yellow); color: var(--bicec-blue); border-color: var(--bicec-yellow); }
+
+    /* Sections */
+    .direction { display: none; padding: 100px 32px 48px; min-height: 100vh; }
+    .direction.active { display: block; }
+    .direction-header { text-align: center; margin-bottom: 48px; }
+    .direction-header h2 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+    .direction-header p { font-size: 16px; color: rgba(255,255,255,0.6); max-width: 600px; margin: 0 auto; }
+    .direction-header .tag {
+      display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 11px;
+      font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;
+    }
+
+    /* Mockup frame */
+    .mockup-frame {
+      max-width: 1200px; margin: 0 auto; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* ==============================
+       DIRECTION 1 — CORPORATE FORTRESS
+       ============================== */
+    .d1-app { background: var(--surface-base); display: flex; height: 700px; }
+    .d1-sidebar {
+      width: 256px; background: var(--bicec-blue); color: white;
+      padding: 0; display: flex; flex-direction: column;
+    }
+    .d1-sidebar-header {
+      padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .d1-sidebar-header .logo {
+      width: 36px; height: 36px; background: var(--bicec-yellow); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: var(--bicec-blue); font-size: 14px;
+    }
+    .d1-sidebar-header span { font-weight: 700; font-size: 15px; }
+    .d1-nav-items { padding: 16px 12px; flex: 1; }
+    .d1-nav-item {
+      padding: 10px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;
+      display: flex; align-items: center; gap: 12px; margin-bottom: 4px;
+      color: rgba(255,255,255,0.7); transition: all 0.2s;
+    }
+    .d1-nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
+    .d1-nav-item.active { background: rgba(250,181,11,0.15); color: var(--bicec-yellow); }
+    .d1-nav-item .badge {
+      margin-left: auto; background: var(--status-overdue); color: white;
+      font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      animation: pulse-border 2s infinite;
+    }
+    @keyframes pulse-border { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+    .d1-main { flex: 1; display: flex; flex-direction: column; }
+    .d1-topbar {
+      height: 64px; background: white; border-bottom: 1px solid var(--border-subtle);
+      padding: 0 32px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .d1-topbar h3 { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+    .d1-topbar .user-avatar {
+      width: 36px; height: 36px; background: var(--bicec-blue); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 13px; font-weight: 700;
+    }
+    .d1-content { flex: 1; padding: 24px 32px; overflow-y: auto; }
+
+    /* Cards */
+    .d1-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .d1-stat-card {
+      background: white; border-radius: 12px; padding: 20px; border: 1px solid var(--border-subtle);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .d1-stat-card .label { font-size: 12px; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .d1-stat-card .value { font-size: 28px; font-weight: 700; color: var(--text-primary); margin-top: 4px; }
+    .d1-stat-card .delta { font-size: 12px; margin-top: 4px; font-weight: 600; }
+    .d1-stat-card .delta.danger { color: var(--status-overdue); }
+    .d1-stat-card .delta.success { color: var(--status-approved); }
+
+    /* Table */
+    .d1-table-card {
+      background: white; border-radius: 12px; border: 1px solid var(--border-subtle);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04); overflow: hidden;
+    }
+    .d1-table-header {
+      padding: 16px 24px; border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .d1-table-header h4 { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+    .d1-table-header .btn-primary {
+      padding: 8px 20px; background: var(--bicec-yellow); color: var(--bicec-blue);
+      border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .d1-table-header .btn-primary:hover { background: var(--bicec-yellow-dark); }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 12px 24px; font-size: 11px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border-subtle); }
+    td { padding: 14px 24px; font-size: 14px; color: var(--text-primary); border-bottom: 1px solid var(--border-subtle); }
+    tr:hover td { background: #F9FAFB; }
+
+    /* Status badges */
+    .badge-draft { background: #F3F4F6; color: #374151; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge-pending { background: #ECFEFF; color: #155E75; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge-approved { background: #10B981; color: white; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge-rejected { background: #FEF2F2; color: #B91C1C; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge-overdue {
+      background: #991B1B; color: white; padding: 4px 12px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; border: 2px solid #FCA5A5;
+      animation: pulse-border 2s infinite;
+    }
+
+    /* ==============================
+       DIRECTION 2 — SPLIT-SCREEN VALIDATOR
+       ============================== */
+    .d2-app { background: var(--surface-base); height: 700px; display: flex; flex-direction: column; }
+    .d2-topnav {
+      height: 56px; background: var(--bicec-blue); display: flex; align-items: center;
+      padding: 0 24px; gap: 24px;
+    }
+    .d2-topnav .logo { color: var(--bicec-yellow); font-weight: 700; font-size: 16px; }
+    .d2-topnav .nav-links { display: flex; gap: 4px; margin-left: 32px; }
+    .d2-topnav .nav-link {
+      padding: 8px 16px; border-radius: 6px; color: rgba(255,255,255,0.7);
+      font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;
+    }
+    .d2-topnav .nav-link:hover { color: white; background: rgba(255,255,255,0.08); }
+    .d2-topnav .nav-link.active { color: var(--bicec-yellow); background: rgba(250,181,11,0.12); }
+
+    .d2-split { flex: 1; display: flex; overflow: hidden; }
+    .d2-left {
+      width: 35%; background: white; border-right: 1px solid var(--border-subtle);
+      padding: 24px; overflow-y: auto;
+    }
+    .d2-left .reco-badge { font-size: 11px; font-weight: 700; color: var(--bicec-blue); background: #EFF6FF; padding: 4px 10px; border-radius: 6px; display: inline-block; margin-bottom: 12px; }
+    .d2-left h3 { font-size: 18px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+    .d2-left .meta { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; }
+    .d2-left .field { margin-bottom: 16px; }
+    .d2-left .field-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .d2-left .field-value { font-size: 14px; color: var(--text-primary); line-height: 1.5; }
+
+    .d2-right {
+      flex: 1; background: #F1F5F9; display: flex; flex-direction: column;
+    }
+    .d2-pdf-header {
+      padding: 12px 24px; background: white; border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .d2-pdf-header span { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+    .d2-pdf-body {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      background: repeating-linear-gradient(0deg, transparent, transparent 24px, #E2E8F0 24px, #E2E8F0 25px);
+    }
+    .d2-pdf-placeholder {
+      width: 80%; height: 85%; background: white; border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1); display: flex;
+      align-items: center; justify-content: center; flex-direction: column;
+      color: var(--text-secondary);
+    }
+    .d2-pdf-placeholder .icon { font-size: 48px; margin-bottom: 12px; }
+    .d2-pdf-placeholder p { font-size: 14px; }
+
+    .d2-action-bar {
+      padding: 16px 24px; background: white; border-top: 2px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: flex-end; gap: 16px;
+    }
+    .d2-btn-reject {
+      padding: 14px 32px; background: #FEF2F2; color: #B91C1C; border: 2px solid #FECACA;
+      border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+    }
+    .d2-btn-reject:hover { background: #FEE2E2; border-color: #FCA5A5; }
+    .d2-btn-accept {
+      padding: 14px 40px; background: var(--status-approved); color: white; border: none;
+      border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 2px 8px rgba(16,185,129,0.3);
+    }
+    .d2-btn-accept:hover { background: #059669; }
+
+    /* ==============================
+       DIRECTION 3 — DATA-GRID POWER USER
+       ============================== */
+    .d3-app { background: var(--surface-base); height: 700px; display: flex; flex-direction: column; }
+    .d3-topnav {
+      height: 48px; background: var(--bicec-blue); display: flex; align-items: center;
+      padding: 0 20px; gap: 16px;
+    }
+    .d3-topnav .logo { color: var(--bicec-yellow); font-weight: 700; font-size: 14px; }
+    .d3-topnav .breadcrumb { color: rgba(255,255,255,0.5); font-size: 12px; }
+    .d3-topnav .breadcrumb .current { color: white; font-weight: 600; }
+    .d3-topnav .shortcut-hint {
+      margin-left: auto; font-size: 11px; color: rgba(255,255,255,0.4);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .d3-topnav .kbd {
+      background: rgba(255,255,255,0.12); padding: 2px 6px; border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    }
+
+    .d3-toolbar {
+      padding: 12px 24px; background: white; border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .d3-toolbar .filter-btn {
+      padding: 6px 14px; border: 1px solid var(--border-subtle); border-radius: 6px;
+      font-size: 12px; font-weight: 500; cursor: pointer; background: white;
+      color: var(--text-secondary); transition: all 0.2s;
+    }
+    .d3-toolbar .filter-btn:hover { border-color: var(--bicec-blue); color: var(--bicec-blue); }
+    .d3-toolbar .filter-btn.active { background: var(--bicec-blue); color: white; border-color: var(--bicec-blue); }
+    .d3-toolbar .action-group { margin-left: auto; display: flex; gap: 8px; }
+    .d3-toolbar .btn-bulk {
+      padding: 6px 16px; background: var(--bicec-yellow); color: var(--bicec-blue);
+      border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+
+    .d3-grid { flex: 1; overflow: auto; }
+    .d3-grid table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .d3-grid th {
+      text-align: left; padding: 8px 16px; font-size: 11px; color: var(--text-secondary);
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+      background: #F9FAFB; border-bottom: 2px solid var(--border-subtle);
+      position: sticky; top: 0; z-index: 1;
+    }
+    .d3-grid td {
+      padding: 10px 16px; border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+    }
+    .d3-grid tr:hover td { background: #FFFBEB; }
+    .d3-grid .cell-editable {
+      border: 1px dashed transparent; padding: 4px 8px; border-radius: 4px;
+      transition: border-color 0.2s;
+    }
+    .d3-grid tr:hover .cell-editable { border-color: var(--bicec-yellow); cursor: text; }
+    .d3-grid .cell-error {
+      background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 4px;
+      padding: 4px 8px; color: var(--status-rejected);
+    }
+    .d3-grid .row-checkbox { width: 16px; height: 16px; accent-color: var(--bicec-yellow); }
+    .d3-statusbar {
+      padding: 8px 24px; background: var(--bicec-blue); color: rgba(255,255,255,0.7);
+      font-size: 11px; display: flex; align-items: center; gap: 24px;
+    }
+    .d3-statusbar .count { color: var(--bicec-yellow); font-weight: 700; }
+
+    /* ==============================
+       DIRECTION 4 — DG EXECUTIVE VIEW
+       ============================== */
+    .d4-app { background: var(--surface-base); height: 700px; display: flex; flex-direction: column; }
+    .d4-topnav {
+      height: 56px; background: white; border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: center; padding: 0 32px;
+    }
+    .d4-topnav .logo { font-weight: 700; font-size: 16px; color: var(--bicec-blue); }
+    .d4-topnav .logo span { color: var(--bicec-yellow); }
+    .d4-topnav .date-range {
+      margin-left: auto; padding: 6px 16px; border: 1px solid var(--border-subtle);
+      border-radius: 8px; font-size: 13px; color: var(--text-secondary);
+    }
+
+    .d4-content { flex: 1; padding: 24px 32px; overflow-y: auto; }
+
+    .d4-hero {
+      background: linear-gradient(135deg, var(--bicec-blue), #2B5080);
+      border-radius: 16px; padding: 32px; color: white; margin-bottom: 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .d4-hero h2 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+    .d4-hero p { font-size: 14px; opacity: 0.7; }
+    .d4-hero .score {
+      font-size: 56px; font-weight: 700; color: var(--bicec-yellow);
+      line-height: 1;
+    }
+    .d4-hero .score-label { font-size: 12px; opacity: 0.6; text-align: center; }
+
+    .d4-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+    .d4-card {
+      background: white; border-radius: 12px; padding: 24px;
+      border: 1px solid var(--border-subtle); box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .d4-card h4 { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 16px; }
+    .d4-risk-item {
+      display: flex; align-items: center; gap: 12px; padding: 12px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .d4-risk-item:last-child { border-bottom: none; }
+    .d4-risk-item .dept { font-size: 14px; font-weight: 600; color: var(--text-primary); flex: 1; }
+    .d4-risk-item .count { font-size: 13px; font-weight: 700; }
+    .d4-risk-item .count.critical { color: var(--status-overdue); }
+    .d4-risk-item .count.warning { color: #D97706; }
+    .d4-risk-item .count.ok { color: var(--status-approved); }
+    .d4-risk-bar {
+      height: 6px; border-radius: 3px; background: #F3F4F6; width: 120px; overflow: hidden;
+    }
+    .d4-risk-bar .fill { height: 100%; border-radius: 3px; }
+
+    .d4-timeline-item {
+      padding: 10px 0; border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .d4-timeline-item:last-child { border-bottom: none; }
+    .d4-timeline-dot {
+      width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0;
+    }
+    .d4-timeline-item .text { font-size: 13px; color: var(--text-primary); line-height: 1.4; }
+    .d4-timeline-item .time { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .mockup-frame { margin: 0 16px; }
+      .d1-stats { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
 </head>
-<body class="bg-gray-100 text-slate-800 font-sans h-screen flex flex-col" x-data="{ activeTab: 1 }">
+<body>
 
-    <!-- Header / Tab Switcher -->
-    <div class="bg-slate-900 text-white p-4 shadow-md flex justify-between items-center z-10 relative">
-        <h1 class="text-xl font-bold">Sentinel - Explorations UX</h1>
-        <div class="flex space-x-2">
-            <button @click="activeTab = 1" :class="{'bg-blue-600': activeTab === 1, 'bg-slate-700': activeTab !== 1}" class="px-4 py-2 rounded text-sm font-medium transition">1. "Linear" (Dense & Slide-over)</button>
-            <button @click="activeTab = 2" :class="{'bg-blue-600': activeTab === 2, 'bg-slate-700': activeTab !== 2}" class="px-4 py-2 rounded text-sm font-medium transition">2. "Airtable" (Filtres & Tableaux)</button>
-            <button @click="activeTab = 3" :class="{'bg-blue-600': activeTab === 3, 'bg-slate-700': activeTab !== 3}" class="px-4 py-2 rounded text-sm font-medium transition">3. "Superhuman" (Focus & Triage)</button>
-        </div>
+  <nav class="showcase-nav">
+    <h1>⚡ SENTINEL — Design Directions</h1>
+    <div class="tabs">
+      <div class="tab active" onclick="showDirection(0)">① Corporate Fortress</div>
+      <div class="tab" onclick="showDirection(1)">② Split-Screen Validator</div>
+      <div class="tab" onclick="showDirection(2)">③ Data-Grid Power</div>
+      <div class="tab" onclick="showDirection(3)">④ Executive DG</div>
     </div>
+  </nav>
 
-    <!-- Direction 1: Linear-style -->
-    <div x-show="activeTab === 1" class="flex-1 flex overflow-hidden">
-        <!-- Sidebar -->
-        <div class="w-64 bg-slate-50 border-r border-slate-200 p-4 flex flex-col">
-            <div class="font-bold text-slate-400 text-xs tracking-wider mb-4 uppercase">Vues</div>
-            <a href="#" class="flex items-center justify-between text-slate-900 font-medium bg-slate-200 rounded px-2 py-1 mb-1">
-                <span>Action Requise</span>
-                <span class="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">3</span>
-            </a>
-            <a href="#" class="flex items-center text-slate-600 hover:text-slate-900 px-2 py-1 mb-1">En attente d'Audit</a>
-            <a href="#" class="flex items-center text-slate-600 hover:text-slate-900 px-2 py-1">Mes Clôtures</a>
-        </div>
-        <!-- Main Content (List) -->
-        <div class="flex-1 flex flex-col bg-white">
-            <div class="border-b border-slate-200 p-4 flex justify-between items-center">
-                <h2 class="text-lg font-semibold">Action Requise</h2>
-                <button class="bg-white border border-slate-300 text-slate-700 px-3 py-1 rounded text-sm shadow-sm hover:bg-slate-50">Filter</button>
-            </div>
-            <!-- List Items -->
-            <div class="flex-1 overflow-y-auto p-4 space-y-2">
-                <div class="border border-red-200 shadow-sm rounded-lg p-3 flex justify-between items-center bg-red-50 cursor-pointer hover:border-blue-400 hover:shadow-md transition">
-                    <div class="flex items-center space-x-3">
-                        <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                        <span class="bg-red-600 text-white font-medium text-xs px-2 py-0.5 rounded">J-2</span>
-                        <span class="font-semibold text-slate-800">REC-2023-045</span>
-                        <span class="text-slate-500 text-sm">Absence de signature sur contrat cadre</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Slide-over (Interaction) -->
-        <div class="w-1/3 bg-slate-50 border-l border-slate-200 flex flex-col shadow-2xl relative">
-            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-white">
-                <h3 class="font-semibold text-slate-800">Visualisation de Preuve</h3>
-                <button class="text-slate-400 hover:text-slate-600">&times;</button>
-            </div>
-            <div class="flex-1 p-6 relative flex flex-col">
-                <div class="w-full flex-1 bg-slate-200 rounded flex items-center justify-center text-slate-400 mb-6 border border-slate-300">
-                    [Aperçu PDF Direct]
-                </div>
-                <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded shadow transition">Approuver & Sceller (HMAC)</button>
-            </div>
-        </div>
+  <!-- DIRECTION 1: Corporate Fortress (Dashboard DM) -->
+  <section class="direction active">
+    <div class="direction-header">
+      <div class="tag" style="background:rgba(250,181,11,0.15); color:var(--bicec-yellow);">Direction 1</div>
+      <h2>Corporate Fortress</h2>
+      <p>Sidebar permanente Bleu BICEC, dashboard statistique avec alertes OVERDUE pulsantes. Vision "Tableau de bord DM".</p>
     </div>
-
-    <!-- Direction 2: Airtable-style -->
-    <div x-show="activeTab === 2" class="flex-1 bg-white overflow-hidden flex flex-col">
-        <!-- Toolbar -->
-        <div class="border-b border-slate-200 p-2 flex space-x-2 bg-slate-50 items-center text-sm">
-            <div class="font-semibold px-4 flex items-center">
-                Toutes les Recommandations
-                <span class="ml-2 bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-xs">142</span>
+    <div class="mockup-frame">
+      <div class="d1-app">
+        <aside class="d1-sidebar">
+          <div class="d1-sidebar-header">
+            <div class="logo">S</div>
+            <span>Sentinel</span>
+          </div>
+          <div class="d1-nav-items">
+            <div class="d1-nav-item active">📊 Tableau de bord</div>
+            <div class="d1-nav-item">📋 Recommandations <span class="badge">3</span></div>
+            <div class="d1-nav-item">📎 Preuves soumises</div>
+            <div class="d1-nav-item">👥 Mon équipe</div>
+            <div class="d1-nav-item">📄 Rapports</div>
+          </div>
+        </aside>
+        <main class="d1-main">
+          <div class="d1-topbar">
+            <h3>Tableau de bord — Direction Opérations</h3>
+            <div class="d1-topbar" style="border:none;padding:0;">
+              <div class="user-avatar">CD</div>
             </div>
-            <div class="h-4 border-r border-slate-300 mx-2"></div>
-            <button class="text-slate-600 bg-white border border-slate-200 px-3 py-1.5 hover:bg-slate-100 rounded flex items-center shadow-sm"><span class="mr-1">≡</span> Filtrer</button>
-            <button class="text-slate-600 bg-white border border-slate-200 px-3 py-1.5 hover:bg-slate-100 rounded flex items-center shadow-sm"><span class="mr-1">⇅</span> Trier</button>
-            <button class="text-white bg-blue-600 font-medium px-4 py-1.5 hover:bg-blue-700 rounded ml-auto shadow-sm">Clôture Múltiple (0)</button>
-        </div>
-        <!-- Spreadsheet Grid -->
-        <div class="flex-1 overflow-auto">
-            <table class="w-full text-left border-collapse text-sm">
+          </div>
+          <div class="d1-content">
+            <div class="d1-stats">
+              <div class="d1-stat-card">
+                <div class="label">Total Recommandations</div>
+                <div class="value">24</div>
+                <div class="delta success">↑ 4 nouvelles cette semaine</div>
+              </div>
+              <div class="d1-stat-card">
+                <div class="label">En Attente (Pending)</div>
+                <div class="value" style="color:var(--status-pending);">8</div>
+                <div class="delta" style="color:var(--status-pending);">→ Requièrent votre validation</div>
+              </div>
+              <div class="d1-stat-card">
+                <div class="label">Approuvées</div>
+                <div class="value" style="color:var(--status-approved);">13</div>
+                <div class="delta success">✓ 54% de conformité</div>
+              </div>
+              <div class="d1-stat-card">
+                <div class="label">⚠️ En retard (Overdue)</div>
+                <div class="value" style="color:var(--status-overdue);">3</div>
+                <div class="delta danger">⚠ Risque COBAC — Action immédiate</div>
+              </div>
+            </div>
+            <div class="d1-table-card">
+              <div class="d1-table-header">
+                <h4>Recommandations récentes</h4>
+                <button class="btn-primary">+ Nouvelle recommandation</button>
+              </div>
+              <table>
                 <thead>
-                    <tr class="bg-white border-b-2 border-slate-300 text-slate-600 font-semibold sticky top-0 shadow-sm z-10">
-                        <th class="p-2 border-r border-slate-200 w-10 text-center"><input type="checkbox"></th>
-                        <th class="p-2 border-r border-slate-200 hover:bg-slate-50 cursor-pointer">ID <span class="text-slate-400 text-xs">▼</span></th>
-                        <th class="p-2 border-r border-slate-200 hover:bg-slate-50 cursor-pointer">Statut <span class="text-slate-400 text-xs">▼</span></th>
-                        <th class="p-2 border-r border-slate-200 hover:bg-slate-50 cursor-pointer">Description <span class="text-slate-400 text-xs">▼</span></th>
-                        <th class="p-2 border-r border-slate-200 hover:bg-slate-50 cursor-pointer">Deadline <span class="text-slate-400 text-xs">▼</span></th>
-                        <th class="p-2 hover:bg-slate-50 cursor-pointer">Assigné <span class="text-slate-400 text-xs">▼</span></th>
-                    </tr>
+                  <tr>
+                    <th>Référence</th><th>Intitulé</th><th>Priorité</th><th>Statut</th><th>Échéance</th>
+                  </tr>
                 </thead>
                 <tbody>
-                    <tr class="border-b border-slate-200 hover:bg-slate-50 bg-red-50/50">
-                        <td class="p-2 border-r border-slate-200 text-center"><input type="checkbox"></td>
-                        <td class="p-2 border-r border-slate-200 font-medium text-slate-900">REC-2023-045</td>
-                        <td class="p-2 border-r border-slate-200"><span class="bg-red-100 border border-red-200 text-red-700 px-2 py-0.5 rounded text-xs font-semibold">OVERDUE</span></td>
-                        <td class="p-2 border-r border-slate-200 text-slate-700 truncate max-w-xs">Absence de signature sur contrat cadre</td>
-                        <td class="p-2 border-r border-slate-200 text-red-600 font-semibold tabular-nums">22 Oct (J-2)</td>
-                        <td class="p-2 text-slate-600 flex items-center"><div class="w-5 h-5 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-xs mr-2 border border-blue-200">JA</div> Jean Audit</td>
-                    </tr>
+                  <tr><td style="font-family:'JetBrains Mono';font-size:12px;">REC-2026-042</td><td>Renforcement contrôles KYC agences</td><td style="color:var(--status-overdue);font-weight:700;">Critique</td><td><span class="badge-overdue">⚠️ OVERDUE</span></td><td style="color:var(--status-overdue);font-weight:600;">15/03/2026</td></tr>
+                  <tr><td style="font-family:'JetBrains Mono';font-size:12px;">REC-2026-038</td><td>Mise à jour procédure anti-blanchiment</td><td style="color:#D97706;font-weight:700;">Haute</td><td><span class="badge-pending">🔄 PENDING</span></td><td>28/04/2026</td></tr>
+                  <tr><td style="font-family:'JetBrains Mono';font-size:12px;">REC-2026-035</td><td>Audit des accès système T24</td><td style="font-weight:500;">Moyenne</td><td><span class="badge-approved">✓ APPROVED</span></td><td>01/04/2026</td></tr>
+                  <tr><td style="font-family:'JetBrains Mono';font-size:12px;">REC-2026-031</td><td>Formation conformité nouveaux agents</td><td style="font-weight:500;">Basse</td><td><span class="badge-draft">DRAFT</span></td><td>15/05/2026</td></tr>
                 </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Direction 3: Superhuman-style (Focus) -->
-    <div x-show="activeTab === 3" class="flex-1 bg-slate-900 text-slate-300 flex flex-col items-center justify-center p-8">
-        <div class="mb-4 text-slate-500 font-medium tracking-widest text-sm uppercase">Mode Triage (Directeur Métier)</div>
-        <div class="max-w-3xl w-full bg-slate-800 rounded-xl shadow-2xl overflow-hidden flex flex-col border border-slate-700">
-            <div class="p-4 border-b border-slate-700 flex justify-between items-center text-sm bg-slate-800">
-                <span class="font-medium text-slate-400">Dossier <span class="text-white">1</span> sur 3 restantes</span>
-                <span class="bg-slate-700 text-slate-300 px-2 py-1 rounded text-xs border border-slate-600">Raccourci: Espace = Accepter, Backspace = Rejeter</span>
+              </table>
             </div>
-            <div class="p-8">
-                <div class="inline-block bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs mb-4 uppercase tracking-widest font-bold border border-red-500/30">Urgence J-2</div>
-                <h2 class="text-2xl font-bold text-white mb-2">REC-2023-045 : Absence de signature</h2>
-                <p class="text-slate-400 mb-8 leading-relaxed text-lg">Conformément au rapport de la COBAC, la succursale de Douala doit fournir les contrats cadres contresignés d'ici vendredi.</p>
-                
-                <div class="bg-slate-900 rounded-lg p-6 mb-8 flex justify-between items-center border border-slate-700">
-                    <div class="flex items-center space-x-4">
-                        <div class="w-12 h-12 bg-slate-800 border border-slate-600 rounded flex items-center justify-center text-slate-400">PDF</div>
-                        <div>
-                            <div class="text-white font-medium text-lg">Preuve_Signature_Douala.pdf</div>
-                            <div class="text-slate-500 text-sm">Déposé par ETP Marc • 1.2 MB</div>
-                        </div>
-                    </div>
-                    <button class="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded font-medium transition shadow">Afficher la Preuve</button>
+          </div>
+        </main>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIRECTION 2: Split-Screen Validator (DM Validation) -->
+  <section class="direction">
+    <div class="direction-header">
+      <div class="tag" style="background:rgba(16,185,129,0.15); color:var(--status-approved);">Direction 2</div>
+      <h2>Split-Screen Validator</h2>
+      <p>L'écran de validation DM. Recommandation épinglée à gauche, document PDF plein cadre à droite, boutons d'action massifs.</p>
+    </div>
+    <div class="mockup-frame">
+      <div class="d2-app">
+        <nav class="d2-topnav">
+          <span class="logo">⚡ Sentinel</span>
+          <div class="nav-links">
+            <span class="nav-link">Tableau de bord</span>
+            <span class="nav-link active">Validation en cours</span>
+            <span class="nav-link">Historique</span>
+          </div>
+        </nav>
+        <div class="d2-split">
+          <div class="d2-left">
+            <span class="reco-badge">REC-2026-038</span>
+            <h3>Mise à jour procédure anti-blanchiment</h3>
+            <p class="meta">Soumise par Jean Ekotto (ETP) — 04/04/2026</p>
+            <div class="field">
+              <div class="field-label">Source Audit</div>
+              <div class="field-value">Mission COBAC Q1-2026 — Rapport Final §4.2.1</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Description</div>
+              <div class="field-value">La procédure opérationnelle anti-blanchiment doit être mise en conformité avec les nouvelles directives CEMAC relatives aux obligations de vigilance renforcée pour les PEP.</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Priorité</div>
+              <div class="field-value" style="color:#D97706;font-weight:700;">🟠 Haute</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Date limite</div>
+              <div class="field-value">28 Avril 2026</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Preuve soumise</div>
+              <div class="field-value">📄 Procedure_AML_v3.2_signee.pdf (2.4 Mo)</div>
+            </div>
+            
+            <div style="margin-top:24px; padding-top:16px; border-top:1px dashed var(--border-subtle);">
+              <div class="field-label" style="margin-bottom:12px;">Historique des soumissions</div>
+              <div style="font-size:12px;">
+                 <div style="display:flex;gap:8px;margin-bottom:8px;opacity:0.6;"><span style="color:#B91C1C;">✕ Rejeté</span><span>Tentative 1 (01/04) — Signature manquante</span></div>
+                 <div style="display:flex;gap:8px;"><span style="color:var(--status-pending);font-weight:600;">🔄 Actuel</span><span>Tentative 2 (04/04) — Corrigé avec DG</span></div>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:16px;">
+              <div class="field-label">Sceau d'intégrité</div>
+              <div class="field-value" style="font-family:'JetBrains Mono';font-size:11px;color:var(--status-approved);">✓ HMAC-SHA256 vérifié</div>
+            </div>
+          </div>
+          <div class="d2-right">
+            <div class="d2-pdf-header">
+              <span>📄 Procedure_AML_v3.2_signee.pdf</span>
+              <span style="font-size:12px;color:var(--text-secondary);">Page 1 / 12</span>
+            </div>
+            <div class="d2-pdf-body">
+              <div class="d2-pdf-placeholder">
+                <div class="icon">📄</div>
+                <p>Visualiseur PDF In-App (iframe sécurisée)</p>
+                <p style="font-size:12px;margin-top:8px;opacity:0.6;">Aucun téléchargement nécessaire</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="d2-action-bar" style="justify-content: space-between;">
+          <div style="display:flex; gap:8px;">
+             <span style="font-size:12px; color:var(--text-secondary); align-self:center;">Rejet rapide :</span>
+             <button style="font-size:11px; padding:4px 8px; border:1px solid #FECACA; border-radius:4px; background:white; color:#B91C1C; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='white'">Motif : Illisible</button>
+             <button style="font-size:11px; padding:4px 8px; border:1px solid #FECACA; border-radius:4px; background:white; color:#B91C1C; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='white'">Motif : Signature</button>
+             <button style="font-size:11px; padding:4px 8px; border:1px solid #FECACA; border-radius:4px; background:white; color:#B91C1C; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='white'">Motif : Incomplet</button>
+          </div>
+          <div style="display:flex; gap:16px;">
+             <button class="d2-btn-reject">✕ REJETER (Commentaire)</button>
+             <button class="d2-btn-accept">✓ ACCEPTER LA PREUVE</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIRECTION 3: Data-Grid Power User (Audit Bulk) -->
+  <section class="direction">
+    <div class="direction-header">
+      <div class="tag" style="background:rgba(250,181,11,0.15); color:var(--bicec-yellow);">Direction 3</div>
+      <h2>Data-Grid Power User</h2>
+      <p>Interface tableur pour l'Audit Interne. Saisie/édition en masse avec validation inline, raccourcis clavier, barre d'état.</p>
+    </div>
+    <div class="mockup-frame">
+      <div class="d3-app">
+        <nav class="d3-topnav">
+          <span class="logo">⚡ Sentinel</span>
+          <span class="breadcrumb">Missions > Mission COBAC Q1-2026 > <span class="current">Recommandations (Bulk Edit)</span></span>
+          <div class="shortcut-hint">
+            Raccourcis: <span class="kbd">A</span> Ajouter <span class="kbd">⌫</span> Supprimer <span class="kbd">⌘S</span> Sauvegarder
+          </div>
+        </nav>
+        <div class="d3-toolbar">
+          <span class="filter-btn active">Tous (12)</span>
+          <span class="filter-btn">Draft (5)</span>
+          <span class="filter-btn">Pending (4)</span>
+          <span class="filter-btn">Overdue (3)</span>
+          <div class="action-group">
+            <button class="btn-bulk">+ Ajouter ligne</button>
+            <button class="btn-bulk" style="background:var(--status-approved);color:white;">✓ Valider tout (Draft)</button>
+          </div>
+        </div>
+        <div class="d3-grid">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:40px;"><input type="checkbox" class="row-checkbox"></th>
+                <th>Réf.</th><th>Intitulé</th><th>Direction</th><th>Priorité</th><th>Échéance</th><th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><input type="checkbox" class="row-checkbox"></td>
+                <td style="font-family:'JetBrains Mono';font-size:11px;">REC-042</td>
+                <td><span class="cell-editable">Renforcement contrôles KYC agences</span></td>
+                <td><span class="cell-editable">Dir. Opérations</span></td>
+                <td style="color:var(--status-overdue);font-weight:700;">Critique</td>
+                <td><span class="cell-error">15/03/2026 ⚠</span></td>
+                <td><span class="badge-overdue">⚠️ OVERDUE</span></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" class="row-checkbox"></td>
+                <td style="font-family:'JetBrains Mono';font-size:11px;">REC-041</td>
+                <td><span class="cell-editable">Sécurisation accès coffres numériques</span></td>
+                <td><span class="cell-editable">Dir. Informatique</span></td>
+                <td style="color:var(--status-overdue);font-weight:700;">Critique</td>
+                <td><span class="cell-editable">20/04/2026</span></td>
+                <td><span class="badge-pending">🔄 PENDING</span></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" class="row-checkbox"></td>
+                <td style="font-family:'JetBrains Mono';font-size:11px;">REC-038</td>
+                <td><span class="cell-editable">Mise à jour procédure AML</span></td>
+                <td><span class="cell-editable">Dir. Conformité</span></td>
+                <td style="color:#D97706;font-weight:700;">Haute</td>
+                <td><span class="cell-editable">28/04/2026</span></td>
+                <td><span class="badge-pending">🔄 PENDING</span></td>
+              </tr>
+              <tr style="background:#FFFFF0;">
+                <td><input type="checkbox" class="row-checkbox" checked></td>
+                <td style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-secondary);">REC-NEW</td>
+                <td><span class="cell-editable" style="border-color:var(--bicec-yellow);border-style:solid;">Nouvelle recommandation...</span></td>
+                <td><span class="cell-editable" style="border-color:var(--bicec-yellow);border-style:solid;">—</span></td>
+                <td>—</td>
+                <td><span class="cell-editable" style="border-color:var(--bicec-yellow);border-style:solid;">JJ/MM/AAAA</span></td>
+                <td><span class="badge-draft">DRAFT</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="d3-statusbar">
+          <span><span class="count">4</span> recommandations affichées</span>
+          <span><span class="count">1</span> sélectionnée</span>
+          <span>Dernière sauvegarde : <span class="count">il y a 2 min</span></span>
+          <span style="margin-left:auto;">Mode: <span class="count">ÉDITION EN MASSE</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIRECTION 4: Executive DG View -->
+  <section class="direction">
+    <div class="direction-header">
+      <div class="tag" style="background:rgba(26,58,92,0.15); color:var(--bicec-blue);">Direction 4</div>
+      <h2>Executive DG View</h2>
+      <p>Vue macro pour la Direction Générale. Score de conformité global, risques par département, timeline des actions récentes.</p>
+    </div>
+    <div class="mockup-frame">
+      <div class="d4-app">
+        <nav class="d4-topnav">
+          <span class="logo">Sentinel<span>.</span></span>
+          <span class="date-range">📅 T1 2026 (Janv — Mars)</span>
+        </nav>
+        <div class="d4-content">
+          <div class="d4-hero">
+            <div>
+              <h2>Vue d'ensemble — Direction Générale</h2>
+              <p>Score de conformité des recommandations d'audit COBAC</p>
+            </div>
+            <div style="text-align:center;">
+              <div class="score">72%</div>
+              <div class="score-label">Taux de conformité</div>
+            </div>
+          </div>
+          
+          <div class="d4-kpis" style="display:flex; gap:24px; margin-bottom:24px;">
+            <div class="d4-card" style="flex:1; border-left:4px solid var(--status-overdue);">
+               <div style="font-size:12px; color:var(--text-secondary); text-transform:uppercase;">Rec. Critiques (Ouvertes)</div>
+               <div style="font-size:28px; font-weight:700; color:var(--status-overdue);">7</div>
+               <div style="font-size:12px; color:#D97706; margin-top:4px;">+2 ce mois-ci</div>
+            </div>
+            <div class="d4-card" style="flex:1; border-left:4px solid var(--bicec-yellow);">
+               <div style="font-size:12px; color:var(--text-secondary); text-transform:uppercase;">Délai Moyen (MTTC)</div>
+               <div style="font-size:28px; font-weight:700; color:var(--text-primary);">42 jrs</div>
+               <div style="font-size:12px; color:var(--status-approved); margin-top:4px;">↓ -5 jours (en baisse)</div>
+            </div>
+            <div class="d4-card" style="flex:1; border-left:4px solid var(--bicec-blue);">
+               <div style="font-size:12px; color:var(--text-secondary); text-transform:uppercase;">Taux d'Échec (Allers-Retours)</div>
+               <div style="font-size:28px; font-weight:700; color:var(--text-primary);">18%</div>
+               <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">Preuves rejetées au 1er dépôt</div>
+            </div>
+          </div>
+
+          <div class="d4-grid">
+            <div class="d4-card">
+              <h4>⚡ Risques par Direction (Recommandations Overdue)</h4>
+              <div class="d4-risk-item">
+                <span class="dept">Direction des Opérations</span>
+                <div class="d4-risk-bar"><div class="fill" style="width:75%;background:var(--status-overdue);"></div></div>
+                <span class="count critical">3 overdue</span>
+              </div>
+              <div class="d4-risk-item">
+                <span class="dept">Direction Informatique</span>
+                <div class="d4-risk-bar"><div class="fill" style="width:40%;background:#D97706;"></div></div>
+                <span class="count warning">1 overdue</span>
+              </div>
+              <div class="d4-risk-item">
+                <span class="dept">Direction Conformité</span>
+                <div class="d4-risk-bar"><div class="fill" style="width:0%;"></div></div>
+                <span class="count ok">0 overdue ✓</span>
+              </div>
+              <div class="d4-risk-item">
+                <span class="dept">Direction Commerciale</span>
+                <div class="d4-risk-bar"><div class="fill" style="width:0%;"></div></div>
+                <span class="count ok">0 overdue ✓</span>
+              </div>
+            </div>
+            <div class="d4-card">
+              <h4>🕐 Activité récente</h4>
+              <div class="d4-timeline-item">
+                <div class="d4-timeline-dot" style="background:var(--status-approved);"></div>
+                <div>
+                  <div class="text">Claire Dupont a <strong>validé</strong> REC-035</div>
+                  <div class="time">Il y a 2 heures</div>
                 </div>
+              </div>
+              <div class="d4-timeline-item">
+                <div class="d4-timeline-dot" style="background:var(--status-rejected);"></div>
+                <div>
+                  <div class="text">Marc Fouda a <strong>rejeté</strong> REC-039</div>
+                  <div class="time">Il y a 5 heures</div>
+                </div>
+              </div>
+              <div class="d4-timeline-item">
+                <div class="d4-timeline-dot" style="background:var(--status-overdue);"></div>
+                <div>
+                  <div class="text">⚠️ REC-042 passée en <strong>OVERDUE</strong></div>
+                  <div class="time">Hier, 00:01</div>
+                </div>
+              </div>
+              <div class="d4-timeline-item">
+                <div class="d4-timeline-dot" style="background:var(--status-pending);"></div>
+                <div>
+                  <div class="text">Jean Ekotto a soumis une preuve pour REC-038</div>
+                  <div class="time">Hier, 14:32</div>
+                </div>
+              </div>
             </div>
-            <div class="p-4 flex space-x-3 bg-slate-800 border-t border-slate-700">
-                <button class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded text-center transition shadow-lg shadow-emerald-900/20 text-lg">Sceller & Clôturer</button>
-                <button class="w-1/3 bg-transparent border-2 border-slate-600 hover:border-slate-500 text-white font-semibold py-4 rounded text-center transition">Rejeter</button>
-            </div>
+          </div>
         </div>
+      </div>
     </div>
+  </section>
 
+  <script>
+    function showDirection(index) {
+      document.querySelectorAll('.direction').forEach((d, i) => {
+        d.classList.toggle('active', i === index);
+      });
+      document.querySelectorAll('.tab').forEach((t, i) => {
+        t.classList.toggle('active', i === index);
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
 </body>
 </html>

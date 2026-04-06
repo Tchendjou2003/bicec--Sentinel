@@ -95,7 +95,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 
 *Note : Si Jean-Paul ne sait pas encore à quel DM assigner (recommandation touchant plusieurs directions), il peut l'assigner temporairement à lui-même le temps de clarifier le périmètre (étape de triage).*
 
-**Rising Action :** Claire reçoit une notification email + in-app. Elle ouvre son dashboard DM, consulte les 3 recommandations, et assigne la plus urgente à Marc avec une note contextuelle. **Statut : `IN_PROGRESS`.** Marc voit apparaître un nouveau dossier dans sa vue "To-Do", trié par **indicateur visuel de priorité** (rouge = Critique, orange = Haute, vert = Normale). À J+20, il a collecté ses éléments de réponse, rédige un commentaire justificatif détaillé et clique "Soumettre à validation DM". **Statut : `PENDING_DM_REVIEW`.**
+**Rising Action :** Claire reçoit une notification email + in-app. Elle ouvre son dashboard DM, consulte les 3 recommandations, et assigne la plus urgente à Marc avec une note contextuelle. **Statut : `IN_PROGRESS`.** Marc voit apparaître un nouveau dossier dans sa vue "To-Do", trié par **indicateur visuel de priorité** (rouge = Critique, orange = Haute, vert = Normale). À J+20, il a collecté ses éléments de réponse, uploade ses fichiers comme **brouillons (Draft)** — visibles uniquement par lui — puis rédige un commentaire justificatif détaillé et clique "Soumettre à validation DM". Les brouillons passent en statut `PENDING` et la recommandation passe en **Statut : `PENDING_DM_REVIEW`.**
 
 **Climax :** Claire reçoit l'alerte "Preuve soumise". Elle ouvre le dossier, vérifie la cohérence des pièces de Marc. Si tout est correct, elle rédige et uploade le **PV de recette signé** (la preuve officielle) — ce qui l'exempte du commentaire obligatoire de validation — puis valide le dossier. **Statut : `PENDING_AUDIT_REVIEW`.** Jean-Paul ouvre sa file d'attente, constate que les preuves sont solides et complètes, et clôture le dossier. **Statut : `CLOSED_RESOLVED`.** Le système génère automatiquement le Sceau Final HMAC-SHA256, scellant définitivement la recommandation et ses preuves.
 
@@ -181,7 +181,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 | **Edge Case & Report** | Ré-assignation manuelle par Audit (en cas d'absence DM), flag OVERDUE, rappels quotidiens (Critique) / digest hebdo, rejet motivé, **demande de report par DM avec justification / validation Audit** |
 | **Compliance** | Compte Auditeur Externe (credentials locaux), RLS, OVERDUE masqué, synthèse conformité (pas d'audit trail), **téléchargement autonome ZIP unitaire par recommandation** |
 | **Data Init (Audit)** | Téléchargement exclusif du template, import transactionnel strict (tout ou rien), rollback sur erreur, tag inaltérable IMPORTED, statut initial ASSIGNED |
-| **Admin/Ops** | Configuration Auth Locale (AD en V2), gestion globale de l'organigramme des directions, monitoring système |
+| **Admin/Ops** | Configuration Auth Locale (AD en V2), gestion globale de l'organigramme des directions, monitoring applicatif (Tâches asynchrones Q2, Audit Logs) |
 | **DG** | Dashboard supervision macro, filtres, export PDF temps réel, rapport Comité de Direction |
 
 ## Domain-Specific Requirements
@@ -206,7 +206,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 ### Risk Mitigations
 - **Risque d'Adoption (Rejet des DM) :** Atténué par un plan de notifications graduel (digest vs quotidien), un design UX ultra-rapide et l'exemption de commentaires si présentation du PV de recette signé.
 - **Risque de Migration (Historique Excel) :** Atténué par une restriction d'import stricte à l'Audit Interne et un moteur transactionnel atomique (tout-ou-rien) interdisant toute corruption partielle.
-- **Risque d'Usurpation de Délégation :** Atténué par l'absence de système de délégation autonome (les ré-assignations en cas d'absence sont effectuées exclusivement par l'Audit Interne).
+- **Risque d'Usurpation de Délégation :** Atténué par un système d'intérim à deux niveaux : l'Audit Interne gère les intérims DM (niveau stratégique), tandis que chaque DM gère les intérims de ses propres ETP (niveau opérationnel). Toute délégation est tracée dans l'Audit Log avec dates d'effet.
 
 ## Project Scoping & Phased Development
 
@@ -258,7 +258,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - **FR1:** Les utilisateurs internes s'authentifient via des identifiants locaux sécurisés (Django Auth). L'intégration Active Directory (SSO) est différée en V2.
 - **FR2:** Les Auditeurs Externes peuvent s'authentifier via des identifiants locaux spécifiques au système.
 - **FR3:** L'Audit Interne peut valider et associer les comptes locaux aux profils métiers (Audit, DM, ETP, DG, Externe).
-- **FR4:** L'Audit Interne conserve le privilège exclusif de ré-assigner manuellement une recommandation associée à un Directeur Métier absent vers son remplaçant, garantissant ainsi le routage correct des alertes.
+- **FR4 (Gestion des Absences/Intérims):** Le système supporte deux niveaux d'intérim : (a) l'Audit Interne paramètre l'intérim des Directeurs Métiers (délégation temporaire de droits d'un DM absent vers un remplaçant DM sur une période donnée) ; (b) chaque Directeur Métier paramètre l'intérim de ses propres ETP (remplacement opérationnel au sein de sa direction). Les recommandations sont redirigées sans rupture de la chaîne de responsabilité. Chaque délégation est enregistrée dans la table `users_delegation` avec dates d'effet et tracée dans l'Audit Log.
 
 ### 2. Recommendation Initialization & Import
 - **FR5:** L'Audit Interne peut créer manuellement une recommandation d'audit individuelle.
@@ -270,13 +270,13 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 ### 3. Workflow & Triage
 - **FR10:** L'Audit Interne peut s'auto-assigner temporairement une recommandation lors de la phase de triage complexe.
 - **FR11:** L'Audit Interne peut assigner définitivement une recommandation à un Directeur Métier cible.
-- **FR12:** Le Directeur Métier peut ré-assigner la recommandation à un ETP de son équipe.
+- **FR12:** Le Directeur Métier peut soit déléguer la recommandation à un ETP de son équipe (`delegate_to_etp()`), soit s'auto-saisir du dossier en tant que DM Porteur (`accept_by_dm()`) pour le traiter personnellement sans ETP intermédiaire.
 - **FR13:** Le Directeur Métier peut soumettre une demande formelle de report d'échéance incluant une justification métier de la durée.
 - **FR14:** L'Audit Interne peut approuver (en validant la nouvelle date) ou rejeter (maintien de l'échéance initiale) la demande de report.
 
 ### 4. Evidence Submission & Validation
-- **FR15:** L'ETP peut uploader des fichiers comme preuves (max 15 Mo) limités strictement aux formats autorisés (PDF, Images, Excel XLSX sans macro, CSV, Mails MSG/EML, Logs TXT) avec validation sécurisée adaptative.
-- **FR16:** L'ETP peut soumettre les preuves au DM en y incluant un commentaire justificatif exhaustif.
+- **FR15:** L'ETP (ou le DM Porteur) peut uploader des fichiers comme preuves (max 15 Mo) limités strictement aux formats autorisés (PDF, Images, Excel XLSX sans macro, CSV, Mails MSG/EML, Logs TXT) avec validation sécurisée adaptative. L'upload initial crée la preuve en statut **Brouillon (`DRAFT`)**, visible et supprimable uniquement par son auteur.
+- **FR16:** L'ETP peut soumettre ses brouillons au DM en y incluant un commentaire justificatif exhaustif. La soumission verrouille les brouillons en statut `PENDING` et fait transiter la recommandation vers `PENDING_DM_REVIEW`.
 - **FR17:** Le Directeur Métier peut valider les preuves de l'ETP, ou les rejeter en fournissant un motif obligatoire de correction à l'ETP.
 - **FR18:** L'ETP peut uploader de nouveaux fichiers et re-soumettre un dossier suite au rejet du DM ou d'un rejet consécutif de l'Audit.
 - **FR19:** Le Directeur Métier peut uploader un document "PV de recette" signé qui l'exempte du commentaire obligatoire lors de sa validation pour l'Audit.

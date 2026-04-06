@@ -185,6 +185,7 @@ erDiagram
         uuid assigned_dm_id FK
         uuid assigned_etp_id FK
         uuid department_id FK
+        uuid macro_process_id FK "Pour KPIs analytiques"
         varchar(10) import_tag "IMPORTED | null"
         boolean is_deleted
         timestamp deleted_at
@@ -304,6 +305,23 @@ erDiagram
         timestamp next_run
     }
 
+    scheduler_heartbeat {
+        uuid id PK
+        timestamp last_heartbeat
+        varchar(50) worker_name
+        boolean is_healthy
+    }
+
+    users_interim_delegation {
+        uuid id PK
+        uuid absent_user_id FK
+        uuid delegated_user_id FK
+        date start_date
+        date end_date
+        boolean is_active
+        timestamp created_at
+    }
+
     users_user }o--|| users_department : "department_id"
     users_department }o--o| users_department : "parent_id"
     workflow_recommendation }o--|| users_department : "department_id"
@@ -326,6 +344,8 @@ erDiagram
     users_external_mission }o--|| users_user : "auditor_id"
     external_mission_recommendations }o--|| users_external_mission : "mission_id"
     external_mission_recommendations }o--|| workflow_recommendation : "recommendation_id"
+    users_interim_delegation }o--|| users_user : "absent_user_id"
+    users_interim_delegation }o--|| users_user : "delegated_user_id"
 ```
 
 ---
@@ -786,8 +806,8 @@ sequenceDiagram
             EXP->>DISK: Lecture fichier streaming
             EXP->>EXP: Ajoute au ZIP
         end
-        EXP->>EXP: Genere fiche_synthese.pdf (statuts, dates, hash)
-        EXP->>EXP: Ajoute fiche_synthese au ZIP
+        EXP->>EXP: Genere synthese.html (statuts, dates, hash)
+        EXP->>EXP: Ajoute synthese au ZIP
         EXP-->>VUE: ZIP complet (< 5 secondes)
 
         VUE->>DB: INSERT AuditLog (EXPORT, reco_id, user=EXT)

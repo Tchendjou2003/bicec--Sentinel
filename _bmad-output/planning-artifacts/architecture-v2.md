@@ -191,10 +191,10 @@ Un diagramme de cas d'utilisation montre **toutes les actions possibles d'un pro
 
 | Catégorie | NFRs clés | Impact architectural |
 |---|---|---|
-| **Sécurité** | TLS 1.2+ (NFR-SEC-01), session 30min (NFR-SEC-02), HMAC-SHA256 (NFR-SEC-03), Magic Bytes (NFR-SEC-04), logs 12 mois (NFR-SEC-05) | Middleware sécurité robuste, Caddy TLS, stockage structuré des logs |
+| **Sécurité** | TLS 1.2+ (NFR-SEC-01), session 30min (NFR-SEC-02), HMAC-SHA256 (NFR-SEC-03), Magic Bytes (NFR-SEC-04), logs 12 mois (NFR-SEC-05) | Middleware sécurité robuste, Nginx TLS, stockage structuré des logs |
 | **Performance** | Périmètre < 10ms (NFR-PERF-01), UI < 200ms P95 (NFR-PERF-02), HMAC < 500ms (NFR-PERF-03), ZIP < 5s (NFR-PERF-04) | Pré-calcul du périmètre dans la session Django, SSR natif |
-| **Scalabilité** | 15 Mo/fichier × 5 max (NFR-SCA-01), ~1000 recos + ~2000 fichiers (NFR-SCA-02), ~200 users concurrents (NFR-SCA-03) | Dimensionnement mono-serveur suffisant |
-| **Fiabilité** | Fail-safe / 0 ligne si contexte absent (NFR-REL-01), RPO 24h (NFR-REL-02), RTO 4h (NFR-REL-03), Uptime 99,5% (NFR-REL-04) | Backup nocturne chiffré, RLS minimaliste comme filet de sécurité |
+| **Scalabilité** | 15 Mo/fichier × 5 max (NFR-SCA-01), ~5000 recos + ~20000 fichiers (NFR-SCA-02), ~200 users concurrents (NFR-SCA-03) | Dimensionnement mono-serveur, volume de stockage de 400 Go minimum |
+| **Fiabilité** | Fail-safe / 0 ligne si contexte absent (NFR-REL-01), RPO 24h (NFR-REL-02), RTO 4h (NFR-REL-03), Uptime 99,5% (NFR-REL-04) | Backup nocturne chiffré, RBAC strict et requêtes filtrées |
 
 ### 1.4 Contraintes Non-Négociables
 
@@ -207,13 +207,14 @@ Un diagramme de cas d'utilisation montre **toutes les actions possibles d'un pro
 | **SSR pur — Zéro JSON** | Directive managériale : interdit React et les API REST. | Django Templates + HTMX + Alpine.js. |
 | **Pas de ClamAV MVP** | Antivirus différé. | Validation magic bytes + whitelist extensions. |
 | **Linux obligatoire** | Gunicorn ne fonctionne pas sur Windows. | VM Ubuntu LTS ou RHEL en production. |
+| **Docker Engine & Compose** | Conteneurisation de tous les composants runtime. | `Dockerfile` et `docker-compose.yml` à la racine du projet. |
 
 ### 1.5 Échelle & Complexité
 
 - **Domaine technique :** Application web full-stack On-Premise (SSR MPA + HTMX + PostgreSQL)
 - **Niveau de complexité :** **HIGH** — Accumulation de sous-systèmes MEDIUM (workflow FSM, notifications, uploads, dashboards) + conformité réglementaire HIGH (COBAC R-2016/04, Loi 2024-017)
 - **Composants architecturaux :** ~11 modules MVP (Auth, RBAC, FSM Workflow, Import, File Storage, Notifications, Crypto HMAC, Audit Trail, Dashboards, User Management, Export/Archive)
-- **Volume de données :** ~1 000 recommandations, ~8 000 fichiers de preuves, ~200 utilisateurs concurrents max
+- **Volume de données :** ~5 000 recommandations, ~20 000 fichiers de preuves, ~200 utilisateurs concurrents max
 
 ### 1.6 Préoccupations Transversales
 
@@ -236,7 +237,7 @@ Ces 5 préoccupations traversent **tous les composants** de l'architecture :
 | **Base de données** | PostgreSQL 16 | OLTP, triggers audit, pgcrypto, RLS |
 | **Task Queue** | Django-Q2 | Tâches asynchrones, scheduler nocturne |
 | **Auth** | Sessions Django Natives | Stateful, CSRF natif, cookie sécurisé |
-| **Reverse Proxy** | Caddy | TLS termination, fichiers statiques, headers sécurité |
+| **Reverse Proxy** | Nginx (Stable) | TLS termination via montages volumes IT, fichiers statiques, headers sécurité |
 | **Serveur WSGI** | Gunicorn (`gthread`) | Exécution Django en production |
 | **Forms** | `django-widget-tweaks` | Classes Tailwind sur les widgets Django Forms |
 | **HTMX Integration** | `django-htmx` | Détection `HX-Request`, helpers partials |
@@ -251,76 +252,70 @@ Ces 5 préoccupations traversent **tous les composants** de l'architecture :
 
 ---
 
-### ADR-01 : Stratégie d'Isolation des Données — RLS Partiel + RBAC Applicatif
+### ADR-01 : Stratégie d'Isolation des Données — RBAC Applicatif (MVP)
 
 **Statut :** DÉCIDÉ
-**Date :** 2026-03-23
+**Date :** 2026-04-04 (Mise à jour v2.1)
 
-**Contexte :** Sentinel gère des données confidentielles cloisonnées par direction. Un Directeur Métier de la Direction A ne doit jamais voir les recommandations de la Direction B. L'auditeur externe COBAC ne voit que le périmètre de sa mission. Trois stratégies d'isolation ont été évaluées.
+**Contexte :** Sentinel gère des données confidentielles cloisonnées par direction. Un Directeur Métier de la Direction A ne doit jamais voir les recommandations de la Direction B. Trois stratégies d'isolation ont été évaluées.
 
 **Options évaluées :**
 
-| Critère | RLS Intégral PostgreSQL | RBAC Applicatif seul | **RLS Partiel + RBAC Applicatif** |
+| Critère | RLS Intégral PostgreSQL | **RBAC Applicatif seul** | RLS Partiel + RBAC Applicatif |
 |---|---|---|---|
-| **Sécurité** | ⭐⭐⭐⭐⭐ Isolation au niveau BDD | ⭐⭐⭐ Dépend du code applicatif | ⭐⭐⭐⭐ Double verrou (code + BDD) |
-| **Complexité dev** | ⭐⭐ Chaque migration doit intégrer le tenant context | ⭐⭐⭐⭐⭐ Filtres Django standards | ⭐⭐⭐⭐ Filtres Django + quelques policies RLS |
-| **Testabilité** | ⭐⭐ Tests doivent injecter le `set_config` à chaque fois | ⭐⭐⭐⭐⭐ Tests Django classiques | ⭐⭐⭐⭐ Tests standards + tests RLS dédiés |
-| **Fail-Safe** | ⭐⭐⭐⭐⭐ 0 ligne si contexte absent | ⭐⭐ Oubli de `.filter()` = fuite | ⭐⭐⭐⭐ RLS rattrape les oublis applicatifs |
-| **Risque DBA** | ⭐⭐⭐ DBA contourne via superuser | ⭐ Aucune protection BDD | ⭐⭐⭐ DBA contourne mais audit trail détecte |
-| **Compatibilité Django-Q2** | ⭐⭐ Tâches hors requête HTTP = pas de middleware | ⭐⭐⭐⭐⭐ Injection explicite du contexte | ⭐⭐⭐ Injection manuelle requise dans les tâches |
+| **Sécurité** | ⭐⭐⭐⭐⭐ Isolation BDD | ⭐⭐⭐⭐ Dépend du code, mais contrôlable | ⭐⭐⭐⭐ Double verrou |
+| **Complexité dev** | ⭐⭐ Très lourd (SQL) | ⭐⭐⭐⭐⭐ Requêtes Django standards | ⭐⭐⭐ Moyen |
+| **Go-To-Market MVP** | ⭐⭐ Risque de retard élevé | ⭐⭐⭐⭐⭐ Rapide et éprouvé | ⭐⭐⭐ Frein potentiel |
 
-**Décision : RLS Partiel (garde-fou BDD) + RBAC Applicatif (filtrage métier).**
+**Décision : Implémenter uniquement le RBAC applicatif pour le MVP.**
 
 **Justification :**
-- Le filtrage métier principal est géré par des **QuerySet Managers** dédiés (`.for_tenant(user)`, `.for_direction(direction_id)`) appliqués systématiquement dans les Selectors (HackSoft).
-- Des Policies RLS simples sur les tables critiques (`Recommendation`, `Proof`) agissent comme **filet de sécurité passif** en cas d'oubli de filtre dans le code.
-- Le `direction_id` est injecté via `set_config('app.tenant_id', ...)` dans un middleware Django.
-- Les tâches Django-Q2 (hors cycle HTTP) reçoivent explicitement le contexte et l'injectent manuellement.
-- L'Auditeur Externe COBAC utilise un QuerySet Manager filtrant par `perimetre_mission_id`.
+- Le financement et la sécurisation du MVP (deadline serrée de 6 mois) dictent la simplicité. Le RLS (Row-Level Security) ajoute une surcouche de complexité asymétrique par rapport aux gains.
+- Le filtrage métier est géré par des **QuerySet Managers** stricts (`.for_tenant(user)`, `.for_direction(direction_id)`) appliqués sur toutes les requêtes.
+- V2 : Le RLS pourra être introduit une fois la logique d'état et le modèle de données stabilisés à 100%.
 
 **Conséquences :**
-- Complexité de développement réduite de ~50% vs RLS intégral.
-- Sécurité "Fail-Closed" assurée par la double couche.
-- V2 : renforcement en RLS intégral quand l'application sera mature.
+- Développement accéléré de 1 à 2 semaines.
+- Le développeur doit impérativement utiliser les QuerySets préparés pour éviter les fuites de données.
+- Utilisation systématique d'un décorateur utilitaire `@with_tenant_context` sur les tâches asynchrones Django-Q2 pour éviter les erreurs humaines d'injection.
 
 **Références :** NFR-REL-01 (Fail-safe), PRD FR28-FR31 (Dashboards filtrés)
 
 ---
 
-### ADR-02 : Infrastructure Web — Caddy + Gunicorn
+### ADR-02 : Infrastructure Web — Nginx + Gunicorn
 
 **Statut :** DÉCIDÉ
-**Date :** 2026-03-31 (mise à jour v2)
+**Date :** 2026-04-04 (mise à jour v2.1)
 
-**Contexte :** Le PRD exige le TLS 1.2+ obligatoire (NFR-SEC-01), le support d'uploads 15 Mo (NFR-SCA-01) et le service de fichiers statiques performant. L'architecture v1 proposait Gunicorn comme terminateur TLS sans reverse proxy — une configuration **non recommandée** par la documentation officielle Gunicorn, qui préconise un serveur frontal. Quatre options d'infrastructure ont été évaluées.
+**Contexte :** Le PRD exige le TLS 1.2+ obligatoire (NFR-SEC-01), le support d'uploads 15 Mo (NFR-SCA-01) et le service de fichiers statiques performant. Afin d'aligner l'architecture de Sentinel sur les standards déjà en place et maîtrisés par l'IT BICEC, le choix du reverse proxy a été réévalué.
 
 **Options évaluées :**
 
-| Critère | Gunicorn seul (TLS + WhiteNoise) | **Caddy + Gunicorn** | Nginx + Gunicorn | Apache + Gunicorn |
-|---|---|---|---|---|
-| **Complexité déploiement** | ⭐⭐⭐⭐⭐ Zéro composant externe | ⭐⭐⭐⭐ 1 binaire supplémentaire | ⭐⭐⭐ Config `nginx.conf` complexe | ⭐⭐ Config Apache verbeuse |
-| **TLS auto-renew** | ❌ Manuel (cert + key) | ✅ Auto-HTTPS natif (ACME supporté) | ❌ Manuel (certbot/cron) | ❌ Manuel |
-| **Fichiers statiques** | ⭐⭐⭐ WhiteNoise (Python, lent) | ⭐⭐⭐⭐⭐ Natif (C, très rapide) | ⭐⭐⭐⭐⭐ Natif (C, très rapide) | ⭐⭐⭐⭐ Natif |
-| **Headers sécurité** | ⭐⭐ Middleware Django | ⭐⭐⭐⭐⭐ Natif (HSTS, CSP, X-Frame) | ⭐⭐⭐⭐⭐ Natif | ⭐⭐⭐⭐ Natif |
-| **Rate limiting** | ❌ Absent | ⭐⭐⭐⭐ Plugin natif | ⭐⭐⭐⭐⭐ Très mature | ⭐⭐⭐ Modules |
-| **Config minimale** | N/A (pas de config) | ⭐⭐⭐⭐⭐ `Caddyfile` ~10 lignes | ⭐⭐⭐ `nginx.conf` ~40 lignes | ⭐⭐ httpd.conf verbeux |
-| **Conformité production** | ⭐⭐ Non recommandé par Gunicorn | ⭐⭐⭐⭐⭐ Architecture standard | ⭐⭐⭐⭐⭐ Standard industrie bancaire | ⭐⭐⭐⭐ Standard |
-| **Familiarité IT BICEC** | ⭐⭐⭐ Python connu | ⭐⭐⭐ Nouveau mais simple | ⭐⭐⭐⭐⭐ Standard entreprise | ⭐⭐⭐⭐ Connu |
+| Critère | Caddy + Gunicorn | **Nginx + Gunicorn** | Apache + Gunicorn |
+|---|---|---|---|
+| **Complexité déploiement** | ⭐⭐⭐⭐ 1 binaire supplémentaire | ⭐⭐⭐ Config `nginx.conf` complexe | ⭐⭐ Config Apache verbeuse |
+| **Fichiers statiques** | ⭐⭐⭐⭐⭐ Natif (Go, très rapide) | ⭐⭐⭐⭐⭐ Natif (C, très rapide) | ⭐⭐⭐⭐ Natif |
+| **Headers sécurité** | ⭐⭐⭐⭐⭐ Natif (HSTS, CSP, X-Frame) | ⭐⭐⭐⭐⭐ Natif | ⭐⭐⭐⭐ Natif |
+| **Rate limiting** | ⭐⭐⭐⭐ Plugin natif | ⭐⭐⭐⭐⭐ Très mature | ⭐⭐⭐ Modules |
+| **Conformité production** | ⭐⭐⭐⭐⭐ Architecture standard | ⭐⭐⭐⭐⭐ Standard industrie bancaire | ⭐⭐⭐⭐ Standard |
+| **Familiarité IT BICEC** | ⭐⭐⭐ Nouveau | ⭐⭐⭐⭐⭐ Standard interne | ⭐⭐⭐⭐ Connu |
 
-**Décision : Caddy en reverse proxy (TLS + fichiers statiques) + Gunicorn en mode `gthread` (logique Django).**
+**Décision : Nginx (Stable) en reverse proxy (TLS + fichiers statiques) + Gunicorn en mode `gthread` (logique Django).**
 
 **Justification :**
-- **Caddy** est un reverse proxy moderne en un seul binaire Go. Sa configuration tient en ~10 lignes (`Caddyfile`), ce qui élimine la complexité de `nginx.conf`. L'auto-HTTPS natif est un avantage pour les environnements avec ACME interne. Pour les certificats internes BICEC, la configuration reste triviale (`tls /path/cert.pem /path/key.pem`).
-- **Gunicorn** reste le serveur WSGI standard pour Django, configuré en `gthread` (4 workers × 10 threads = 40 connexions concurrentes). Il ne gère plus le TLS — ce rôle est délégué à Caddy.
-- **WhiteNoise est supprimé** : Caddy sert les fichiers statiques nativement (CSS, JS, Fonts) bien plus rapidement qu'un middleware Python. Caddy gère également la compression Brotli/Gzip automatiquement.
-- **Nginx** reste une alternative viable si l'équipe IT BICEC le préfère. La migration Caddy → Nginx est triviale.
+- **Nginx** est le reverse proxy standard déjà utilisé et maîtrisé par la Direction IT de la BICEC. Aligner le projet sur cette technologie élimine le risque lié à l'adoption et à la maintenance d'un nouvel outil (comme Caddy).
+- La version **Stable** de Nginx garantit une compatibilité maximale avec les exigences institutionnelles.
+- Les certificats TLS internes de la banque seront fournis par l'IT et montés via des volumes Docker, plutôt que de dépendre d'un mécanisme automatique (ACME) inadapté aux réseaux isolés.
+- **Gunicorn** reste le serveur WSGI standard pour Django, configuré en `gthread` (4 workers × 10 threads = 40 connexions concurrentes).
+- Mêmes garanties que Caddy pour le service des fichiers statiques et la configuration des headers de sécurité applicatifs.
 
-**Conséquences :**
-- Architecture conforme aux recommandations officielles Gunicorn (reverse proxy devant le WSGI).
-- Fichiers statiques servis ~10× plus vite que WhiteNoise.
-- Headers de sécurité (HSTS, CSP, X-Frame-Options) gérés au niveau proxy, pas en middleware Django.
-- Un composant supplémentaire à déployer (1 binaire statique, ~40 Mo).
-- Caddy ne sert **jamais** les fichiers `/media/` (preuves uploadées) — ceux-ci restent servis par la vue Django `DownloadProofView` avec vérification RBAC.
+**Conséquences & Bonnes Pratiques V2 :**
+- **Bloc Sécurité Médias** : La configuration `nginx.conf` inclut obligatoirement un bloc `location /media/ { deny all; return 403; }` pour empêcher l'exposition des preuves d'audit.
+- Redirection automatique HTTP (80) vers HTTPS (443).
+- Timings étendus (`proxy_read_timeout 30s`) pour permettre la génération des exports ZIP en limitant les faux positifs de timeout.
+- Gunicorn maintient 1 connexion à la base de données par thread actif; il est crucial de configurer `CONN_MAX_AGE = 60` côté Django afin de ne pas épuiser le pool (ou prévoir PgBouncer).
+- Limite mémoire côté conteneur (`mem_limit: 512m`) pour palier aux pics d'export ZIP.
 
 **Références :** NFR-SEC-01 (TLS), NFR-PERF-02 (UI < 200ms), [Gunicorn Documentation — Deploy](https://docs.gunicorn.org/en/stable/deploy.html)
 
@@ -483,10 +478,13 @@ Ces 5 préoccupations traversent **tous les composants** de l'architecture :
 
 **Justification :**
 - Parfaitement adapté au besoin (5 états + flag OVERDUE).
-- Garantit au niveau ORM qu'une recommandation ne peut pas sauter d'état (ex: `ASSIGNED` → `CLOSED_RESOLVED` directement = impossible).
+- Garantit au niveau ORM qu'une recommandation ne peut pas sauter d'état.
 - `has_transition_perm` permet de lier une transition à un rôle (seul l'Audit peut clôturer).
-- Hooks pré/post transition pour déclencher HMAC, emails, audit trail exactement au moment du changement d'état.
-- Concurrence gérée par `select_for_update()` : deux validations simultanées = une seule réussit.
+- **Post-Transition Hooks** : Le sceau HMAC est généré comme un **effet de bord automatique de la transaction finale FSM** (hook `@transition`), assurant qu'il est impossible de dériver l'état (SEQ-01).
+- Concurrence gérée par `select_for_update()`.
+
+**Considérations Cryptographiques :**
+- Une variable d'environnement `HMAC_SECRET_KEY` totalement distincte de la traditionnelle `SECRET_KEY` Django est exigée pour garantir qu'une future rotation de sécurité ne corrompt pas l'historique d'audit.
 
 **Conséquences :** Moins de bugs de logique d'état. Code métier centralisé dans le modèle. Testable unitairement sans HTTP.
 
@@ -527,6 +525,37 @@ Ces 5 préoccupations traversent **tous les composants** de l'architecture :
 - Un template admin Tailwind premium (Mosaic, Windmill) peut être intégré ultérieurement.
 
 **Références :** NFR-PERF-02 (UI < 200ms), [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+
+---
+
+### ADR-09 : Conteneurisation — Docker Compose
+
+**Statut :** DÉCIDÉ
+**Date :** 2026-04-04 (mise à jour v2.1)
+
+**Contexte :** La distribution, l'installation et la maintenance d'une application complexe sur une infrastructure On-Premise (bare-metal) posent des défis liés aux dépendances système et à l'isolation des processus. Une standardisation de la livraison a été décidée pour fiabiliser les déploiements.
+
+**Options évaluées :**
+
+| Critère | Bare-metal `systemd` | **Docker Compose** | Kubernetes |
+|---|---|---|---|
+| **Complexité opérationnelle** | ⭐⭐⭐ Moyenne (gestion packages OS) | ⭐⭐⭐⭐⭐ Faible (environnement portable) | ⭐ Complexe (etcd, control plane) |
+| **Reproductibilité** | ⭐ Faible ("ça marche sur ma machine") | ⭐⭐⭐⭐⭐ Parfaite (identique dev/prod) | ⭐⭐⭐⭐⭐ Parfaite |
+| **Isolation** | ⭐ Faible (partage librairies OS) | ⭐⭐⭐⭐⭐ Forte (Namespaces, cgroups) | ⭐⭐⭐⭐⭐ Très forte |
+| **Rollback** | ⭐ Complexe (git revert, pip install) | ⭐⭐⭐⭐⭐ Instantané (re-run vieille image) | ⭐⭐⭐⭐⭐ Instantané |
+
+**Décision : Conteneurisation de la stack via Docker Engine et Docker Compose.**
+
+**Justification :**
+- L'utilisation de Docker Compose (4 services : `nginx`, `web`, `worker`, `db`) couvre largement les besoins de charge.
+- Environnement portable avec des contraintes de production strictes évitant les crashs silencieux :
+  - **Healthchecks** (`pg_isready`) actifs sur `db` et liés via `depends_on: condition: service_healthy` sur les workers.
+  - Exécution systématique de `python manage.py collectstatic --noinput` au démarrage du service `web` pour alimenter le volume partagé.
+  - Politique `restart: unless-stopped` activée sur l'intégralité des briques applicatives.
+
+**Conséquences :**
+- Le serveur de production OS requiert l'installation de Docker Engine (Docker Compose v2 natif sans directive de version dépréciée).
+- Workflow de mise à jour sécurisé hors ligne via commandes standard (`docker save` / `load`).
 
 ---
 
@@ -573,19 +602,21 @@ C4Container
     Person(user, "Utilisateur", "Navigateur Web")
 
     ContainerBoundary(vm, "Machine Virtuelle Linux (On-Premise BICEC)") {
-        Container(caddy, "Caddy Proxy", "Go", "Reverse Proxy, terminateur TLS, sert les fichiers statiques (CSS/JS)")
-        Container(django, "Application Web", "Django / Gunicorn", "Logique métier SSR, HTMX, orchestration FSM")
-        Container(worker, "Worker Asynchrone", "Django-Q2", "Exécute les tâches de fond (CRON, envois d'emails, alertes)")
-        ContainerDb(postgres, "Base de Données", "PostgreSQL 16", "Stockage relationnel, RLS, Triggers Métier (Audit Trail)")
-        Container(fs, "Local File System", "Ext4 / XFS", "Stockage crypté (Option V2) des fichiers de preuves")
+        ContainerBoundary(docker, "Docker Compose") {
+            Container(nginx, "Nginx Proxy", "C", "Reverse Proxy, terminateur TLS, sert les fichiers statiques (CSS/JS)")
+            Container(django, "Application Web", "Django / Gunicorn", "Logique métier SSR, HTMX, orchestration FSM")
+            Container(worker, "Worker Asynchrone", "Django-Q2", "Exécute les tâches de fond (CRON, envois d'emails, alertes)")
+            ContainerDb(postgres, "Base de Données", "PostgreSQL 16", "Stockage relationnel, RLS, Triggers Métier (Audit Trail)")
+        }
+        Container(fs, "Volumes Docker", "Host FS", "Stockage persistant des Preuves, Base de données, et Certificats TLS")
     }
 
     System_Ext(smtp, "Serveur SMTP Exchange", "Infra BICEC")
 
-    Rel(user, caddy, "Requêtes HTTPS (UI, HTMX)", "TLS 1.2/1.3")
-    Rel(caddy, django, "Passe les requêtes dynamiques", "HTTP (Socket)")
-    Rel(django, postgres, "Lit et écrit les données métier", "TCP/IP")
-    Rel(django, fs, "Écrit/Lit les preuves uploadées", "I/O Disque")
+    Rel(user, nginx, "Requêtes HTTPS (UI, HTMX)", "TLS 1.2/1.3")
+    Rel(nginx, django, "Passe les requêtes dynamiques", "Réseau interne Docker")
+    Rel(django, postgres, "Lit et écrit les données métier", "Réseau interne Docker")
+    Rel(django, fs, "Écrit/Lit les preuves uploadées", "Montage Volume")
     Rel(django, worker, "Planifie via la base de données", "Django ORM")
     Rel(worker, postgres, "Récupère les tâches à exécuter", "TCP/IP")
     Rel(worker, smtp, "Envoie les digests d'emails", "SMTP")
@@ -638,15 +669,15 @@ flowchart LR
         UC4["Importer historique\n(atomique)"]
         UC5["Trier et s'auto-assigner\n(triage complexe)"]
         UC6["Assigner DM cible"]
-        UC7["Ré-assigner DM\n(absence)"]
+        UC7["Gérer interim DM"]
         UC8["Examiner preuves\nvalidées par DM"]
         UC9["Clôturer recommandation\n+ Sceau HMAC-SHA256"]
         UC10["Rejeter preuves\n(motif obligatoire)"]
         UC11["Approuver / Refuser\ndemande de report"]
         UC12["Consulter Dashboard\nAudit (filtré RBAC)"]
         UC13["Consulter Timeline\nAudit Trail"]
-        UC14["Gérer comptes\nutilisateurs et rôles"]
-        UC15["Télécharger template\nd'import"]
+        UC14["Télécharger template\nd'import"]
+        UC15["Génerer rapport de synthèse statistique en PDF"]
     end
 
     AU(("🔵 Auditeur\nInterne"))
@@ -675,14 +706,14 @@ flowchart LR
     subgraph "Système Sentinel"
         UC1["Consulter recommandations\nassignées (dashboard DM)"]
         UC2["Déléguer reco\nà un ETP"]
-        UC3["Examiner preuves\nsoumises par ETP"]
-        UC4["Valider preuves\n+ Upload PV recette"]
-        UC5["Rejeter preuves\n(motif obligatoire)"]
-        UC6["Soumettre directement\npreuves à l'Audit"]
-        UC7["Demander report\néchéance (justification)"]
-        UC8["Supprimer preuve\nPENDING (si reco\nIN_PROGRESS)"]
-        UC9["Consulter Timeline\nAudit Trail reco"]
-        UC10["Ajouter commentaire"]
+        UC3["Gérer interim ETP"]
+        UC4["Examiner preuves\nsoumises par ETP"]
+        UC5["Valider preuves\n+ Upload PV recette"]
+        UC6["Rejeter preuves\n(motif obligatoire)"]
+        UC7["Soumettre preuves\nà l'Audit(DM porteur)"]
+        UC8["Demander report\néchéance (justification)"]
+        UC9["consulter historique des versions preuves"]
+        UC10["Consulter Dashboard DM"]
     end
 
     DM(("🟢 Directeur\nMétier"))
@@ -705,13 +736,11 @@ flowchart LR
 flowchart LR
     subgraph "Système Sentinel"
         UC1["Consulter To-Do List\n(recos assignées)"]
-        UC2["Uploader preuves\n(PDF, XLSX, Images, etc.)"]
-        UC3["Soumettre preuves\n+ commentaire justificatif\nau DM"]
-        UC4["Re-soumettre après\nrejet (nouvelle version)"]
-        UC5["Consulter historique\ndes versions preuves"]
-        UC6["Consulter motif de\nrejet du DM/Audit"]
-        UC7["Consulter Timeline\nAudit Trail reco"]
-        UC8["Ajouter commentaire"]
+        UC2["Soumettre preuves\n+ commentaire justificatif\nau DM"]
+        UC3["Consulter historique\ndes versions preuves"]
+        UC4["Consulter motif de\nrejet du DM/Audit feed back"]
+        UC5["consulter details recommandation"]
+        UC6["Enregistrer preuves recos en brouillon sans soumettre"]
     end
 
     ETP(("🟡 Employé\nTraitant"))
@@ -722,8 +751,6 @@ flowchart LR
     ETP --- UC4
     ETP --- UC5
     ETP --- UC6
-    ETP --- UC7
-    ETP --- UC8
 ```
 
 ### 4.4 Direction Générale (DG)
@@ -735,10 +762,16 @@ flowchart LR
         UC2["Filtrer par source\n(COBAC, CAC, Interne)"]
         UC3["Filtrer par priorité\net statut"]
         UC4["Filtrer par aging\n(> 24 mois)"]
-        UC5["Visualiser code couleur\nurgence (Rouge/Orange/Vert)"]
-        UC6["Imprimer dashboard\n(CSS @media print)"]
-        UC7["Consulter détail\nd'une recommandation"]
-        UC8["Consulter Timeline\nAudit Trail reco"]
+        UC5["Imprimer rapport de synthese statistiques dashboard\n(CSS @media print)"]
+        UC6["Consulter détail\nd'une recommandation"]
+        UC7["Consulter Timeline\nAudit Trail reco"]
+        UC8["Soumettre directement\npreuves à l'Audit"]
+        UC9["Demander report\néchéance (justification)"]
+        UC10["Consulter statistiques\nconformité par direction"]
+        UC11["Consulter To-Do List\n(recos assignées)"]
+        
+      
+        
     end
 
     DG(("🟣 Direction\nGénérale"))
@@ -751,6 +784,9 @@ flowchart LR
     DG --- UC6
     DG --- UC7
     DG --- UC8
+    DG --- UC9
+    DG --- UC10
+    DG --- UC11   
 ```
 
 ### 4.5 Auditeur Externe (COBAC / BEAC / CAC)
@@ -760,9 +796,9 @@ flowchart LR
     subgraph "Système Sentinel"
         UC1["Se connecter avec\ncredentials mission"]
         UC2["Consulter recommandations\ndu périmètre mission\n(Read-Only)"]
-        UC3["Visualiser fiche\nsynthèse conformité"]
+        UC3["filtrer recos par période"]
         UC4["Vérifier hash\nHMAC-SHA256"]
-        UC5["Télécharger Archive\nZIP par recommandation"]
+        UC5["Télécharger preuve\nZIP par recommandation"]
         UC6["Consulter preuves\nacceptées"]
     end
 
@@ -782,33 +818,25 @@ flowchart LR
     EXT --- UC6
 ```
 
-### 4.6 RSSI / Administrateur Système
+### 4.6 RSSI / Administrateur Système (support IT)
 
 ```mermaid
 flowchart LR
-    subgraph "Système Sentinel"
-        UC1["Gérer organigramme\n(Directions, Agences)"]
-        UC2["Créer / Modifier\ncomptes utilisateurs"]
-        UC3["Désactiver compte\n(révocation immédiate)"]
-        UC4["Consulter logs\nsystème (12 mois)"]
-        UC5["Monitorer Django-Q2\n(Admin Django)"]
-        UC6["Vérifier heartbeat\nscheduler"]
-        UC7["Superviser espace\ndisque (alertes 80%)"]
-        UC8["Gérer certificats TLS"]
-        UC9["Backups et\nRestauration"]
+    subgraph "Système Sentinel (Espace Admin)"
+        UC1["Gérer l'organigramme\n(Directions, Départements)"]
+        UC2["Gérer les utilisateurs\n(Rôles & Révocation)"]
+        UC3["Monitorer les tâches asynchrones\n(Dashboard Django-Q2)"]
+        UC4["Consulter l'Audit Log\nglobal (Sécurité)"]
+        UC5["Gérer les paramètres globaux\n(Variables applicatives)"]
     end
 
-    RSSI(("⚫ RSSI /\nAdmin"))
+    RSSI(("⚫ IT Admin /\nSupport"))
 
     RSSI --- UC1
     RSSI --- UC2
     RSSI --- UC3
     RSSI --- UC4
     RSSI --- UC5
-    RSSI --- UC6
-    RSSI --- UC7
-    RSSI --- UC8
-    RSSI --- UC9
 ```
 
 ---
@@ -836,6 +864,7 @@ stateDiagram-v2
     state "CLOSED_RESOLVED" as CLOSED_RESOLVED
 
     ASSIGNED --> IN_PROGRESS : DM delegue a ETP\n[delegate_to_etp()]
+    ASSIGNED --> IN_PROGRESS : DM accepte charge (DM seul)\n[accept_by_dm()]
     ASSIGNED --> ASSIGNED : Audit re-assigne DM\n[reassign_dm()]
     ASSIGNED --> ASSIGNED : Audit s auto-assigne\n[self_assign()]
 
@@ -862,7 +891,6 @@ stateDiagram-v2
     end note
 
     note right of PENDING_DM_REVIEW
-        DM peut supprimer preuve PENDING
         Rejet trace dans AuditLog
     end note
 
@@ -878,10 +906,11 @@ stateDiagram-v2
 | État source | Transition | État cible | Qui | Condition | Effet de bord |
 |---|---|---|---|---|---|
 | `ASSIGNED` | `delegate_to_etp()` | `IN_PROGRESS` | DM | ETP dans sa direction | Notif ETP |
+| `ASSIGNED` | `accept_by_dm()` | `IN_PROGRESS` | DM | Action directe (sans ETP) | Notif Audit |
 | `ASSIGNED` | `reassign_dm()` | `ASSIGNED` | Audit | DM valide | Notif nouveau DM |
 | `ASSIGNED` | `self_assign()` | `ASSIGNED` | Audit | — | AuditLog |
-| `IN_PROGRESS` | `submit_to_dm()` | `PENDING_DM_REVIEW` | ETP | ≥ 1 preuve PENDING | Notif DM |
-| `IN_PROGRESS` | `submit_to_audit()` | `PENDING_AUDIT_REVIEW` | DM | ≥ 1 preuve PENDING | Notif Audit |
+| `IN_PROGRESS` | `submit_to_dm()` | `PENDING_DM_REVIEW` | ETP | ≥ 1 preuve DRAFT | Notif DM |
+| `IN_PROGRESS` | `submit_to_audit()` | `PENDING_AUDIT_REVIEW` | DM | ≥ 1 preuve DRAFT | Notif Audit |
 | `PENDING_DM_REVIEW` | `approve_by_dm()` | `PENDING_AUDIT_REVIEW` | DM | PV recette uploadé | Notif Audit |
 | `PENDING_DM_REVIEW` | `reject_by_dm()` | `IN_PROGRESS` | DM | Motif obligatoire | Notif ETP |
 | `PENDING_AUDIT_REVIEW` | `close_by_audit()` | `CLOSED_RESOLVED` | Audit | — | HMAC + AuditLog |
@@ -893,7 +922,8 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING : ETP uploade fichier
+    [*] --> DRAFT : ETP uploade (brouillon)
+    DRAFT --> PENDING : ETP soumet au DM
 
     PENDING --> ACCEPTED : DM ou Audit valide
     PENDING --> REJECTED : DM ou Audit rejette\n(motif obligatoire)
@@ -901,16 +931,16 @@ stateDiagram-v2
     REJECTED --> [*] : Conservee en historique\n(jamais supprimee)
     ACCEPTED --> [*] : Incluse dans le sceau HMAC
 
-    note right of PENDING
-        Peut etre Soft Delete par DM
-        uniquement si reco est
-        IN_PROGRESS ou PENDING_DM_REVIEW
+    note right of DRAFT
+        L'auteur (ETP/DM) peut lire
+        ou Soft Delete son propre
+        brouillon librement.
     end note
 
     note right of REJECTED
         Version n reste accessible
-        ETP cree version n+1
-        Nouveau statut PENDING
+        ETP cree version n+1 (DRAFT)
+        Puis soumission (PENDING)
     end note
 ```
 
@@ -941,7 +971,7 @@ stateDiagram-v2
 | **Recommandation CLOSED_RESOLVED → tentative de modification** | Middleware + FSM bloquent toute mutation (POST/PUT/DELETE renvoie HTTP 403) |
 | **Import de 450 recos avec 1 erreur à la ligne 200** | Transaction atomique → ROLLBACK complet, 0 reco importée |
 | **Scheduler détecte OVERDUE sur une reco CLOSED_RESOLVED** | Ignorée : le filtre SQL exclut `status = CLOSED_RESOLVED` |
-| **DM supprime une preuve PENDING pendant que l'ETP soumet** | Soft delete + `select_for_update` → l'opération la plus rapide gagne |
+| **DM soumet un dossier sans ETP (DM Porteur)** | `accept_by_dm()` passe la reco de `ASSIGNED` à `IN_PROGRESS`, débloquant ses droits d'upload de brouillons. |
 
 ---
 
@@ -992,13 +1022,14 @@ sequenceDiagram
 
         ETP->>APP: Upload preuve (PDF 5Mo)
         APP->>APP: Valide Magic Bytes + Extension
-        APP->>DB: INSERT Proof (status=PENDING, version=1)
+        APP->>DB: INSERT Proof (status=DRAFT, version=1)
         APP->>DB: Sauvegarde fichier renomme UUID sur disque
-        APP-->>ETP: Fragment HTML ligne preuve ajoutee
+        APP-->>ETP: Fragment HTML ligne preuve ajoutee (brouillon)
 
         ETP->>APP: Soumet preuves + commentaire au DM
         APP->>FSM: submit_to_dm()
-        FSM->>DB: UPDATE status => PENDING_DM_REVIEW
+        FSM->>DB: UPDATE Proof status => PENDING
+        FSM->>DB: UPDATE (Recommendation) status => PENDING_DM_REVIEW
         APP->>DB: INSERT Comment (type=SUBMISSION)
         APP->>DB: INSERT AuditLog (TRANSITION)
         FSM-->>Q2: async_task(notify_dm_submission)
@@ -1069,9 +1100,9 @@ sequenceDiagram
         VALID-->>SVC: Fichier valide
         SVC->>SVC: Genere nom UUID4 + conserve extension
         SVC->>DISK: Sauvegarde media/proofs/{reco_id}/{uuid}.ext
-        SVC->>ORM: INSERT Proof (original_filename, uuid_path, version, status=PENDING)
+        SVC->>ORM: INSERT Proof (original_filename, uuid_path, version, status=DRAFT)
         SVC->>LOG: INSERT AuditLog (action=CREATE, object=Proof)
-        SVC-->>VUE: Proof creee
+        SVC-->>VUE: Proof creee (brouillon)
         VUE-->>HTML: Fragment HTML avec nouvelle ligne preuve
         HTML-->>USER: DOM mis a jour via hx-swap
     end
@@ -1108,12 +1139,13 @@ sequenceDiagram
     APP-->>ETP: Affiche historique V1 REJECTED + motif
 
     ETP->>APP: Upload nouvelle preuve corrigee
-    APP->>DB: INSERT Proof (version=2, status=PENDING)
-    APP-->>ETP: Fragment HTML version 2 ajoutee
+    APP->>DB: INSERT Proof (version=2, status=DRAFT)
+    APP-->>ETP: Fragment HTML version 2 ajoutee (brouillon)
 
     ETP->>APP: Re-soumet + commentaire "Signature ajoutee"
     APP->>FSM: submit_to_dm()
-    FSM->>DB: UPDATE status => PENDING_DM_REVIEW
+    FSM->>DB: UPDATE Proof status => PENDING
+    FSM->>DB: UPDATE (Recommendation) status => PENDING_DM_REVIEW
     APP->>DB: INSERT Comment (type=SUBMISSION)
     APP->>DB: INSERT AuditLog (TRANSITION)
     APP-->>ETP: Fragment HTML confirme re-soumission
@@ -1434,6 +1466,12 @@ erDiagram
         datetime date_creation
     }
 
+    INTERIM {
+        date date_debut
+        date date_fin
+        boolean is_active
+    }
+
     DEMANDE_REPORT {
         date nouvelle_echeance
         string justification
@@ -1488,6 +1526,8 @@ erDiagram
     RECOMMANDATION ||--o{ NOTIFICATION : "declenche"
     UTILISATEUR ||--o{ MISSION_EXTERNE : "est lie a"
     MISSION_EXTERNE ||--o{ RECOMMANDATION : "donne acces a"
+    UTILISATEUR ||--o{ INTERIM : "delegue ses droits"
+    UTILISATEUR ||--o{ INTERIM : "recoit delegation"
 ```
 
 ### 7.2 Entity-Relationship Diagram (ERD — Modèle Logique)
@@ -1524,6 +1564,16 @@ erDiagram
         timestamp updated_at
     }
 
+    users_delegation {
+        uuid id PK
+        uuid delegator_id FK "Utilisateur absent"
+        uuid delegate_id FK "Interimaire"
+        date start_date
+        date end_date
+        boolean is_active
+        timestamp created_at
+    }
+
     workflow_recommendation {
         uuid id PK
         varchar(255) title
@@ -1554,7 +1604,7 @@ erDiagram
         varchar(255) file_path "UUID renamed"
         varchar(100) content_type
         integer file_size_bytes
-        varchar(20) status "PENDING | ACCEPTED | REJECTED"
+        varchar(20) status "DRAFT | PENDING | ACCEPTED | REJECTED"
         integer version
         text rejection_reason
         varchar(10) proof_type "EVIDENCE | PV_RECETTE"
@@ -1585,8 +1635,8 @@ erDiagram
 
     audit_auditlog {
         uuid id PK
-        uuid user_id FK
-        varchar(20) action "CREATE | UPDATE | DELETE | LOGIN | LOGOUT | TRANSITION"
+        uuid user_id FK "nullable (null si systeme)"
+        varchar(20) action "CREATE | UPDATE | DELETE | LOGIN | LOGIN_FAILED | LOGOUT | TRANSITION | SYSTEM | EXPORT"
         varchar(50) content_type
         uuid object_id
         jsonb changes "Before/After diff"
@@ -1670,7 +1720,7 @@ erDiagram
     workflow_extension_request }o--|| workflow_recommendation : "recommendation_id"
     workflow_extension_request }o--|| users_user : "requested_by_id"
     workflow_extension_request }o--o| users_user : "decided_by_id"
-    audit_auditlog }o--|| users_user : "user_id"
+    audit_auditlog }o--o| users_user : "user_id"
     audit_hmac_seal |o--|| workflow_recommendation : "recommendation_id"
     audit_hmac_seal }o--|| users_user : "sealed_by_id"
     notifications_notification }o--|| users_user : "user_id"
@@ -1679,6 +1729,8 @@ erDiagram
     users_external_mission }o--|| users_user : "auditor_id"
     external_mission_recommendations }o--|| users_external_mission : "mission_id"
     external_mission_recommendations }o--|| workflow_recommendation : "recommendation_id"
+    users_delegation }o--|| users_user : "delegator_id"
+    users_delegation }o--|| users_user : "delegate_id"
 ```
 
 ### 7.3 Data Dictionary — Champs Critiques
@@ -1764,6 +1816,17 @@ classDiagram
             +get_accessible_departments() QuerySet
         }
 
+        class Delegation {
+            +UUID id
+            +User delegator
+            +User delegate
+            +Date start_date
+            +Date end_date
+            +Boolean is_active
+            +DateTime created_at
+            +is_currently_active() Boolean
+        }
+
         class ExternalMission {
             +UUID id
             +User auditor
@@ -1815,6 +1878,7 @@ classDiagram
             +String import_tag
             +Boolean is_deleted
             +assign_to_dm(dm) void
+            +accept_by_dm() void
             +delegate_to_etp(etp) void
             +submit_to_dm() void
             +submit_to_audit() void
@@ -1880,7 +1944,8 @@ classDiagram
         }
 
         class ProofService {
-            +submit_proof(reco_id, file, user) Proof
+            +upload_proof(reco_id, file, user) Proof
+            +submit_proofs(reco_id, user) List
             +validate_file(file) Boolean
             +soft_delete_proof(proof_id, user) None
         }
@@ -2014,6 +2079,7 @@ classDiagram
 
         class ProofStatusEnum {
             <<enumeration>>
+            DRAFT
             PENDING
             ACCEPTED
             REJECTED
@@ -2038,7 +2104,7 @@ classDiagram
     ExtensionRequest "*" --> "1" User : requested_by
     ExtensionRequest "*" --> "0..1" User : decided_by
 
-    AuditLog "*" --> "1" User : performed by
+    AuditLog "*" --> "0..1" User : performed by
     HmacSeal "1" --> "1" Recommendation : seals
     HmacSeal "*" --> "1" User : sealed_by
 
@@ -2083,7 +2149,7 @@ Sentinel applique le principe de défense en profondeur : si une barrière de s�
 
 | Couche (Layer) | Composant Technique | Rôle Sécuritaire | Conséquence contournement |
 |---|---|---|---|
-| **L1. Réseau & Infra** | Caddy Reverse Proxy | Terminaison TLS 1.2/1.3 stricte, blocage des requêtes malformées, Rate Limiting natif. | Les requêtes HTTP claires sont impossibles. L'Infra BICEC cloisonne la VM. |
+| **L1. Réseau & Infra** | Nginx Reverse Proxy | Terminaison TLS 1.2/1.3 stricte, blocage des requêtes malformées, Rate Limiting natif. | Les requêtes HTTP claires sont impossibles. L'Infra BICEC cloisonne la VM. |
 | **L2. Protection Web** | Middleware Django + HTMX | Headers (HSTS, CSP, X-Frame-Options). Protection CSRF `SameSite=Lax`. Validation Formulaires. | Bloque XSS, Clickjacking, CSRF. HTMX n'exécutant pas de script JSON limite les vecteurs d'attaque. |
 | **L3. Authentification** | `django-axes` + Sessions | Cookies Stateful HttpOnly/Secure. Verrouillage après 5 échecs consécutifs. | Bloque le Brute-Force et le vol de session via JavaScript (XSS). |
 | **L4. Filtrage Métier** | RBAC Middleware + Selectors | Bloque l'accès aux URLs non autorisées. Pré-filtre les QuerySets selon le `department_id`. | Un utilisateur malveillant ne peut lire/modifier que les données de son périmètre. |
@@ -2100,7 +2166,7 @@ Légende : **R** (Read), **C** (Create), **U** (Update), **D** (Delete/Soft-Dele
 | Objet Métier | Auditeur Interne | Directeur Métier (DM) | Employé (ETP) | Auditeur Externe | DG | RSSI |
 |---|---|---|---|---|---|---|
 | **Recommandation** | R, C, U¹, D¹, X | R², X² | R³ | R⁴ | R | - |
-| **Preuve (Proof)** | R | R, U, D⁵, X | R, C, X | R⁶ | R | - |
+| **Preuve (Proof)** | R | R, X | R, C, X | R⁶ | R | - |
 | **Commentaire** | R, C | R, C | R, C | - | - | - |
 | **Demande de Report**| R, X | R, C | R | - | R | - |
 | **Audit Trail** | R | R (sur ses recos) | R (sur ses recos) | - | R | R |
@@ -2143,8 +2209,8 @@ Les fichiers de preuve sont la cible privilégiée des attaques applicatives. Se
 3. **Renommage UUID et Structure du Stockage** :
    - Un fichier `bilan-2026.pdf` est renommé en `7a2b9f...3e.pdf` (UUIDv4) sur le disque (`fs`). Le vrai nom est gardé en BDD (`original_filename`).
    - Ceci bloque complètement les attaques par *Path Traversal* (ex: upload d'un fichier nommé `../../../etc/passwd`).
-4. **Pas d'exécution statique (Serveur/Caddy)** :
-   - Le répertoire de stockage `/media/proofs/` est inaccessible directement depuis le web. Il n'est pas servi par Caddy.
+4. **Pas d'exécution statique (Serveur/Nginx)** :
+   - Le répertoire de stockage `/media/proofs/` est inaccessible directement depuis le web. Il n'est pas servi par Nginx.
    - Le téléchargement passe obligatoirement par une vue Django `/download/<uuid>` qui valide la permission RBAC avant de transmettre le fichier.
 
 ### 9.5 Mapping OWASP Web Top 10 (2021)
@@ -2154,10 +2220,10 @@ Mise en correspondance des vulnérabilités critiques OWASP avec les mitigations
 | OWASP 2021 | Vulnérabilité | Mitigation dans Sentinel (By-Design) |
 |---|---|---|
 | **A01:2021** | Broken Access Control | Middleware RBAC + RLS PostgreSQL partiel. Vérifications contextuelles par QuerySet. Les UUIDv4 empêchent l'énumération prédictive (IDOR). |
-| **A02:2021** | Cryptographic Failures | TLS 1.3 imposé par Caddy (HTTPS Only). Mots de passe hashés via Argon2/PBKDF2 natif à Django. Fichiers et base cryptés au repos (LUKS) en V2. |
+| **A02:2021** | Cryptographic Failures | TLS 1.3 imposé par Nginx (HTTPS Only). Mots de passe hashés via Argon2/PBKDF2 natif à Django. Fichiers et base cryptés au repos (LUKS) en V2. |
 | **A03:2021** | Injection | L'ORM Django protège nativement contre les injections SQL via paramétrisation. `django-fsm` bloque les injections d'états de flux. Pas de Shell access depuis l'app. |
 | **A04:2021** | Insecure Design | Approche "Default Deny". Validation adaptative "Magic Bytes" pour les fichiers bloquant l'upload d'exécutables (NFR-SEC-04). |
-| **A05:2021** | Security Misconfiguration | Serveur Caddy configuré avec HSTS, X-Content-Type-Options. Gunicorn derrière un proxy. Mode `DEBUG=False` impératif en production. |
+| **A05:2021** | Security Misconfiguration | Serveur Nginx configuré avec HSTS, X-Content-Type-Options. Gunicorn derrière un proxy. Mode `DEBUG=False` impératif en production. |
 | **A06:2021** | Vulnerable and Outdated Components| Dépendances fixées dans `requirements.txt`. Alertes de vulnérabilité Github/Gitlab intégrées dans la chaîne CI (si mise en place). |
 | **A07:2021** | Identification and Authentication Failures | Bloqueur `django-axes` limitant les tentatives à 5 erreurs brutes. Politique de cookies stricts HTTPOnly et Session timeout (idle 30 mins, NFR-SEC-02). |
 | **A08:2021** | Software and Data Integrity Failures | Signature cryptographique HMAC-SHA256 (NFR-SEC-03). Append-Only database constraints. Modèles Django sérialisés non altérés par le client. |
@@ -2186,17 +2252,11 @@ C4Deployment
         
         Deployment_Node(vm, "Machine Virtuelle", "Ubuntu 24.04 LTS / RHEL 9") {
             
-            Deployment_Node(caddy, "Caddy Server", "Reverse Proxy (Go)") {
-                Container(web, "Caddy Proxy", "Port 443", "TLS Termination, Static Files, Rate Limiting")
-            }
-            
-            Deployment_Node(py_env, "Python Virtualenv", "Execution Backend") {
-                Container(gunicorn, "Gunicorn Engine", "gthread, Port 8000", "Workers WSGI synchrones")
-                Container(worker, "Django-Q2 Daemon", "Process Manager", "Exécution des tâches en arrière-plan")
-            }
-            
-            Deployment_Node(db_node, "Database Engine", "PostgreSQL 16") {
-                ContainerDb(postgres, "PostgreSQL", "Port 5432", "Base de données relationnelle")
+            Deployment_Node(docker, "Docker Engine", "Environnement conteneurisé") {
+                Container(nginx, "Nginx Container", "Port 443", "TLS Termination, Static Files, Rate Limiting")
+                Container(gunicorn, "Django Container", "Port 8000 interne", "Workers WSGI synchrones (gthread)")
+                Container(worker, "Worker Container", "Django-Q2 Daemon", "Exécution des tâches en arrière-plan")
+                ContainerDb(postgres, "PostgreSQL Container", "Port 5432 interne", "Base de données relationnelle")
             }
         }
         
@@ -2205,7 +2265,7 @@ C4Deployment
         }
     }
 
-    Rel(web, gunicorn, "Proxy_pass (HTTP localhost:8000)")
+    Rel(nginx, gunicorn, "Proxy_pass (HTTP django:8000)")
     Rel(gunicorn, postgres, "Connexion TCP/IP locale")
     Rel(worker, postgres, "Polling 10s via ORM")
 ```
@@ -2216,8 +2276,8 @@ Le calibrage (Sizing) suivant est calculé pour supporter la contrainte NFR-SCA-
 
 | Ressource | Capacité Recommandée (Production) | Détail de Consommation (Budget) |
 |---|---|---|
-| **CPU (vCores)**| **4 vCores** | Caddy (0.5), Gunicorn `gthread` avec 4 workers (2.0), PostgreSQL (1.0), OS + background (0.5). |
-| **Mémoire (RAM)** | **8 Go** | OS (1 Go), PostgreSQL `shared_buffers` au quart (2 Go), Gunicorn 4 workers (2 Go), Django-Q2 (0.5 Go), Caddy + File system cache (2.5 Go). |
+| **CPU (vCores)**| **4 vCores** | Nginx (0.5), Gunicorn `gthread` avec 4 workers (2.0), PostgreSQL (1.0), OS + background (0.5). |
+| **Mémoire (RAM)** | **8 Go** | OS (1 Go), Docker Engine (0.5 Go), PostgreSQL `shared_buffers` au quart (2 Go), Gunicorn 4 workers (2 Go), Django-Q2 (0.5 Go), Nginx + cache (1.5 Go). |
 | **Stockage (App)**| **40 Go SSD** | OS Ubuntu/RHEL (~10 Go), Python + lib (~1 Go), Base PostgreSQL volumétrie métier textuelle (~5 Go), Logs système + audit (~4 Go), Marge d'exploitation (20 Go). |
 | **Files (Preuves)**| **200 Go HDD/SSD** | Uploads limités à 15 Mo (NFR-SCA-01). 8000 fichiers × ~10 Mo en moyenne = ~80 Go. Provisionnement sur 3 ans (200 Go). Ce disque peut être monté en iSCSI ou NFS. |
 | **Réseau** | **Gigabit LAN**| Flux internes massifs (ZIP synchrones). Interfaces réseaux à haut débit nécessaires pour les connexions simultanées vers le NAS. |
@@ -2228,47 +2288,125 @@ Le calibrage (Sizing) suivant est calculé pour supporter la contrainte NFR-SCA-
 > 2. Une copie incrémentielle (`rsync`) du répertoire `/media/proofs/`.
 > 3. L'export vers le serveur externe NAS de la BICEC.
 
-### 10.3 Configuration Caddy (Reverse Proxy & Serveur Web)
+### 10.3 Configuration Nginx (Reverse Proxy & Serveur Web)
 
-Conformément à l'ADR-02, **Caddy** est chargé d'intercepter le trafic HTTPS, de servir les assets statiques et de protéger le serveur WSGI. Voici l'extrait fondamental du fichier `Caddyfile` pour Sentinel :
+Conformément à l'ADR-02, **Nginx** est chargé d'intercepter le trafic HTTPS, de servir les assets statiques et de protéger le serveur WSGI. Voici l'extrait fondamental de la configuration `nginx.conf` pour Sentinel :
 
 ```nginx
-# Configuration Caddy (Reverse Proxy pour Sentinel)
-sentinel.intra.bicec.local:443 {
-    # 1. Configuration TLS (Certificat d'entreprise interne)
-    tls /etc/ssl/certs/sentinel.crt /etc/ssl/private/sentinel.key {
-        protocols tls1.2 tls1.3
-    }
+# Bloc 1 : Redirection HTTP -> HTTPS (NFR-SEC-01)
+server {
+    listen 80;
+    server_name sentinel.intra.bicec.local;
+    return 301 https://$host$request_uri;
+}
+
+# Bloc 2 : Serveur HTTPS principal
+server {
+    listen 443 ssl http2;
+    server_name sentinel.intra.bicec.local;
+
+    # 1. Configuration TLS (Certificats d'entreprise internes montés via Docker volumes)
+    ssl_certificate /etc/nginx/ssl/sentinel.crt;
+    ssl_certificate_key /etc/nginx/ssl/sentinel.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
     # 2. Sécurité : En-têtes obligatoires
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-    }
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+
+    # Limite drastique pour les uploads (15MB imposés par NFR-SCA-01)
+    client_max_body_size 16M;
 
     # 3. Fichiers statiques (JS, CSS Tailwind, Fonts)
-    # Les URL commençant par /static/ sont servies directement par Caddy
-    handle_path /static/* {
-        root * /var/www/sentinel/staticfiles
-        file_server
-        # Options de cache client agressives
-        header Cache-Control "public, max-age=31536000, immutable"
+    location /static/ {
+        alias /usr/share/nginx/html/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
     }
 
-    # 4. Applications (Proxy vers Django/Gunicorn)
-    handle {
-        reverse_proxy 127.0.0.1:8000 {
-            # Transmission de l'IP originale pour l'AuditLog Django
-            header_up X-Real-IP {remote_host}
-            header_up X-Forwarded-For {remote_host}
-            header_up X-Forwarded-Proto {scheme}
-        }
+    # 4. Applications (Proxy vers le conteneur Django/Gunicorn via docker network)
+    location / {
+        proxy_pass http://web:8000;
+        
+        # Transmission de l'IP originale pour l'AuditLog Django
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
 
-*Note* : Le trafic vers le répertoire protégé `/media/` (les preuves uploadées) passe volontairement à travers Django (`reverse_proxy`) afin que la vue puisse vérifier que l'utilisateur a les droits d'accès au fichier (contrôle RBAC). Caddy ne gère **jamais** les fichiers Media en direct.
+*Note* : Le trafic vers le répertoire protégé `/media/` (les preuves uploadées) passe volontairement à travers Django (`proxy_pass`) afin que la vue puisse vérifier que l'utilisateur a les droits d'accès au fichier (contrôle RBAC). Nginx ne gère **jamais** les fichiers Media en direct.
+
+### 10.4 Configuration Docker Compose
+
+Afin d'assurer la reproductibilité isolée dictée par l'ADR-09, `docker-compose.yml` définit la topologie On-Premise :
+
+```yaml
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - sentinel_pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=sentinel_db
+      - POSTGRES_USER=sentinel_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel_user -d sentinel_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    restart: unless-stopped
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 10
+    volumes:
+      - sentinel_media:/app/media/
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: python manage.py qcluster
+    volumes:
+      - sentinel_media:/app/media/
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:1.26-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - sentinel_static:/usr/share/nginx/html/static:ro
+      - sentinel_certs:/etc/nginx/ssl:ro
+    depends_on:
+      - web
+
+volumes:
+  sentinel_pgdata:
+  sentinel_media:
+  sentinel_static:
+  sentinel_certs:
+```
 
 ---
 
@@ -2279,7 +2417,7 @@ La confidentialité des données bancaires manipulées par Sentinel exige une ge
 ### 11.1 Chiffrement en Transit (NFR-SEC-01)
 
 - **Protocole :** HTTPS imposé à tous. Redirection HSTS stricte.
-- **Terminaison TLS :** Gérée de manière centralisée par Caddy.
+- **Terminaison TLS :** Gérée de manière centralisée par Nginx.
 - **Contrainte Interne :** Bien que Sentinel soit installé sur le LAN interne de la BICEC, le trafic applicatif voyageant entre le navigateur de l'utilisateur (ex: laptop sur VPN) et le serveur doit rester intraçable pour se prémunir du *sniffing* interne.
 - **Bypass TLS :** Zéro composant cloud public externe autorisé. L'interface avec Exchange (SMTP) utilise du STARTTLS ou TLS explicite.
 
@@ -2306,13 +2444,13 @@ L'adoption stricte du principe The Twelve-Factor App dicte la séparation de la 
 | `DATABASE_URL` | Chaine de connexion asymétrique sécurisée (ex: `postgres://user:password@localhost:5432/sentinel`). |
 | `EMAIL_HOST_PASSWORD` | Mot de passe AD du compte de service SMTP `sentinel-no-reply@bicec.com`. |
 
-Ces secrets seront fournis dynamiquement à l'orchestrateur de service système de Linux (`systemd`) via un fichier de configuration protégé par des permissions strictes sur la VM de production métier :
+Ces secrets seront fournis dynamiquement aux conteneurs via Docker Compose à l'aide d'un fichier `.env` protégé par des permissions strictes (0600) sur la VM hôte de production :
 
 ```bash
-# Exemple: /etc/sentinel/.env (Droits: root uniquement - 0600)
+# Exemple: /opt/sentinel/.env (Droits: root uniquement - 0600)
 DJANGO_SECRET_KEY="bx3@_p+..._g=!(l_"
 DEBUG="False"
-DATABASE_URL="postgres://sentinel_prod:pass@127.0.0.1:5432/sentinel_db"
+DB_PASSWORD="pass"
 ```
 
 ---
@@ -2393,7 +2531,7 @@ Une architecture d'entreprise ne se juge pas uniquement sur les fonctionnalités
 
 | ID | Exigence (NFR) | Composant de Validation (by-design) | Statut |
 |---|---|---|:---:|
-| **SEC-01** | TLS 1.2+ obligatoire de bout en bout. | Configuration `Caddyfile` forçant protocole v1.2 / v1.3. Redirection HTTP vers HTTPS automatique. (ADR-02) | ✅ |
+| **SEC-01** | TLS 1.2+ obligatoire de bout en bout. | Configuration `nginx.conf` forçant protocole v1.2 / v1.3. Redirection HTTP vers HTTPS automatique. (ADR-02) | ✅ |
 | **SEC-02** | Timeout session après 30 minutes inactives. | Stateful Cookies : `SESSION_COOKIE_AGE = 1800` et `SESSION_SAVE_EVERY_REQUEST = True`. (ADR-06) | ✅ |
 | **SEC-03** | Sceau d'intégrité infalsifiable à la clôture. | Trigger de hachage `HMAC-SHA256` in-app utilisant `SECRET_KEY` + hash unique des fichiers `proofs`. | ✅ |
 | **SEC-04** | Bloquer les virus/exécutables dissimulés. | Check in-memory via librairie `python-magic` sur les headers MIME. Rejet dur des macros Office (`.xlsm`, `.docm`). | ✅ |
@@ -2412,9 +2550,9 @@ Une architecture d'entreprise ne se juge pas uniquement sur les fonctionnalités
 
 | ID | Exigence (NFR) | Composant de Validation (by-design) | Statut |
 |---|---|---|:---:|
-| **SCA-01**| Max 5 fichiers par preuve (limite de 15 Mo unitaire). | Limites intégrées en durs dans les `Forms Django` (Validation Size) et limit_transfer_size dans Caddy (`request_body`). | ✅ |
+| **SCA-01**| Max 5 fichiers par preuve (limite de 15 Mo unitaire). | Limites intégrées en durs dans les `Forms Django` (Validation Size) et `client_max_body_size` dans Nginx. | ✅ |
 | **SCA-02**| Tenue de DB de 1000 Recos, 8000 fichiers. | Table SQL partitionnées et indexées nativement. Volumétrie considérée comme *"Minuscule"* pour PostgreSQL 16. | ✅ |
-| **SCA-03**| Support 200 utilisateurs concurrents. | Le stack `Caddy + Gunicorn 4 Workers (gthread 10)` gère sans surcharge les locks concurrentiels (estimé 1200 req/sec possibles). | ✅ |
+| **SCA-03**| Support 200 utilisateurs concurrents. | Le stack `Nginx + Gunicorn 4 Workers (gthread 10)` gère sans surcharge les locks concurrentiels (estimé 1200 req/sec possibles). | ✅ |
 
 ### 14.4 NFR — Résilience Globale
 
@@ -2437,7 +2575,8 @@ Le stack sélectionné est exclusivement certifié par des licences dites "permi
 | **Python 3.12+** | Runtime d'exécution (Langage de l'App). | `PSF License` (GPL-Compatible Permissive) | Totalement Libre |
 | **Django (+ extensions)** | Framework backend, Authentification, ORM. | `BSD-3-Clause` | Totalement Libre |
 | **PostgreSQL 16** | Moteur de base de données. | `PostgreSQL License` (Similaire MIT) | Totalement Libre |
-| **Caddy** | Reverse proxy, Terminaison TLS, Serveur statique. | `Apache License 2.0` | Totalement Libre |
+| **Nginx (Stable)** | Reverse proxy, Terminaison TLS, Serveur statique. | `BSD 2-Clause` | Totalement Libre |
+| **Docker Engine** | Plateforme de lancement des conteneurs. | `Apache License 2.0` | Totalement Libre |
 | **Redis (Optionnel)** | Broker optionnel (Non-MVP). | `Dual RSALv2 / SSPLv1` | Toléré usage local interne |
 | **Tailwind CSS 3+** | Framework CSS utility-first. | `MIT License` | Totalement Libre |
 | **HTMX** | Rendu interactif navigateur (pas de SPA). | `Zero-Clause BSD (0BSD)` | Totalement Libre |
@@ -2459,11 +2598,11 @@ Ce document d'architecture a pour but d'aligner l'ensemble des parties prenantes
 
 ### 16.1 Pour la Direction IT (Infrastructure & Opérations)
 
-**Q : Pourquoi déployer un monolithe sur une seule VM au lieu de conteneurs Docker/Kubernetes ?**  
-**R :** Conformément à l'ADR-01 et à la contrainte de déploiement "MVP Rapide", insérer Kubernetes pour une application de ~200 utilisateurs génèrerait une complexité opérationnelle démesurée. Le monolithe Linux (Ubuntu/RHEL) est la forme logicielle la plus robuste, la plus facile à monitorer par l'équipe système actuelle de la BICEC, et respecte l'esprit du *HackSoft Styleguide*.
+**Q : Pourquoi déployer avec Docker Compose au lieu d'un cluster Kubernetes ?**  
+**R :** Conformément à l'ADR-09 et à la contrainte de déploiement, Kubernetes pour une application interne de ~200 utilisateurs génèrerait une complexité opérationnelle démesurée pour l'équipe IT. Docker Compose offre la reproductibilité, l'isolation (conteneurs) et le contrôle local attendus tout en évitant le surcoût de gestion d'un Control Plane complexe.
 
-**Q : Pourquoi remplacer le standard Apache Web Server par Caddy ?**  
-**R :** Apache/Nginx demandent un lourd entretien des certificats SSL (via des scripts externes Moka/Certbot). Caddy est un proxy moderne écrit en *Go*, sécurisé par défaut (Rate Limiting, HSTS, TLS 1.3), distribué sous un binaire unique et conçu pour le zero-config HTTPS dynamique (ADR-02).
+**Q : Pourquoi préférer Nginx à Caddy ou Apache ?**  
+**R :** Nginx est le standard de l'industrie, déjà ancré dans les processus matériels et humains de la BICEC. Assurer la terminaison TLS et le routing via Nginx permet à l'équipe Infra d'opérer avec des outils maîtrisés sans surcharge d'apprentissage (ADR-02).
 
 ### 16.2 Pour les Développeurs (La Core Team)
 
@@ -2490,7 +2629,7 @@ Ce document d'architecture a pour but d'aligner l'ensemble des parties prenantes
 **R :** Bien qu'un DBA connecté avec `psql` bypass les logiciels applicatifs Django, la défense en profondeur limite l'impact. Toute commande `UPDATE/DELETE` passée par le DBA est interceptée par nos Triggers natifs PostgreSQL (bas niveau) et consignée dans `audit_auditlog` avec son adresse IP. S'il tente d'effacer les traces, le sceau HMAC de la fiche en question sera de toute manière invalidé (ADR-07).
 
 **Q : Comment Sentinel se protège-t-il contre un ransomware uploadé par un utilisateur piégé ?**  
-**R :** D'abord via `python-magic` qui lit l'entête binaire et rejette tout `.exe`, `.sh` ou `.bat` maquillé en `.pdf`. Ensuite, via le blocage en dur des fichiers Office avec macros (`.xlsm`, `.docm`). Enfin, Caddy empêche l'exécution de tout fichier stocké dans `/media/`, neutralisant un éventuel webshell PHP.
+**R :** D'abord via `python-magic` qui lit l'entête binaire et rejette tout `.exe`, `.sh` ou `.bat` maquillé en `.pdf`. Ensuite, via le blocage en dur des fichiers Office avec macros (`.xlsm`, `.docm`). Enfin, Nginx empêche l'exécution de tout fichier stocké dans `/media/`, neutralisant un éventuel webshell PHP.
 
 ---
 
@@ -2511,6 +2650,7 @@ Ce document de référence rassemble les lois fondatrices de la version 2. Pour 
 - **SSR** : *Server-Side Rendering* (Rendu côté serveur). L'HTML est généré sur le serveur Python avant envoi.
 - **RBAC** : *Role-Based Access Control* (Contrôle d'accès basé sur les rôles).
 - **HMAC** : *Hash-based Message Authentication Code* (Code d'authentification de message par hachage).
+- **Docker Compose** : Outil d'orchestration locale permettant de définir et gérer une application multi-conteneurs via un fichier YAML.
 
 ---
 *Ce document architecture-v2.md (Rév 2.0) est désormais complet et acté comme source canonique de l'ingénierie Sentinel de niveau institutionnel.*

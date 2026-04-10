@@ -1,17 +1,28 @@
-# Sprint Planning — Sentinel MVP v1.0
+# Sprint Planning — Sentinel MVP v1.0 *(Fast-Track 11 semaines)*
 
 > **Durée de sprint :** 2 semaines · **Équipe :** 1 Backend Dev + 1 Frontend Dev + 1 IT Admin (Sprint 0 uniquement)
-> **Deadline MVP :** 6 mois (12 sprints disponibles)
+> **Deadline MVP :** **11 semaines — Go-Live cible : 26 juin 2026**
+> **Date de début :** 10 avril 2026
 > **Référence :** [`epics-and-stories.md`](./epics-and-stories.md) · [`prd-v2.md`](./prd-v2.md) · [`architecture-v2.md`](./architecture-v2.md)
+
+> [!IMPORTANT]
+> **Révision Fast-Track (2026-04-09)** — Suite à la contrainte de délai réduit de 6 mois → 11 semaines, les éléments suivants sont **reportés en v2** :
+> - 🔴 **S1.6 — RLS PostgreSQL** (3 pts) : le middleware RBAC reste la barrière unique en v1
+> - 🔴 **S2.6 — Bulk Create** (4 pts) : création unitaire uniquement
+> - 🔴 **E5 — Demandes de Report d'Échéance** (9 pts) : gestion via Admin Django + commentaire
+> - 🔴 **E9 — Import Self-Service** (14 pts) : remplacement par un `management command` Django
+> - 🟠 **S3.8 — UI Historique versions preuves** (2 pts) : données en base, UI reportée
+> - 🟠 **S6.5 — Filtres HTMX dynamiques** (4 pts) : filtres serveur classiques (rechargement complet)
+> - 🟠 **S6.4 Dashboard DG** (simplifié) : vue Audit filtrée par direction + rapport PDF par direction
 
 ---
 
 ## Philosophie de Priorisation
 
 1. **Fondations d'abord :** L'infra et le RBAC bloquent tout le reste.
-2. **Happy Path complet avant les edge cases :** Livrer le flux nominal (Audit crée → ETP soumet → DM valide → Audit clôture) dès le Sprint 5.
-3. **Feedback business tôt :** Le pilote BICEC peut commencer dès Sprint 6 sur un périmètre limité.
-4. **Edge cases et reporting ensuite :** Notifications, dashboards avancés, COBAC, Import en dernière phase.
+2. **Happy Path complet en priorité absolue :** Livrer le flux nominal (Audit crée → ETP soumet → DM valide → Audit clôture) dès le Sprint 3 (semaine 6).
+3. **Parallélisation maximale Front/Back :** Chaque sprint alterne les responsabilités pour éviter les blocages.
+4. **Reporting et conformité en Sprint 4 :** Notifications, dashboards, COBAC concentrés sur les 2 dernières semaines actives.
 
 ---
 
@@ -19,40 +30,252 @@
 
 ```mermaid
 gantt
-    title Plan de Release Sentinel MVP (6 mois)
+    title Plan de Release Sentinel MVP Fast-Track (11 semaines)
     dateFormat  YYYY-MM-DD
-    axisFormat  S%W
+    axisFormat  %d/%m
 
     section Fondations
-    S0 · Infra & DevOps            :s0, 2026-04-06, 14d
+    S0 · Infra + Modèles Core      :s0, 2026-04-10, 14d
     S1 · Auth, RBAC, Admin Django  :s1, after s0, 14d
 
     section Cœur Métier
-    S2 · Modèles FSM & CRUD Recos  :s2, after s1, 14d
-    S3 · Preuves & Sécurité Fichiers :s3, after s2, 14d
-    S4 · Workflow Validation DM    :s4, after s3, 14d
-    S5 · Clôture HMAC & DG Porteur :s5, after s4, 14d
+    S2 · Recommandations + Preuves :s2, after s1, 14d
+    S3 · Validation + Clôture HMAC :s3, after s2, 14d
 
-    section Pilote (UAT)
-    S6 · Notifications & Scheduler :s6, after s5, 14d
-    S7 · Dashboards & Filtres HTMX :s7, after s6, 14d
+    section Reporting & Conformité
+    S4 · Notifs + Dashboards + COBAC :s4, after s3, 14d
 
-    section Secondaire
-    S8 · Reports & Import Historique :s8, after s7, 14d
-    S9 · Audit Externe COBAC       :s9, after s8, 14d
-
-    section Finalisation
-    S10 · Rapport PDF & Polish UI  :s10, after s9, 14d
-    S11 · QA, Tests, Go-Live       :s11, after s10, 14d
+    section Go-Live
+    QA · Tests E2E + UAT + Go-Live :qa, after s4, 7d
 ```
 
 ---
 
 ## Détail des Sprints
 
-### 🏗️ Sprint 0 — Infrastructure & DevOps
-**Objectif :** L'environnement de développement est prêt. Un `docker compose up` lance les 4 services.
+---
+
+### 🏗️ Sprint 0 — Infrastructure, DevOps & Modèles Core
+**Dates :** 10 – 23 avril 2026
+**Objectif :** L'environnement conteneurisé est prêt (`docker compose up` lance les 4 services) ET les fondations de données sont en place (Modèles User, Department, Delegation, AuditLog).
 **NFR validées :** NFR-SEC-01 (TLS), NFR-REL-02 (Backup).
+
+| Priorité | Story | Points | Assigné |
+|:---:|---|:---:|---|
+| 🔴 BLOQUANT | S0.1 · Dockerfile multi-stage | 3 | IT Admin |
+| 🔴 BLOQUANT | S0.2 · Docker Compose (4 services, healthchecks) | 3 | IT Admin |
+| 🔴 BLOQUANT | S0.3 · Nginx (TLS, HTTP→HTTPS, headers sécu) | 3 | IT Admin |
+| 🔴 BLOQUANT | S1.1 · Modèle `User` custom (UUID + rôle) | 3 | Backend |
+| 🔴 BLOQUANT | S1.2 · Modèle `Department` (hiérarchie) | 2 | Backend |
+| 🔴 BLOQUANT | S1.3 · Modèle `Delegation` (intérims FR4) | 3 | Backend |
+| 🔴 BLOQUANT | S1.7 · Modèle `AuditLog` (append-only + trigger) | 3 | Backend |
+| 🟠 HAUTE | S0.5 · Fichier `.env.example` et secrets | 1 | IT Admin |
+| 🟢 NORMALE | S0.4 · Script de backup nocturne | 2 | IT Admin |
+
+**Total : 23 points**
+
+**Critère de complétion du Sprint :**
+- [ ] `docker compose up -d` → 4 conteneurs sains (healthcheck OK)
+- [ ] HTTPS accessible sur `https://localhost` avec certificat auto-signé
+- [ ] Migrations Django pour `User`, `Department`, `Delegation`, `AuditLog` appliquées sans erreur
+- [ ] `python manage.py showmigrations` : tout vert
+
+---
+
+### 🔑 Sprint 1 — Authentification, RBAC & Admin Django
+**Dates :** 24 avril – 7 mai 2026
+**Objectif :** L'IT Admin peut créer l'organigramme et les utilisateurs. Un DM peut se connecter et voir son périmètre.
+**FR validées :** FR1, FR3, FR4. **NFR validées :** NFR-SEC-02 (Session), NFR-PERF-01 (RBAC).
+
+> [!NOTE]
+> **S1.6 (RLS PostgreSQL) est reporté en v2.** Le middleware RBAC (S1.5) est le seul garde-fou en v1.
+
+| Priorité | Story | Points | Assigné |
+|:---:|---|:---:|---|
+| 🔴 BLOQUANT | S1.4 · Login/Logout + anti-brute-force | 3 | Backend |
+| 🔴 BLOQUANT | S1.5 · Middleware RBAC (périmètre tenant) | 5 | Backend |
+| 🔴 BLOQUANT | S1.8 · Templates de base (layout + navigation) | 3 | Frontend |
+| 🟠 HAUTE | S1.9 · Admin Django — `Department` | 2 | Backend |
+| 🟠 HAUTE | S1.10 · Admin Django — `User` (+ révocation session) | 2 | Backend |
+| 🟠 HAUTE | S1.11 · Admin Django — `Delegation` | 2 | Backend |
+| 🟠 HAUTE | S1.13 · Admin Django — `SiteConfiguration` | 1 | Backend |
+| 🟢 NORMALE | S1.12 · Admin Django — `AuditLog` (read-only) | 1 | Backend |
+
+**Total : 19 points**
+
+**Critère de complétion du Sprint :**
+- [ ] Un DM peut se connecter, voir son périmètre, sa session expire à 30min
+- [ ] L'IT Admin peut créer l'organigramme BICEC dans l'Admin Django
+- [ ] Un ETP d'une direction ne peut pas voir les données d'une autre direction (test pytest RBAC)
+
+---
+
+### ⚙️ Sprint 2 — Recommandations (FSM + CRUD) & Preuves
+**Dates :** 8 – 21 mai 2026
+**Objectif :** L'Audit peut créer et assigner des recommandations. L'ETP peut uploader des preuves sécurisées. Le FSM bloque toute transition illégale.
+**FR validées :** FR5, FR6, FR7, FR10, FR11, FR12, FR15, FR16, FR18, FR25.
+
+> [!NOTE]
+> **S2.6 (Bulk Create) est reporté en v2.** Création unitaire uniquement.
+> **S3.8 (UI Historique versions) est reporté en v2.** Les données de versioning sont stockées mais sans vue dédiée.
+
+| Priorité | Story | Points | Assigné |
+|:---:|---|:---:|---|
+| 🔴 BLOQUANT | S2.1 · Modèle `Recommendation` + `django-fsm` | 5 | Backend |
+| 🔴 BLOQUANT | S2.2 · Transitions assignation (Audit) | 3 | Backend |
+| 🔴 BLOQUANT | S2.3 · Transitions DM : `delegate_to_etp` + `accept_by_dm` | 3 | Backend |
+| 🔴 BLOQUANT | S2.7 · Modèle `Comment` + Selectors `for_tenant()` | 3 | Backend |
+| 🔴 BLOQUANT | S3.1 · Modèle `Proof` (statuts, versioning, types) | 3 | Backend |
+| 🔴 BLOQUANT | S3.2 · `upload_proof()` + validation Magic Bytes | 5 | Backend |
+| 🔴 BLOQUANT | S3.6 · Renommage UUID + stockage sécurisé | 2 | Backend |
+| 🔴 BLOQUANT | S3.7 · Téléchargement sécurisé (contrôle RBAC) | 2 | Backend |
+| 🟠 HAUTE | S2.5 · Création unitaire (formulaire HTMX) | 3 | Frontend + Backend |
+| 🟠 HAUTE | S2.4 · Soft Delete (statut ASSIGNED uniquement) | 2 | Backend |
+| 🟠 HAUTE | S3.3 · `submit_proofs()` → DRAFT→PENDING | 3 | Backend |
+| 🟠 HAUTE | S3.4 · Soft Delete brouillon par auteur | 2 | Frontend |
+| 🟢 NORMALE | S3.5 · Upload PV de Recette (par le DM) | 2 | Backend |
+
+**Total : 38 points**
+
+> [!WARNING]
+> **Sprint le plus chargé Backend.** La parallélisation est possible : le Frontend peut commencer `S2.5` (formulaire HTMX) dès que `S2.1` est mergé. Prioriser impitoyablement les items 🔴 BLOQUANT.
+
+**Critère de complétion du Sprint :**
+- [ ] L'Audit crée une reco et l'assigne à un DM
+- [ ] Le DM délègue à un ETP → statut `IN_PROGRESS`
+- [ ] Un `.exe` renommé `.pdf` est rejeté par `python-magic`
+- [ ] Un ETP uploade 3 DRAFT et les soumet → statut `PENDING_DM_REVIEW`
+- [ ] Une transition illégale lève `TransitionNotAllowed` (test pytest)
+
+---
+
+### ✅ Sprint 3 — Validation DM/DG/Audit & Clôture HMAC
+**Dates :** 22 mai – 4 juin 2026
+**Objectif :** **Happy Path complet opérationnel.** L'Audit peut clôturer avec un sceau HMAC. La timeline de toutes les actions est consultable.
+**FR validées :** FR17, FR19, FR20, FR24, FR27. **NFR validées :** NFR-SEC-03, NFR-PERF-03.
+
+| Priorité | Story | Points | Assigné |
+|:---:|---|:---:|---|
+| 🔴 BLOQUANT | S4.1 · `submit_to_dm()` ETP → PENDING_DM_REVIEW | 2 | Backend |
+| 🔴 BLOQUANT | S4.2 · `approve_by_dm()` → PENDING_AUDIT_REVIEW | 3 | Backend |
+| 🔴 BLOQUANT | S4.3 · `reject_by_dm()` (motif obligatoire) | 2 | Backend |
+| 🔴 BLOQUANT | S4.5 · `close_by_audit()` + HMAC-SHA256 | 5 | Backend |
+| 🔴 BLOQUANT | S4.7 · Middleware immutabilité CLOSED_RESOLVED | 2 | Backend |
+| 🟠 HAUTE | S4.4 · `submit_to_audit()` DM Porteur + DG Porteur | 3 | Backend |
+| 🟠 HAUTE | S4.6 · `reject_by_audit()` (notif DM + ETP + DG) | 2 | Backend |
+| 🟢 NORMALE | S4.8 · Vue Timeline (Audit Trail) | 3 | Frontend |
+
+**Total : 22 points**
+
+**Critère de complétion du Sprint :**
+- [ ] **Happy Path complet testé de bout en bout** (pytest + Playwright)
+- [ ] HMAC généré en ≤ 500ms
+- [ ] Mutation post-CLOSED retourne `403 Forbidden`
+- [ ] Timeline affiche toutes les transitions avec acteur, date et action
+
+> 🚩 **Point de pilotage possible après Sprint 3 :** Le flux nominal est complet. Une démonstration interne est possible dès ce stade.
+
+---
+
+### 📊 Sprint 4 — Notifications, Dashboards & Conformité COBAC
+**Dates :** 5 – 18 juin 2026
+**Objectif :** Chaque rôle a son tableau de bord. Le moteur de relance est actif. Les inspecteurs COBAC ont leur accès cloisonné.
+**FR validées :** FR21, FR22, FR23, FR28, FR29, FR30, FR31, FR2, FR26.
+
+> [!WARNING]
+> **Sprint le plus stratégique — parallélisation Front/Back obligatoire :**
+> - **Backend** : E7 (Notifications/Scheduler) → E8 (COBAC modèles + vues + ZIP)
+> - **Frontend** : E6 (Dashboards + Rapport PDF) → E8 (vues COBAC read-only) → templates email
+
+**🔔 Notifications & Scheduler (E7)**
+
+| Priorité | Story | Points | Assigné |
+|:---:|---|:---:|---|
+| 🔴 BLOQUANT | S7.1 · Modèles `Notification` + `Digest` | 3 | Backend |
+| 🔴 BLOQUANT | S7.2 · `cron_check_overdue()` (flag OVERDUE) | 3 | Backend |
+| 🔴 BLOQUANT | S7.3 · `cron_send_consolidated_notifications()` | 4 | Backend |
+| 🟠 HAUTE | S7.4 · `cron_proactive_alerts()` (J-7) | 2 | Backend |
+| 🟠 HAUTE | S7.5 · Template email HTML (Outlook compatible) | 3 | Frontend |
+| 🟠 HAUTE | S7.7 · Notifications in-app (badge HTMX) | 3 | Frontend |
+| 🟢 NORMALE | S7.6 · Heartbeat Scheduler + alerte RSSI | 2 | Backend |
+
+**📊 Dashboards & Rapport PDF (E6 — simplifié)**
+
+> [!NOTE]
+> **S6.5 (Filtres HTMX dynamiques) est simplifié** : les filtres sont soumis par formulaire classique (rechargement complet de la liste). Pas de filtrage partiel HTMX.
+> **S6.4 Dashboard DG** : copie du Dashboard Audit filtrée par direction + rapport PDF par direction.
+> **S6.7 Rapport DG séparé** : fusionné dans S6.6 (rapport Audit avec filtre direction).
+
+| Priorité | Story | Points | Assigné |
+|:---:|---|:---:|---|
+| 🔴 BLOQUANT | S6.1 · Dashboard Audit Interne (liste paginée + filtres serveur) | 3 | Frontend + Backend |
+| 🔴 BLOQUANT | S6.2 · Dashboard Directeur Métier | 3 | Frontend + Backend |
+| 🔴 BLOQUANT | S6.3 · To-Do List ETP | 2 | Frontend + Backend |
+| 🟠 HAUTE | S6.4 · Dashboard DG (vue Audit filtrée direction + rapport PDF direction) | 3 | Frontend + Backend |
+| 🟠 HAUTE | S6.6 · Rapport de synthèse Audit (UC15) + export PDF `@media print` | 3 | Frontend + Backend |
+| 🟢 NORMALE | S6.8 · Indicateurs visuels priorité/statut (badges couleur) | 2 | Frontend |
+
+**🌍 Conformité COBAC (E8)**
+
+| Priorité | Story | Points | Assigné |
+|:---:|---|:---:|---|
+| 🔴 BLOQUANT | S8.1 · Modèle `ExternalMission` (périmètre) | 3 | Backend |
+| 🔴 BLOQUANT | S8.2 · Vue liste Read-Only (périmètre mission) | 3 | Frontend + Backend |
+| 🔴 BLOQUANT | S8.5 · Création compte Externe par l'Audit | 2 | Backend |
+| 🟠 HAUTE | S8.3 · Export ZIP streamé (preuves + fiche synthèse) | 5 | Backend |
+| 🟠 HAUTE | S8.4 · Vérification HMAC en temps réel (pastille) | 3 | Frontend + Backend |
+
+**Total Sprint 4 : 48 points**
+
+**Critère de complétion du Sprint :**
+- [ ] Un email est reçu dans Exchange à 08h00 pour une reco OVERDUE
+- [ ] Le badge in-app s'affiche et se marque lu via HTMX
+- [ ] TTFB dashboard < 200ms avec 1000 recos en base (test de charge)
+- [ ] Rapport UC15 imprimable en PDF (`@media print`)
+- [ ] Dashboard DG affiche les statistiques de la direction sélectionnée + rapport PDF téléchargeable
+- [ ] Un Externe ne voit que son périmètre de mission
+- [ ] ZIP téléchargé en < 5s pour un dossier de 10 preuves
+
+---
+
+### 🚀 Semaine QA & Go-Live
+**Dates :** 19 – 26 juin 2026
+**Objectif :** Tests E2E critiques, UAT pilote BICEC, import SQL historique, Go-Live officiel.
+
+| Priorité | Tâche | Assigné |
+|:---:|---|---|
+| 🔴 BLOQUANT | Tests Playwright E2E : Happy Path complet (Audit → ETP → DM → Clôture) | QA / Backend |
+| 🔴 BLOQUANT | Tests Playwright E2E : Rejet DM + détection OVERDUE | QA |
+| 🔴 BLOQUANT | UAT pilote (1 Direction pilote, 20 recommandations de test) | Tous |
+| 🔴 BLOQUANT | Correction bugs UAT priorité CRITIQUE | Backend + Frontend |
+| 🔴 BLOQUANT | Import SQL historique BICEC (~450+ recos via management command) | Backend + IT Admin |
+| 🔴 BLOQUANT | Configuration organigramme BICEC réel dans l'Admin Django | IT Admin |
+| 🟠 HAUTE | Polish UI minimal : pages 403/404/500 stylisées | Frontend |
+| 🟠 HAUTE | Formation utilisateurs clés (Audit Interne, 1 DM pilote) | PM |
+| 🟢 NORMALE | README & runbook de démarrage | Backend |
+
+---
+
+## Récapitulatif Exécutif
+
+| Sprint | Dates | Epics | Points | Livrable Clé |
+|---|---|---|---|---|
+| **S0** | 10–23 avr. | E0 + E1 partiel | 23 | Docker + Nginx + Modèles Core |
+| **S1** | 24 avr.–7 mai | E1 suite | 19 | Auth + RBAC + Admin Django |
+| **S2** | 8–21 mai | E2 + E3 | 38 | FSM Recos + Upload preuves sécurisé |
+| **S3** | 22 mai–4 juin | E4 | 22 | **Happy Path complet + Clôture HMAC** |
+| **S4** | 5–18 juin | E6 + E7 + E8 | 48 | Dashboards + Notifications + COBAC |
+| **QA** | 19–26 juin | — | — | Tests E2E + UAT + Go-Live |
+| **Total** | **11 semaines** | **E0→E8** | **~150 pts** | **MVP Sentinel en production** |
+
+> [!IMPORTANT]
+> **Éléments reportés en v2 (post Go-Live) :**
+> - S1.6 · RLS PostgreSQL (3 pts)
+> - S2.6 · Bulk Create recommandations (4 pts)
+> - E5 · Demandes de Report d'Échéance (9 pts) — solution : Admin Django + commentaire
+> - E9 · Import Self-Service via UI (14 pts) — solution : management command Django
+> - S3.8 · UI Historique versions preuves (2 pts) — données disponibles en base
+> - S6.5 · Filtres HTMX dynamiques (4 pts) — simplifiés en filtres serveur classiques
 
 | Priorité | Story | Points | Assigné |
 |:---:|---|:---:|---|

@@ -1,10 +1,17 @@
-# Epics & User Stories — Sentinel MVP v1.0
+# Epics & User Stories — Sentinel MVP v1.0 *(Fast-Track 11 semaines)*
 
 > **Source de vérité :** Ce document est dérivé du `prd-v2.md` (31 FR, 12 NFR) et de l'`architecture-v2.md`. Chaque Story est référencée à sa FR/NFR d'origine.
 >
 > **Format des critères d'acceptation :** `GIVEN` (contexte) / `WHEN` (action) / `THEN` (résultat attendu).
 >
-> **Statuts :** `[ ]` À faire · `[/]` En cours · `[x]` Terminé
+> **Statuts :** `[ ]` À faire · `[/]` En cours · `[x]` Terminé · `[v2]` Reporté en v2
+
+> [!IMPORTANT]
+> **Révision Fast-Track (2026-04-09)** — Délai réduit à **11 semaines (Go-Live : 26 juin 2026)**.
+> Les éléments ci-dessous sont **reportés en v2** et marqués `[v2]` :
+> - **S1.6** RLS PostgreSQL · **S2.6** Bulk Create · **S3.8** UI Historique versions preuves
+> - **E5** Demandes de Report d'Échéance (S5.1–S5.4) · **E9** Import Self-Service
+> - **S6.5** Filtres HTMX dynamiques (simplifié en filtres serveur) · **S6.7** Rapport DG séparé (fusionné dans S6.6)
 
 ---
 
@@ -313,28 +320,6 @@
 **Notes techniques :** Le résultat de la résolution des permissions doit être mis en cache dans la session Django pour respecter NFR-PERF-01 (< 10ms par requête).
 
 ---
-
-### S1.6 — Row-Level Security PostgreSQL (garde-fou fail-safe)
-
-**En tant que** architecte sécurité,
-**Je veux** des policies RLS sur les tables critiques,
-**Afin que** même une faille dans le RBAC applicatif soit bloquée au niveau de la base de données (NFR-REL-01).
-
-**Critères d'acceptation :**
-
-- `GIVEN` la variable PostgreSQL `app.tenant_id` non définie (middleware défaillant),
-  `WHEN` une requête SELECT est envoyée sur `workflow_recommendation`,
-  `THEN` PostgreSQL retourne **zéro ligne** (défaut bloquant, jamais permissif).
-
-- `GIVEN` la variable `app.tenant_id` correctement définie à `dept_id=5`,
-  `WHEN` une requête SELECT est envoyée,
-  `THEN` seules les recommandations du `department_id=5` sont retournées.
-
-- `GIVEN` un test d'isolation automatisé (`pytest`),
-  `WHEN` il tente de lire des recommandations d'un autre département,
-  `THEN` le test confirm que zéro ligne est retournée (test bloquant pour le Go-Live).
-
-**Notes techniques :** Appel `SET LOCAL app.tenant_id = '{dept_id}'` dans le middleware Django. RLS partiel (garde-fou) : les vérifications fines restent au niveau applicatif (ADR-01).
 
 ---
 
@@ -648,11 +633,13 @@
 
 ---
 
-### S2.6 — Création en masse (Bulk Create)
+### `[v2]` ~~S2.6 — Création en masse (Bulk Create)~~
 
-**En tant que** Auditeur Interne,
+> **Reporté en v2.** Économie : 4 points. La création unitaire (S2.5) est suffisante pour le MVP. Cette fonctionnalité sera disponible dans la version suivante post Go-Live.
+
+~~**En tant que** Auditeur Interne,
 **Je veux** saisir plusieurs recommandations simultanément via un formulaire multi-lignes,
-**Afin de** réduire la friction de saisie post-mission (FR7).
+**Afin de** réduire la friction de saisie post-mission (FR7).~~
 
 **Critères d'acceptation :**
 
@@ -880,7 +867,9 @@
 
 ---
 
-### S3.8 — Historique des versions de preuves (Audit Trail documentaire)
+### `[v2]` S3.8 — Historique des versions de preuves (UI uniquement reportée)
+
+> **UI reportée en v2.** Économie : 2 points. **Les données de versioning sont intégralement stockées en base** (champ `version`, statuts REJECTED préservés). Seule la vue dédiée permettant de consulter cet historique est reportée. En v1, l'auditeur peut consulter les données brutes via l'Admin Django si nécessaire.
 
 **En tant que** Auditeur Interne ou Auditeur Externe COBAC,
 **Je veux** consulter l'historique complet des versions de preuves soumises et rejetées,
@@ -1082,12 +1071,14 @@
 
 ---
 
-## E5 — Demandes de Report d'Échéance
+## `[v2]` ~~E5 — Demandes de Report d'Échéance~~
 
-> **Objectif :** Permettre aux DM (et DG porteurs) de demander formellement une extension de délai, avec validation ou rejet par l'Audit.
+> **Epic entier reporté en v2.** Économie : 9 points. **Solution de contournement v1 :** L'Audit Interne modifie manuellement le champ `due_date` depuis l'Admin Django suite à un accord verbal avec le DM, en laissant une trace dans les commentaires de la recommandation.
 >
-> **Prérequis :** E2 terminé.
-> **FR couvertes :** FR13, FR14.
+> ~~**Objectif :** Permettre aux DM (et DG porteurs) de demander formellement une extension de délai, avec validation ou rejet par l'Audit.~~
+>
+> ~~**Prérequis :** E2 terminé.~~
+> ~~**FR couvertes :** FR13, FR14.~~
 
 ---
 
@@ -1189,7 +1180,7 @@
 
 ## E6 — Dashboards, Filtres & Rapport de Synthèse PDF
 
-> **Objectif :** Construire les vues de pilotage pour chaque rôle avec filtres dynamiques HTMX et rapport de synthèse statistique imprimable (UC15 Audit + DG).
+> **Objectif :** Construire les vues de pilotage pour chaque rôle. **MVP Fast-Track :** Les dashboards seront basés sur des templates UI Tailwind (pas de customisation graphique lourde) pour accélérer le développement.
 >
 > **Prérequis :** E2, E4 et E7 terminés.
 > **FR couvertes :** FR28, FR29, FR30, FR31.
@@ -1267,21 +1258,27 @@
 
 ---
 
-### S6.4 — Dashboard Direction Générale (Supervision Macro)
+### `[simplifié]` S6.4 — Dashboard Direction Générale (vue filtrée par direction + PDF)
 
 **En tant que** Directeur Général,
-**Je veux** une vue macro de l'état de conformité de la banque,
-**Afin de** prendre des décisions de pilotage et préparer les Comités de Direction (FR28, FR31).
+**Je veux** une vue de supervision filtrée par direction avec possibilité de télécharger un rapport PDF par direction,
+**Afin de** suivre l'avancement par direction et préparer les Comités de Direction (FR28, FR31).
+
+> **Simplifié v1 :** Le Dashboard DG est une copie du Dashboard Audit avec un filtre direction obligatoire. Le DG peut sélectionner une direction et télécharger un rapport PDF de synthèse pour cette direction (`@media print`). Les statistiques globales agrégées (HTMX partiel) sont reportées en v2.
 
 **Critères d'acceptation :**
 
 - `GIVEN` le DG connecté,
   `WHEN` il consulte son dashboard,
-  `THEN` il voit une synthèse agrégée : total des recos, % par statut, recos OVERDUE par direction, recos > 24 mois.
+  `THEN` il voit la liste paginée de toutes les recommandations (même vue que l'Audit) avec un sélecteur de direction en haut de page.
 
-- `GIVEN` le dashboard DG,
-  `WHEN` le DG filtre par direction,
-  `THEN` les statistiques se mettent à jour (requête HTMX partielle).
+- `GIVEN` le DG qui sélectionne une direction dans le filtre,
+  `WHEN` le formulaire est soumis,
+  `THEN` la liste se recharge en affichant uniquement les recommandations de la direction sélectionnée.
+
+- `GIVEN` le DG qui a filtré par direction,
+  `WHEN` il clique "Télécharger rapport PDF",
+  `THEN` une page `@media print` s'active avec : en-tête BICEC/Sentinel, nom de la direction, liste des recos avec statuts et priorités, date du rapport.
 
 - `GIVEN` le dashboard DG,
   `WHEN` le DG sélectionne une recommandation et clique sur "Voir détails",
@@ -1289,10 +1286,12 @@
 
 ---
 
-### S6.5 — Filtres dynamiques HTMX
+### `[simplifié]` S6.5 — Filtres serveur (HTMX dynamique reporté en v2)
+
+> **Simplifié.** Économie : 4 points. Les filtres fonctionnent avec soumission de formulaire classique (rechargement complet de la liste). Le filtrage HTMX partiel sans rechargement de page est reporté en v2.
 
 **En tant que** utilisateur avec accès au dashboard,
-**Je veux** filtrer les recommandations selon plusieurs critères sans rechargement de page,
+**Je veux** filtrer les recommandations selon plusieurs critères,
 **Afin de** trouver rapidement les dossiers pertinents (FR29).
 
 **Critères d'acceptation :**
@@ -1333,21 +1332,9 @@
 
 ---
 
-### S6.7 — Rapport de Synthèse DG (Vue Exécutive)
+### `[fusionné]` ~~S6.7 — Rapport de Synthèse DG séparé~~
 
-**En tant que** Directeur Général,
-**Je veux** une vue exécutive des indicateurs de conformité imprimable,
-**Afin de** présenter un état de situation lors des Comités de Direction (FR31).
-
-**Critères d'acceptation :**
-
-- `GIVEN` le dashboard DG,
-  `WHEN` il consulte la section "Synthèse conformité",
-  `THEN` il voit : taux de conformité global (% CLOSED vs total), top 5 directions avec le plus de retards, recos > 24 mois par organisme (COBAC, CAC...).
-
-- `GIVEN` la vue DG,
-  `WHEN` le DG clique "Imprimer",
-  `THEN` le CSS `@media print` masque navigation/filtres et produit une mise en page propre (logo BICEC, date du rapport, tableaux lisibles).
+> **Fusionné dans S6.4 (Dashboard DG).** La fonctionnalité de rapport PDF par direction est intégrée directement dans le Dashboard DG simplifié (S6.4 ci-dessus). Un rapport DG exécutif agrégé (taux de conformité global, top 5 directions en retard) est reporté en v2.
 
 ---
 
@@ -1648,120 +1635,28 @@
 
 ---
 
-## E9 — Import Historique (Transactionnel & Atomique)
+## Récapitulatif Final — Couverture des Exigences (MVP Fast-Track v1)
 
-> **Objectif :** Permettre à l'Audit d'importer les 450+ recommandations historiques depuis Excel via un mécanisme tout-ou-rien avec prévisualisation des erreurs.
->
-> **Prérequis :** E2 terminé.
-> **FR couvertes :** FR8, FR9.
-> **NFR couvertes :** NFR-SCA-02 (5000 recos), NFR-SCA-02b (import non bloquant).
+| Epic | Stories MVP | FR couvertes v1 | NFR couvertes | Notes |
+|---|---|---|---|---|
+| **E0 — Infra** | S0.1–S0.5 | — | SEC-01, REL-02, REL-03 | ✅ Complet |
+| **E1 — Auth & Admin** | S1.1–S1.5, S1.7–S1.13 | FR1, FR3, FR4 | SEC-02, PERF-01 | ⚠️ S1.6 RLS → v2 |
+| **E2 — Recommandations** | S2.1–S2.5, S2.7 | FR5, FR6, FR10, FR11, FR12 | PERF-02 | ⚠️ S2.6 Bulk → v2 |
+| **E3 — Preuves** | S3.1–S3.7 | FR15, FR16, FR18, FR19, FR25 | SEC-04, SCA-01 | ⚠️ S3.8 UI → v2 (données OK) |
+| **E4 — Validation** | S4.1–S4.8 | FR17, FR20, FR24, FR27 | SEC-03, PERF-03 | ✅ Complet |
+| **`[v2]` E5 — Reports** | ~~S5.1–S5.4~~ | ~~FR13, FR14~~ | — | 🔴 Reporté v2 — Admin Django |
+| **E6 — Dashboards** | S6.1–S6.4, S6.6, S6.8 | FR28, FR29, FR30, FR31 | PERF-02 | ⚠️ S6.5 filtres simplifiés · S6.7 fusionné |
+| **E7 — Notifications** | S7.1–S7.7 | FR21, FR22, FR23 | — | ✅ Complet |
+| **E8 — Externe COBAC** | S8.1–S8.5 | FR2, FR26 | PERF-04, SCA-01 | ✅ Complet |
+| **`[v2]` E9 — Import UI** | ~~S9.1–S9.4~~ | ~~FR8, FR9~~ | — | 🔴 Reporté v2 — management command |
+| **Total MVP** | **~50 Stories actives** | **27 FR actives** | **10 NFR** | |
 
----
-
-### S9.1 — Template Excel/CSV normalisé (téléchargeable)
-
-**En tant que** Auditeur Interne,
-**Je veux** télécharger le template officiel d'import,
-**Afin d'** utiliser le format exact attendu par le moteur d'import (FR8).
-
-**Critères d'acceptation :**
-
-- `GIVEN` la section "Import Historique" de l'espace Audit,
-  `WHEN` l'Audit clique "Télécharger le template",
-  `THEN` un fichier `template_import_sentinel.xlsx` est téléchargé.
-
-- `GIVEN` le template téléchargé,
-  `WHEN` je l'ouvre,
-  `THEN` il contient des colonnes pré-nommées : `titre`, `description`, `source`, `priorite`, `date_echeance`, `direction_code`, `reference_rapport`, avec un onglet "Instructions" et des listes déroulantes de validation de données pour `source` et `priorite`.
-
-- `GIVEN` la page d'import,
-  `WHEN` un utilisateur non-Auditeur tente d'y accéder,
-  `THEN` il reçoit `403 Forbidden` (seul l'Audit peut déclencher un import, FR8).
-
----
-
-### S9.2 — `preview_import()` : Parsing et prévisualisation des erreurs
-
-**En tant que** Auditeur Interne,
-**Je veux** prévisualiser les erreurs de mon fichier Excel avant de lancer l'import réel,
-**Afin d'** identifier et corriger les problèmes ligne par ligne sans créer de données partielles.
-
-**Critères d'acceptation :**
-
-- `GIVEN` l'Audit uploade un fichier Excel valide (500 lignes),
-  `WHEN` `preview_import()` s'exécute,
-  `THEN` un tableau de prévisualisation s'affiche : N lignes valides (avec aperçu), 0 erreur, bouton "Lancer l'import" activé.
-
-- `GIVEN` un fichier avec 2 lignes en erreur (ex: `source` invalide ligne 12, `date_echeance` passée ligne 45),
-  `WHEN` `preview_import()` s'exécute,
-  `THEN` les lignes 12 et 45 sont surlignées en rouge avec le message d'erreur exact, et le bouton "Lancer l'import" est **désactivé** jusqu'à correction.
-
-- `GIVEN` un fichier avec le mauvais format (ex: CSV au lieu d'Excel attendu),
-  `WHEN` le service tente de parser,
-  `THEN` une erreur globale s'affiche : "Format non reconnu. Veuillez utiliser le template fourni."
-
----
-
-### S9.3 — `execute_import()` : Transaction atomique (tout ou rien)
-
-**En tant que** Auditeur Interne,
-**Je veux** lancer l'import certifié comme transactionnel et atomique,
-**Afin que** toute erreur d'intégrité en cours de traitement annule la totalité de l'import et laisse la base intacte (FR9).
-
-**Critères d'acceptation :**
-
-- `GIVEN` un fichier de 500 lignes valides,
-  `WHEN` `execute_import()` s'exécute,
-  `THEN` les 500 recommandations sont créées dans une seule transaction SQL. En cas de succès, l'Audit reçoit un message "500 recommandations importées avec succès."
-
-- `GIVEN` un fichier de 500 lignes avec une contrainte violée en base à la ligne 200 (ex: doublon de référence),
-  `WHEN` `execute_import()` rencontre l'erreur,
-  `THEN` la transaction effectue un `ROLLBACK` complet : 0 recommandation n'est créée. L'Audit reçoit le message "Import annulé — Erreur détectée à la ligne 200 : [détail]."
-
-- `GIVEN` l'import en cours d'exécution (traitement de 5000 lignes),
-  `WHEN` un utilisateur DM accède à son dashboard,
-  `THEN` le dashboard se charge normalement en < 200ms (l'import est exécuté dans un worker Django-Q2 de manière asynchrone, sans bloquer les lectures, NFR-SCA-02b).
-
----
-
-### S9.4 — Tag `IMPORTED` et traçabilité AuditLog
-
-**En tant que** inspecteur COBAC ou Auditeur Interne,
-**Je veux** distinguer visuellement les recommandations issues de l'import historique de celles créées manuellement,
-**Afin de** comprendre la provenance de chaque dossier auditable (FR9).
-
-**Critères d'acceptation :**
-
-- `GIVEN` une recommandation créée par import,
-  `WHEN` j'inspecte son champ `import_tag`,
-  `THEN` la valeur est `IMPORTED` (non nullable, non modifiable après l'import).
-
-- `GIVEN` une recommandation avec `import_tag='IMPORTED'`,
-  `WHEN` un utilisateur tente de modifier le `import_tag` via l'ORM ou l'Admin,
-  `THEN` le service lève une erreur de protection ("Le tag IMPORTED est immuable").
-
-- `GIVEN` l'import réussi de 500 recos,
-  `WHEN` j'inspecte l'AuditLog,
-  `THEN` une seule entrée `action='CREATE', description='Import historique — 500 recommandations'` est créée (pas 500 entrées individuelles, pour éviter la saturation).
-
----
-
-## Récapitulatif Final — Couverture des Exigences
-
-| Epic | Stories | FR couvertes | NFR couvertes |
-|---|---|---|---|
-| **E0 — Infra** | S0.1–S0.5 | — | SEC-01, REL-02, REL-03 |
-| **E1 — Auth & Admin** | S1.1–S1.13 | FR1, FR2, FR3, FR4 | SEC-02, PERF-01, REL-01 |
-| **E2 — Recommandations** | S2.1–S2.7 | FR5, FR6, FR7, FR10, FR11, FR12 | PERF-02 |
-| **E3 — Preuves** | S3.1–S3.8 | FR15, FR16, FR18, FR19, FR25 | SEC-04, SCA-01 |
-| **E4 — Validation** | S4.1–S4.8 | FR17, FR20, FR24, FR27 | SEC-03, PERF-03 |
-| **E5 — Reports** | S5.1–S5.4 | FR13, FR14 | — |
-| **E6 — Dashboards** | S6.1–S6.8 | FR28, FR29, FR30, FR31 | PERF-02 |
-| **E7 — Notifications** | S7.1–S7.7 | FR21, FR22, FR23 | — |
-| **E8 — Externe COBAC** | S8.1–S8.5 | FR2, FR26 | PERF-04, SCA-01 |
-| **E9 — Import** | S9.1–S9.4 | FR8, FR9 | SCA-02, SCA-02b |
-| **Total** | **66 Stories** | **31 FR** | **12 NFR** |
+> [!IMPORTANT]
+> **FR reportées en v2 :** FR8 et FR9 (Import Self-Service) · FR13 et FR14 (Demandes de Report)
+> Ces 4 FR seront couvertes dans la version v2 post Go-Live, avec les solutions de contournement suivantes :
+> - FR8/FR9 : Import SQL via `manage.py import_history` au moment du Go-Live
+> - FR13/FR14 : Modification manuelle de `due_date` par l'Audit via Admin Django
 
 > [!NOTE]
-> Toutes les 31 Exigences Fonctionnelles et 12 Exigences Non-Fonctionnelles du `prd-v2.md` sont couvertes par au moins une User Story.
+> **NFR non couvertes en v1 :** NFR-REL-01 (RLS PostgreSQL) est reportée en v2. Le middleware RBAC (S1.5) assure l'isolation des données au niveau applicatif.
 

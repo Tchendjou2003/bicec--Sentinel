@@ -35,7 +35,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 ### What Makes This Special
 
 - **Workflow verrouillé en 5 étapes (FSM) + flag OVERDUE :** Le cycle de vie (`ASSIGNED` → `IN_PROGRESS` → `PENDING_DM_REVIEW` → `PENDING_AUDIT_REVIEW` → `CLOSED_RESOLVED`) avec détection proactive des retards.
-- **Cloisonnement natif par direction (RBAC + RLS) :** 6 niveaux d'accès + Row-Level Security PostgreSQL empêchant toute fuite d'information entre périmètres.
+- **Cloisonnement natif par direction (RBAC applicatif MVP, RLS V2) :** 6 niveaux d'accès + filtrage strict par QuerySet Managers empêchant toute fuite d'information entre périmètres. Le Row-Level Security PostgreSQL est prévu en V2 comme garde-fou additionnel une fois le modèle de données stabilisé.
 - **Empreinte d'intégrité finale (HMAC-SHA256) :** L'historique des actions est verrouillé par des Triggers d'Audit inaltérables en base de données, et le dossier complet est scellé cryptographiquement à sa clôture.
 - **Aucun équivalent identifié en zone CEMAC :** L'étude de marché n'a identifié aucun outil combinant conformité CEMAC native, hébergement On-Premise souverain et workflow de recommandations d'audit.
 
@@ -61,7 +61,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 
 ### Technical Success
 - **Intégrité cryptographique :** 100% des recommandations clôturées possèdent un hash SHA-256 vérifiable. Aucun utilisateur (y compris le DBA) ne peut altérer une preuve archivée sans briser l'empreinte de contrôle.
-- **Ségrégation holistique :** Le RLS garantit zéro accès croisé entre directions.
+- **Ségrégation holistique :** Le RBAC applicatif (QuerySet Managers stricts `for_tenant()`) garantit zéro accès croisé entre directions au MVP. Le RLS PostgreSQL est prévu en V2 comme garde-fou additionnel.
 - **HTTPS interne obligatoire** pour toutes les communications.
 - **Contrôle d'intégrité de fichier** : Validation stricte adaptative (Magic Bytes pour PDF/Images, contrôle MIME/extension strict pour Excel sans macro, CSV, Mails) + Forçage de téléchargement sécurisé. Le scan récursif par antivirus ClamAV étant repoussé post-MVP.
 
@@ -167,7 +167,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 
 **Rising Action :** Le DG filtre par source (COBAC uniquement) : 8 recommandations COBAC dont 2 en retard. Il clique sur le filtre d'aging : 1 recommandation datant de > 24 mois n'a jamais été clôturée. Il note la direction responsable. Il filtre par priorité "Critique" : 5 dossiers, dont 3 en bonne progression et 2 en retard.
 
-**Climax :** Le Comité de Direction de 9h utilise le rapport de synthèse généré par Sentinel (export PDF) comme unique source de vérité. Plus de consolidation Excel préparée la veille par un analyste. Les données sont en temps réel. Le DG interpelle le DM de la direction en retard — les faits sont indiscutables car tirés directement du système.
+**Climax :** Le Comité de Direction de 9h utilise le rapport de synthèse imprimé depuis Sentinel (CSS `@media print`) comme unique source de vérité. Plus de consolidation Excel préparée la veille par un analyste. Les données sont en temps réel. Le DG interpelle le DM de la direction en retard — les faits sont indiscutables car tirés directement du système.
 
 **Resolution :** En 5 minutes, le DG a une vision complète de l'exposition réglementaire de la banque. Il peut se présenter sereinement devant le Conseil d'Administration avec des chiffres fiables et actualisés.
 
@@ -195,7 +195,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 ### Technical Constraints
 - **Environnement Isolé (On-Premise) :** L'application ne dépend d'aucun service Cloud externe pour son fonctionnement métier ou son stockage.
 - **Intégrité et Audit (Triggers & HMAC-SHA256) :** L'immutabilité est garantie par des Triggers PostgreSQL stricts. L'intégrité cryptographique globale est scellée au moment de la clôture finale.
-- **Ségrégation Holistique (RLS) :** Implémentation du Row-Level Security directement dans PostgreSQL en plus du RBAC applicatif.
+- **Ségrégation Holistique (RBAC MVP, RLS V2) :** Le MVP implémente un RBAC applicatif strict via des QuerySet Managers (`for_tenant()`, `for_direction()`). Le Row-Level Security PostgreSQL est prévu en V2 comme couche de sécurité supplémentaire une fois le modèle de données stabilisé.
 - **Sécurité et Réseau :** HTTPS interne obligatoire ; validation stricte par Magic Bytes (scan antivirus différé en V2).
 
 ### Integration Requirements
@@ -226,7 +226,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - Workflow FSM strict (5 états + statut transitoire d'extension)
 - **Création Audit en "Bulk"** (Saisie par lots pour réduire la friction de création)
 - Authentification locale Django (`django.contrib.auth`), SSO AD différé en V2
-- Isolation des données (RLS Partiel Garde-fou + RBAC Applicatif)
+- Isolation des données (RBAC Applicatif strict au MVP, RLS Partiel en V2 comme garde-fou additionnel)
 - Sceau cryptographique de clôture (HMAC-SHA256) et Audit Triggers natifs
 - **Sécurité Fichiers allégée :** Whitelist stricte d'extensions (PDF, JPG, PNG, XLSX, CSV, TXT, MSG/EML) + validation par magic bytes pour les médias + limite 15 Mo. Macros Excel (XLSM) formellement interdites. (Le scan ClamAV est repoussé en V2).
 - Dashboards simplifiés : Vue liste filtrable pour Audit/ETP/DM. Pour le DG : Vue liste agrégée statique ou simple export PDF des retards (Pas de graphiques interactifs complexes en MVP).
@@ -248,7 +248,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - Intégration API Core Banking & SPECTRA II.
 
 ### Risk Mitigation Strategy
-**Technical Risks (Performance & RLS) :** Protéger le MVP en remplaçant la blockchain logicielle complexe par un Sceau HMAC-SHA256 unique à la clôture. Le risque de complexité RLS est mitigé par une approche **RLS Partiel (garde-fou) couplée à un RBAC applicatif** (ADR-01). Tests d'isolation automatisés bloquants pour le Go-Live.
+**Technical Risks (Performance & Isolation) :** Protéger le MVP en remplaçant la blockchain logicielle complexe par un Sceau HMAC-SHA256 unique à la clôture. Le risque de complexité RLS est mitigé en différant le RLS PostgreSQL en V2 et en s'appuyant sur un **RBAC applicatif strict** (QuerySet Managers `for_tenant()`) au MVP (ADR-01). Tests d'isolation automatisés bloquants pour le Go-Live.
 **Adoption Risks (Rejet DM ou Epuisement Audit) :** Ajout de la saisie "Bulk" pour soulager l'Audit à la création. Règle des "≤ 3 clics" pour la validation côté DM avec exemption de commentaire si PV de recette signé.
 **Resource Risks (Temps infra) :** Remplacement de ClamAV par une validation Magic Bytes au MVP pour réduire la surface d'attaque sans dépendance infrastructure, sécurisant ainsi la deadline de 6 mois.
 
@@ -258,14 +258,16 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - **FR1:** Les utilisateurs internes s'authentifient via des identifiants locaux sécurisés (Django Auth). L'intégration Active Directory (SSO) est différée en V2.
 - **FR2:** Les Auditeurs Externes peuvent s'authentifier via des identifiants locaux spécifiques au système.
 - **FR3:** L'Audit Interne peut valider et associer les comptes locaux aux profils métiers (Audit, DM, ETP, DG, Externe).
-- **FR4 (Gestion des Absences/Intérims):** Le système supporte deux niveaux d'intérim : (a) l'Audit Interne paramètre l'intérim des Directeurs Métiers (délégation temporaire de droits d'un DM absent vers un remplaçant DM sur une période donnée) ; (b) chaque Directeur Métier paramètre l'intérim de ses propres ETP (remplacement opérationnel au sein de sa direction). Les recommandations sont redirigées sans rupture de la chaîne de responsabilité. Chaque délégation est enregistrée dans la table `users_delegation` avec dates d'effet et tracée dans l'Audit Log.
+- **FR4 (Gestion des Absences/Intérims):** Le système supporte deux niveaux d'intérim : (a) l'Audit Interne paramètre l'intérim des Directeurs Métiers ; (b) chaque Directeur Métier paramètre l'intérim de ses propres ETP. Lors des actions, l'intérimaire agit *au nom de* l'absent (impersonnalisation). Cette délégation est explicitement tracée dans l'Audit Log (ex: "Validé par Y agissant pour X") pour maintenir et auditer la chaîne de responsabilité.
+- **FR35 (Gestion de l'Organigramme):** L'Audit Interne peut créer, modifier et gérer la structure hiérarchique de l'institution (Directions, Services, Agences) garantissant le fonctionnement précis du RBAC et de l'assignation.
 
 ### 2. Recommendation Initialization & Import
 - **FR5:** L'Audit Interne peut créer manuellement une recommandation d'audit individuelle.
-- **FR6:** L'Audit Interne peut modifier ou supprimer (Soft Delete) une recommandation *tant qu'elle n'a pas été assignée activement* à un DM, afin de corriger les erreurs de frappe.
-- **FR7:** L'Audit Interne peut créer des recommandations en masse (Bulk Create) pour accélérer la saisie Post-Mission.
+- **FR6:** L'Audit Interne peut modifier ou supprimer (Soft Delete) une recommandation *tant qu'elle est en état `DRAFT` (pré-assignation)*, afin de corriger les erreurs de frappe. Dès que la recommandation est assignée à un DM (état `ASSIGNED`), le Soft Delete n'est plus possible.
+- **FR6b (État DRAFT) :** Lors de la création, une recommandation est initialement en état `DRAFT` (brouillon Audit). L'Audit peut la modifier/supprimer librement. La recommandation passe en état `ASSIGNED` uniquement lorsque l'Audit l'assigne formellement à un DM cible.
+- **FR7 (Différé V2):** L'Audit Interne peut créer des recommandations en masse (Bulk Create via interface). Pour le MVP, l'import Excel (FR8) sert de fonctionnalité native de création en masse par substitution.
 - **FR8 (Data Initialization) :** L'Audit Interne est le **seul habilité** à préparer, prévisualiser et déclencher l'import historique. Aucun autre profil (IT/RSSI, DM) n'a accès à l'interface d'import des données métier. Le template normalisé est téléchargeable uniquement depuis l'espace Audit.
-- **FR9 (Atomic Import) :** L'import s'exécute numériquement en **transaction atomique stricte (tout ou rien)**. Toute erreur d'intégrité annule l'intégralité de l'opération et retourne le numéro de la ligne en erreur. Toute recommandation importée obtient le statut `ASSIGNED` avec un tag `IMPORTED` permanent et inaltérable dans l'audit trail.
+- **FR9 (Atomic Import) :** L'import s'exécute numériquement en **transaction atomique stricte (tout ou rien)**. Toute recommandation importée obtient le statut `ASSIGNED` avec un tag `IMPORTED` permanent. La **date de création originale (Excel)** est impérativement conservée et utilisée comme base de calcul du vieillissement (aging), prévalent sur la date technique d'importation réelle.
 
 ### 3. Workflow & Triage
 - **FR10:** L'Audit Interne peut s'auto-assigner temporairement une recommandation lors de la phase de triage complexe.
@@ -293,11 +295,16 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - **FR26:** Les Auditeurs Externes peuvent déclencher et télécharger de manière autonome une archive ZIP consolidant les preuves spécifiques d'une recommandation unique de leur périmètre.
 - **FR27:** Tout utilisateur autorisé à voir la recommandation peut afficher une frise chronologique détaillée (Timeline) de son cycle de vie (Audit Trail descriptif complet).
 
-### 7. Supervisory Dashboards (RLS)
-- **FR28:** L'architecture restreint impérativement la visibilité des données SQL et objets affichés au périmètre organisationnel exact de l'utilisateur requérant (Row-Level Security).
+### 7. Supervisory Dashboards (RBAC)
+- **FR28:** L'architecture restreint impérativement la visibilité des données SQL et objets affichés au périmètre organisationnel exact de l'utilisateur requérant (RBAC applicatif au MVP, RLS PostgreSQL en V2).
 - **FR29:** Les utilisateurs peuvent filtrer leurs vues liste par source d'audit, priorité, statut de workflow actuel et vieillissement de l'échéance (aging).
 - **FR30:** L'interface ETP et DM signale l'urgence de traitement par un code couleur immédiatement identifiable (ex: Rouge/Orange/Vert) sur la vue d'ensemble.
 - **FR31:** L'interface DG est optimisée pour impression navigateur via CSS `@media print`. Aucune génération PDF côté serveur n'est développée.
+
+### 8. Direction Générale — Fonctionnalités Opérationnelles
+- **FR32 (DG — To-Do List) :** La Direction Générale dispose d'une vue personnelle des recommandations assignées à sa direction, lui permettant de consulter l'état d'avancement de son périmètre.
+- **FR33 (DG — Soumission Preuves) :** La Direction Générale peut soumettre directement des preuves à l'Audit pour les recommandations de son périmètre, sans passer par un ETP intermédiaire (rôle DM Porteur élargi).
+- **FR34 (DG — Demande de Report) :** La Direction Générale peut formuler des demandes de report d'échéance avec justification, au même titre qu'un Directeur Métier.
 
 ## Non-Functional Requirements
 
@@ -316,9 +323,9 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 
 ### Scalability & Capacity
 - **NFR-SCA-01 :** Le système autorise un upload unitaire maximal de **15 Mo par fichier**, limité à un lot de **5 fichiers simultanés maximum par requête** pour empêcher la saturation mémoire du serveur (Déni de Service).
-- **NFR-SCA-02 :** L'architecture MVP doit pouvoir ingérer le lancement (Import) de **5 000 recommandations** et **20 000 fichiers de preuves** historiques initiaux.
+- **NFR-SCA-02 :** L'architecture MVP doit pouvoir ingérer le lancement (Import) de **2 000 recommandations** et **9 000 fichiers de preuves** historiques initiaux.
 - **NFR-SCA-02b :** Le temps de rendu des templates (TTFB) de l'application frontend doit rester décorrelé du volume de l'import historique en toile de fond (l'import ne doit pas verrouiller la base de données pour les opérations synchrones de lecture des utilisateurs connectés).
-- **NFR-SCA-03 :** Le système doit garantir des temps de réponse nominaux avec **jusqu'à 500 utilisateurs concurrents** actifs (Périodes de rush : audits trimestriels, fins de mois).
+- **NFR-SCA-03 :** Le système doit garantir des temps de réponse nominaux avec **jusqu'à 200 utilisateurs concurrents** actifs (Périodes de rush : audits trimestriels, fins de mois).
 
 ### Reliability & Data Integrity
 - **NFR-REL-01 :** Fail-Safe Security : Si l'identifiant utilisateur est absent du contexte de requête base de données (middleware défaillant), le RLS doit bloquer l'accès en retournant **zéro ligne** (défaut bloquant, jamais permissif).

@@ -1,0 +1,65 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sentinel — Plateforme de suivi des recommandations d'audit BICEC">
+    <title>{% block title %}Sentinel{% endblock %}</title>
+
+    <!-- Tailwind CSS compilé -->
+    <link rel="stylesheet" href="{% static 'css/output.css' %}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="h-full bg-gray-50 text-gray-900 font-sans" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+    <!-- Navigation -->
+    <nav class="bg-bicec-blue text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-xl font-bold text-bicec-yellow">Sentinel</span>
+                    <span class="ml-2 text-sm text-gray-300">Audit Compliance</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    {% block nav_right %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Messages Django -->
+    {% if messages %}
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+        {% for message in messages %}
+        <div
+            class="rounded-md p-4 mb-2 {% if message.tags == 'error' %}bg-red-50 text-red-800{% elif message.tags == 'success' %}bg-green-50 text-green-800{% else %}bg-blue-50 text-blue-800{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Contenu principal -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-100 border-t mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-sm text-gray-500">
+            Sentinel v1.0 — BICEC © {% now "Y" %}
+        </div>
+    </footer>
+
+    <!-- Scripts: HTMX + Alpine.js (LOCAL — On-Premise, pas de CDN) -->
+    <script src="{% static 'js/htmx.min.js' %}"></script>
+    <script src="{% static 'js/alpine.min.js' %}" defer></script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

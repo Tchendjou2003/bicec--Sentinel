@@ -39,7 +39,7 @@ Ce document est **dérivé exclusivement** des sources suivantes. Aucune fonctio
 
 | Document source | Version | Rôle |
 |---|---|---|
-| **PRD v2** (`prd-v2.md`) | v2.0 — 2026-03 | Exigences fonctionnelles (31 FR) et non-fonctionnelles (13 NFR). Source de vérité pour le « quoi ». |
+| **PRD v2** (`prd-v2.md`) | v2.0 — 2026-03 | Exigences fonctionnelles (34 FR) et non-fonctionnelles (17 NFR). Source de vérité pour le « quoi ». |
 | **Product Brief v2** (`product-brief-v2.md`) | v2.0 — 2026-03 | Vision produit, rôles utilisateurs, KPIs de succès. Source de vérité pour le « pourquoi ». |
 | **Architecture v1** (`architecture.md`) | v1.0 — 2026-03-23 | Première itération des ADRs et choix techniques. Base raffinée dans ce document. |
 | **System Diagrams** (`system-diagrams.md`) | v1.0 — 2026-03-31 | Diagrammes Mermaid (MCD, ERD, FSM, Séquences, Use Cases, Classes). Intégrés dans ce document. |
@@ -187,7 +187,7 @@ Un diagramme de cas d'utilisation montre **toutes les actions possibles d'un pro
 | **Audit Cryptographique & Export** | FR24–FR27 | Sceau HMAC-SHA256 à la clôture. Archive ZIP synchrone < 5s/reco. Timeline audit trail. Append-only strict. |
 | **Dashboards** | FR28–FR31 | Accès filtré par périmètre organisationnel (RBAC). Filtres multi-critères. Code couleur urgence (Rouge/Orange/Vert). CSS `@media print` pour export DG. |
 
-### 1.3 Exigences Non-Fonctionnelles (13 NFR — 4 catégories)
+### 1.3 Exigences Non-Fonctionnelles (17 NFR — 4 catégories)
 
 | Catégorie | NFRs clés | Impact architectural |
 |---|---|---|
@@ -417,7 +417,7 @@ Ces 5 préoccupations traversent **tous les composants** de l'architecture :
 
 **Conséquences :**
 - Infrastructure simplifiée. Pas de broker externe à gérer.
-- Scalabilité limitée à un mono-worker — suffisant pour le MVP (~200 users, ~1000 recos).
+- Scalabilité limitée à un mono-worker — suffisant pour le MVP (~200 users, ~2000 recos).
 - V2 : migration vers Celery si le volume de tâches asynchrones augmente significativement.
 
 **Références :** FR21-FR23 (Notifications), NFR-REL-04 (Uptime), [Django-Q2 Documentation](https://django-q2.readthedocs.io/)
@@ -1609,6 +1609,7 @@ erDiagram
         text rejection_reason
         varchar(10) proof_type "EVIDENCE | PV_RECETTE"
         timestamp created_at
+        timestamp updated_at
     }
 
     workflow_comment {
@@ -2180,6 +2181,7 @@ Légende : **R** (Read), **C** (Create), **U** (Update), **D** (Delete/Soft-Dele
 - ⁴ Uniquement les recommandations du périmètre de sa mission.
 - ⁵ `Soft-Delete` autorisé uniquement tant que la preuve est au statut `PENDING`.
 - ⁶ Lecture limitée aux preuves `ACCEPTED` sur les recos `CLOSED_RESOLVED`.
+- ⁷ Le flag `is_overdue` est **masqué** pour les Auditeurs Externes (non visible dans leurs vues, filtres et exports).
 
 ### 9.3 Conformité COBAC : Traçabilité & Immutabilité
 
@@ -2193,7 +2195,7 @@ Le système est conçu pour répondre aux audits annuels de la COBAC, qui exigen
 #### B. Sceau Cryptographique (HMAC-SHA256)
 - **Objectif :** Garantir qu'une recommandation clôturée n'a pas été altérée a posteriori (y compris par l'équipe IT de la BICEC).
 - **Génération :** Lors du passage à l'état `CLOSED_RESOLVED`, le système concatène un dictionnaire normalisé des données de la recommandation (titre, échéance...) + les hashs SHA-256 individuels de chaque fichier de preuve validé.
-- **Clé secrète :** La signature utilise la `SECRET_KEY` de Django (ou une clé gérée par `pgcrypto`), rendant impossible la falsification d'un faux sceau valide sans accès au serveur.
+- **Clé secrète :** La signature utilise une clé dédiée `HMAC_SECRET_KEY` totalement distincte de la `SECRET_KEY` de Django (ADR-07), rendant impossible la falsification d'un faux sceau valide sans accès au serveur.
 - **Vérification :** Le dashboard COBAC (Auditeur Externe) recalcule le hash en temps réel et affiche une pastille verte (`✓ Intégrité cryptographique confirmée`) ou rouge (`⚠️ Données corrompues`).
 
 ### 9.4 Sécurité des Fichiers (File Handling)
@@ -2272,14 +2274,14 @@ C4Deployment
 
 ### 10.2 Capacity Planning (Budget RAM & Disque)
 
-Le calibrage (Sizing) suivant est calculé pour supporter la contrainte NFR-SCA-02 (volume cible : ~1000 recommandations, ~8000 fichiers de preuves, ~200 utilisateurs concurrents).
+Le calibrage (Sizing) suivant est calculé pour supporter la contrainte NFR-SCA-02 (volume cible : ~2000 recommandations, ~9000 fichiers de preuves, ~200 utilisateurs concurrents).
 
 | Ressource | Capacité Recommandée (Production) | Détail de Consommation (Budget) |
 |---|---|---|
 | **CPU (vCores)**| **4 vCores** | Nginx (0.5), Gunicorn `gthread` avec 4 workers (2.0), PostgreSQL (1.0), OS + background (0.5). |
 | **Mémoire (RAM)** | **8 Go** | OS (1 Go), Docker Engine (0.5 Go), PostgreSQL `shared_buffers` au quart (2 Go), Gunicorn 4 workers (2 Go), Django-Q2 (0.5 Go), Nginx + cache (1.5 Go). |
 | **Stockage (App)**| **40 Go SSD** | OS Ubuntu/RHEL (~10 Go), Python + lib (~1 Go), Base PostgreSQL volumétrie métier textuelle (~5 Go), Logs système + audit (~4 Go), Marge d'exploitation (20 Go). |
-| **Files (Preuves)**| **200 Go HDD/SSD** | Uploads limités à 15 Mo (NFR-SCA-01). 8000 fichiers × ~10 Mo en moyenne = ~80 Go. Provisionnement sur 3 ans (200 Go). Ce disque peut être monté en iSCSI ou NFS. |
+| **Files (Preuves)**| **200 Go HDD/SSD** | Uploads limités à 15 Mo (NFR-SCA-01). 9000 fichiers × ~10 Mo en moyenne = ~90 Go. Provisionnement sur 3 ans (200 Go). Ce disque peut être monté en iSCSI ou NFS. |
 | **Réseau** | **Gigabit LAN**| Flux internes massifs (ZIP synchrones). Interfaces réseaux à haut débit nécessaires pour les connexions simultanées vers le NAS. |
 
 > **Stratégie de Backup (NFR-REL-02: RPO 24h)**  
@@ -2329,12 +2331,19 @@ server {
     # 4. Applications (Proxy vers le conteneur Django/Gunicorn via docker network)
     location / {
         proxy_pass http://web:8000;
+        proxy_read_timeout 30s;
         
         # Transmission de l'IP originale pour l'AuditLog Django
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 5. Blocage des accès directs aux fichiers de preuves (ADR-02)
+    location /media/ {
+        deny all;
+        return 403;
     }
 }
 ```
@@ -2343,11 +2352,9 @@ server {
 
 ### 10.4 Configuration Docker Compose
 
-Afin d'assurer la reproductibilité isolée dictée par l'ADR-09, `docker-compose.yml` définit la topologie On-Premise :
+Afin d'assurer la reproductibilité isolée dictée par l'ADR-09, `docker-compose.yml` définit la topologie On-Premise (sans directive de version dépréciée) :
 
 ```yaml
-version: '3.8'
-
 services:
   db:
     image: postgres:16-alpine
@@ -2367,11 +2374,13 @@ services:
   web:
     build: .
     restart: unless-stopped
-    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 10
+    command: sh -c "python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 10"
     volumes:
       - sentinel_media:/app/media/
+      - sentinel_static:/app/staticfiles/
     env_file:
       - .env
+    mem_limit: 512m
     depends_on:
       db:
         condition: service_healthy
@@ -2384,6 +2393,7 @@ services:
       - sentinel_media:/app/media/
     env_file:
       - .env
+    mem_limit: 256m
     depends_on:
       db:
         condition: service_healthy
@@ -2440,7 +2450,8 @@ L'adoption stricte du principe The Twelve-Factor App dicte la séparation de la 
 
 | Variable d'Environnement | Description |
 |---|---|
-| `DJANGO_SECRET_KEY` | Clé maîtresse cryptographique (longue de 50+ caractères). Ne fuiter sous aucun prétexte. Active le `HMAC`. |
+| `DJANGO_SECRET_KEY` | Clé maîtresse cryptographique Django (sessions, CSRF). Ne fuiter sous aucun prétexte. |
+| `HMAC_SECRET_KEY` | Clé maîtresse dédiée au calcul du Sceau d'Intégrité HMAC (ADR-07). Totalement distincte. |
 | `DATABASE_URL` | Chaine de connexion asymétrique sécurisée (ex: `postgres://user:password@localhost:5432/sentinel`). |
 | `EMAIL_HOST_PASSWORD` | Mot de passe AD du compte de service SMTP `sentinel-no-reply@bicec.com`. |
 
@@ -2449,8 +2460,10 @@ Ces secrets seront fournis dynamiquement aux conteneurs via Docker Compose à l'
 ```bash
 # Exemple: /opt/sentinel/.env (Droits: root uniquement - 0600)
 DJANGO_SECRET_KEY="bx3@_p+..._g=!(l_"
+HMAC_SECRET_KEY="k8#f...9_z!"
 DEBUG="False"
 DB_PASSWORD="pass"
+CONN_MAX_AGE="60"
 ```
 
 ---
@@ -2551,7 +2564,7 @@ Une architecture d'entreprise ne se juge pas uniquement sur les fonctionnalités
 | ID | Exigence (NFR) | Composant de Validation (by-design) | Statut |
 |---|---|---|:---:|
 | **SCA-01**| Max 5 fichiers par preuve (limite de 15 Mo unitaire). | Limites intégrées en durs dans les `Forms Django` (Validation Size) et `client_max_body_size` dans Nginx. | ✅ |
-| **SCA-02**| Tenue de DB de 1000 Recos, 8000 fichiers. | Table SQL partitionnées et indexées nativement. Volumétrie considérée comme *"Minuscule"* pour PostgreSQL 16. | ✅ |
+| **SCA-02**| Tenue de DB de 2000 Recos, 9000 fichiers. | Table SQL partitionnées et indexées nativement. Volumétrie considérée comme *"Minuscule"* pour PostgreSQL 16. | ✅ |
 | **SCA-03**| Support 200 utilisateurs concurrents. | Le stack `Nginx + Gunicorn 4 Workers (gthread 10)` gère sans surcharge les locks concurrentiels (estimé 1200 req/sec possibles). | ✅ |
 
 ### 14.4 NFR — Résilience Globale

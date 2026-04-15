@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Sentinel — Accueil{% endblock %}
+
+{% block content %}
+<div class="text-center py-16">
+    <h1 class="text-4xl font-bold text-bicec-blue mb-4">
+        Bienvenue sur Sentinel
+    </h1>
+    <p class="text-lg text-gray-600 mb-8">
+        Plateforme de suivi des recommandations d'audit — BICEC
+    </p>
+
+    <!-- Test HTMX -->
+    <div class="mt-8">
+        <button hx-get="{% url 'htmx-test' %}" hx-target="#htmx-result" hx-swap="innerHTML"
+            class="bg-bicec-yellow text-bicec-blue font-semibold px-6 py-3 rounded-lg hover:bg-bicec-yellow-dark transition-colors">
+            Tester HTMX
+        </button>
+        <div id="htmx-result" class="mt-4 text-sm text-gray-500"></div>
+    </div>
+</div>
+{% endblock %}

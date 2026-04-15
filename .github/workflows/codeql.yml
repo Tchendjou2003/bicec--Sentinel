@@ -1,0 +1,48 @@
+# ============================================================
+# Sentinel — CodeQL Security Analysis (ADR-01)
+# Déclencheur : push/PR vers main ou develop + scan hebdo
+# ============================================================
+name: 🔐 CodeQL — Analyse Sécurité
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Analyse de sécurité complète tous les lundis à 4h00 (UTC)
+    - cron: "0 4 * * 1"
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  codeql-analyze:
+    name: 🔐 Analyse CodeQL (Python)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Initialiser CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          # Requêtes de sécurité étendues pour application bancaire/réglementaire
+          queries: security-extended
+
+      - name: 🐍 Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 📦 Installer les dépendances (pour analyse statique complète)
+        run: pip install -r code/requirements/base.txt
+
+      - name: 🔍 Exécuter l'analyse CodeQL
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"

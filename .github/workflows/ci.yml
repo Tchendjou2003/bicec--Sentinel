@@ -38,6 +38,8 @@ jobs:
       POSTGRES_DB: sentinel_test
       POSTGRES_USER: sentinel
       POSTGRES_PASSWORD: sentinel_ci_password
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
       DATABASE_URL: postgres://sentinel:sentinel_ci_password@localhost:5432/sentinel_test
       EMAIL_HOST: localhost
       EMAIL_PORT: 1025

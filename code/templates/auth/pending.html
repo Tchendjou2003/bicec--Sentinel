@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Sentinel — En attente d'activation{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block main %}
+<main class="min-h-screen w-full relative flex items-center justify-center p-4 overflow-hidden">
+    <div class="absolute inset-0 z-0 bg-surface-base"></div>
+
+    <div class="relative z-10 w-full max-w-lg">
+        <div class="bg-white rounded-2xl shadow-xl border border-border-subtle p-8 sm:p-10 text-center">
+            
+            <div class="inline-flex items-center justify-center w-24 h-24 mb-6">
+                <img src="{% static 'img/logo.jpeg' %}" alt="Logo Sentinel" class="w-full h-full object-contain">
+            </div>
+            
+            <h1 class="text-2xl font-bold text-sentinel-brown tracking-tight mb-2">
+                Compte en attente d'activation
+            </h1>
+            
+            <div class="bg-blue-50 text-blue-800 rounded-lg p-5 mb-8 mt-6 border border-blue-100 text-left">
+                <p class="text-sm font-medium mb-3">
+                    Votre identité technique a été créée avec succès par le support informatique.
+                </p>
+                <p class="text-sm">
+                    Cependant, <strong class="font-semibold text-sentinel-orange">votre profil n'est pas encore habilité</strong>. 
+                    Conformément aux règles de sécurité, seule la Direction de l'Audit Interne peut vous assigner un rôle métier et un périmètre d'accès.
+                </p>
+            </div>
+
+            <p class="text-text-secondary text-sm mb-8">
+                Veuillez patienter ou contacter directement l'Audit Interne pour finaliser votre habilitation.
+            </p>
+
+            <form method="post" action="{% url 'auth:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-sentinel-brown hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sentinel-brown transition-all duration-200">
+                    Se déconnecter
+                </button>
+            </form>
+        </div>
+        
+        <div class="mt-8 text-center text-sm text-text-secondary font-medium">
+            <p>BICEC — Sentinel Audit Compliance</p>
+        </div>
+    </div>
+</main>
+{% endblock %}

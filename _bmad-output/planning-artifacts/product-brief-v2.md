@@ -128,9 +128,9 @@ Pour répondre à ces défis dans le contexte exigeant de la zone CEMAC, Sentine
 
 **6. Aboubakar N. — RSSI** *(Responsable Sécurité des SI / Support)*
 - **Contexte :** Garant de la sécurité du système d'information et du respect des politiques internes.
-- **Rôle clé :** Supervise les mécanismes de sécurité (SSO, RLS, gestion des accès, audit trail).
+- **Rôle clé :** Crée les comptes utilisateurs et les associe à leurs départements, gère l'organigramme institutionnel, et supervise les mécanismes de sécurité (SSO, RLS, audit trail). **L'attribution des rôles métiers et des habilitations est assurée exclusivement par l'Audit Interne.**
 - **Succès Sentinel :** Garantit que les accès sont correctement contrôlés (principe du moindre privilège), que les données sont cloisonnées (RLS), et que la traçabilité est intacte et inviolable (hash SHA-256).
-- **Restriction :** Ne peut consulter ni accéder aux recommandations ni aux preuves qui ne sont pas dans son périmètre.
+- **Restriction :** Ne peut ni attribuer de rôles métiers, ni consulter ou accéder aux recommandations et preuves qui ne sont pas dans son périmètre.
 
 ### User Journey : Cycle de traitement de la recommandation d'audit
 

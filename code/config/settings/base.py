@@ -81,6 +81,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",
+    "apps.users.middleware.IdleTimeoutMiddleware",  # NFR-SEC-02
+    "apps.users.middleware.RoleRequiredMiddleware", # ADR-10 / FR37
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -124,6 +126,11 @@ DATABASES = {
 # ============================================
 # Authentication — Sessions Django Natives (ADR-06)
 # ============================================
+AUTH_USER_MODEL = "users.User"
+LOGIN_URL = "/auth/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/auth/login/"
+
 AUTHENTICATION_BACKENDS = [
     "axes.backends.AxesStandaloneBackend",
     "django.contrib.auth.backends.ModelBackend",
@@ -157,6 +164,11 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1  # Heure(s)
 AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
 AXES_RESET_ON_SUCCESS = True
+
+# ============================================
+# Security
+# ============================================
+X_FRAME_OPTIONS = "SAMEORIGIN"
 
 # ============================================
 # Django-Q2 — Task Queue Asynchrone (ADR-05)

@@ -1,0 +1,46 @@
+{# Sidebar — Profil RSSI / Support IT. Active item via variable `active_route` ("dashboard", "users"...) #}
+<aside x-show="$store.sentinel.sidebarOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="-translate-x-full opacity-0" x-transition:enter-end="translate-x-0 opacity-100" class="w-64 shrink-0 bg-sidebar text-sidebar-foreground border-r border-sidebar-border/50 flex flex-col" style="display:none">
+  <div class="p-4 border-b border-sidebar-border/40">
+    <div class="flex items-center gap-2.5">
+      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-primary shadow-glow shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sidebar-primary-foreground"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="min-w-0">
+        <p class="text-sm font-bold text-sidebar-foreground font-heading tracking-tight">SENTINEL</p>
+        <p class="text-[10px] text-sidebar-foreground/60 truncate">BICEC • RSSI / Support IT</p>
+      </div>
+    </div>
+  </div>
+  <nav class="flex-1 overflow-y-auto py-3 px-2">
+    <p class="text-sidebar-foreground/50 text-[10px] uppercase tracking-wider px-3 mb-2">Administration</p>
+    <ul class="space-y-0.5">
+      <li>
+        <a href="/rssi/" class="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-smooth hover:bg-sidebar-accent {% if active_route == 'dashboard' %}bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-sidebar-primary{% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+          <span>Dashboard</span>
+        </a>
+      </li>
+      <li>
+        <a href="/rssi/utilisateurs/" class="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-smooth hover:bg-sidebar-accent {% if active_route == 'utilisateurs' %}bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-sidebar-primary{% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Utilisateurs</span>
+        </a>
+      </li>
+      <li>
+        <a href="/rssi/organigramme/" class="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-smooth hover:bg-sidebar-accent {% if active_route == 'organigramme' %}bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-sidebar-primary{% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+          <span>Organigramme</span>
+        </a>
+      </li>
+      <li>
+        <a href="/rssi/monitoring/" class="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-smooth hover:bg-sidebar-accent {% if active_route == 'monitoring' %}bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-sidebar-primary{% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <span>Monitoring</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+  <div class="p-3 border-t border-sidebar-border/40">
+    <p class="text-[10px] text-sidebar-foreground/40 text-center">© 2026 BICEC Sentinel</p>
+  </div>
+</aside>

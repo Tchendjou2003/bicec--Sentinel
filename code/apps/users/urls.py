@@ -1,5 +1,5 @@
 """
-Users App — URL Configuration (Auth)
+Users App — URL Configuration (Auth & Habilitation)
 """
 from django.contrib.auth import views as auth_views
 from django.urls import path
@@ -24,4 +24,21 @@ urlpatterns = [
         auth_views.LogoutView.as_view(),
         name="logout",
     ),
+    # ── Habilitation Audit (Story 1.5 + 1.7) ──
+    path(
+        "habilitation/",
+        views.HabilitationListView.as_view(),
+        name="habilitation-list",
+    ),
+    path(
+        "habilitation/<uuid:pk>/edit/",
+        views.HabilitationEditView.as_view(),
+        name="habilitation-edit",
+    ),
+    path(
+        "habilitation/<uuid:pk>/toggle-admin/",
+        views.HabilitationToggleAdminView.as_view(),
+        name="habilitation-toggle-admin",
+    ),
 ]
+

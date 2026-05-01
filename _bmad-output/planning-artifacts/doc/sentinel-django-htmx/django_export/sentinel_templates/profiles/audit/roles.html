@@ -1,0 +1,42 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}Audit — Attribution des rôles | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_audit.html" with active_route="attribution" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+  <div><h2 class="text-2xl font-bold font-heading">Attribution des rôles métier</h2><p class="text-sm text-muted-foreground">Attribuez un rôle aux comptes créés par le RSSI/Support IT.</p></div>
+
+  <div class="rounded-lg border-l-4 border-info bg-info/5 p-4 text-sm flex gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-info shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><div>Le RSSI/IT crée les comptes et leur affecte une <strong>direction</strong>. Vous attribuez ici le <strong>rôle métier</strong> (ETP, DM, Auditeur Externe, etc.).</div></div>
+
+  <div class="grid gap-4 md:grid-cols-3">
+    {% include "sentinel/components/kpi_card.html" with title="En attente" value=kpi.pending|default:5 accent="warning" %}
+    {% include "sentinel/components/kpi_card.html" with title="Attribués (mois)" value=kpi.assigned|default:12 accent="success" %}
+    {% include "sentinel/components/kpi_card.html" with title="Total comptes" value=kpi.total|default:247 accent="primary" %}
+  </div>
+
+  <div class="rounded-xl border bg-card shadow-premium-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="text-left text-xs uppercase tracking-wider text-muted-foreground bg-muted/30 border-b"><tr><th class="px-4 py-3">Utilisateur</th><th>Direction</th><th>Créé le</th><th>Rôle à attribuer</th><th class="px-4 text-right">Action</th></tr></thead>
+      <tbody>
+        {% for u in pending_users %}
+        <tr class="border-b last:border-0 hover:bg-muted/30">
+          <td class="px-4 py-3"><div class="font-medium">{{ u.name }}</div><div class="text-xs text-muted-foreground">{{ u.email }}</div></td>
+          <td class="text-xs">{{ u.direction }}</td>
+          <td class="text-xs text-muted-foreground">{{ u.created_at }}</td>
+          <td>
+            <form hx-post="{% url 'audit_assign_role' u.id %}" hx-target="closest tr" hx-swap="outerHTML" class="flex gap-2">
+              {% csrf_token %}
+              <select name="role" required class="h-8 rounded-md border bg-background px-2 text-xs"><option value="">Sélectionner...</option><option value="ETP">Employé Traitant (ETP)</option><option value="DM">Directeur Métier (DM)</option><option value="AUDIT_EXT">Auditeur Externe</option><option value="DG">Direction Générale</option></select>
+              <button type="submit" class="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90">Attribuer</button>
+            </form>
+          </td>
+          <td class="px-4 text-right">{% include "sentinel/components/status_badge.html" with status="PENDING" %}</td>
+        </tr>
+        {% empty %}<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-muted-foreground">Aucun compte en attente d'attribution.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

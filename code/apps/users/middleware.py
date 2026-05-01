@@ -83,11 +83,12 @@ class RoleRequiredMiddleware:
             return self.get_response(request)
 
         # Si l'utilisateur est connecté et est une coquille vide
-        if request.user.is_authenticated and request.user.is_shell_account:
-            # S'il tente d'accéder à une route NON autorisée, on le redirige vers /auth/pending/
-            # Note: Le Django Admin gère ses propres permissions (is_staff). 
-            # Le RSSI est une coquille vide (is_shell_account = True ? Non, le RSSI a role="RSSI", donc has_role = True, is_shell_account = False).
-            # Les VRAIES coquilles vides n'ont aucun rôle.
+        # Les superusers ne sont jamais bloqués (bootstrapping initial).
+        if (
+            request.user.is_authenticated
+            and request.user.is_shell_account
+            and not request.user.is_superuser
+        ):
             if not any(request.path.startswith(p) for p in self.ALLOWED_PATHS):
                 return redirect(reverse_lazy("auth:pending"))
 

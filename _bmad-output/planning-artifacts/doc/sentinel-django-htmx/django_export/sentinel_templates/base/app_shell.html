@@ -1,0 +1,20 @@
+{% extends "sentinel/base/base.html" %}
+{% load static %}
+
+{% block body %}
+<div x-data class="min-h-screen flex w-full" :class="{ 'is-collapsed': !$store.sentinel.sidebarOpen }">
+  {# Sidebar (par profil) #}
+  {% block sidebar %}{% endblock %}
+
+  <div class="flex-1 flex flex-col min-w-0">
+    {# Topbar #}
+    {% include "sentinel/partials/topbar.html" with title=topbar_title subtitle=topbar_subtitle %}
+
+    <main class="flex-1 overflow-auto bg-background p-6 animate-fade-in">
+      {% block content %}{% endblock %}
+    </main>
+
+    {% include "sentinel/partials/footer.html" %}
+  </div>
+</div>
+{% endblock %}

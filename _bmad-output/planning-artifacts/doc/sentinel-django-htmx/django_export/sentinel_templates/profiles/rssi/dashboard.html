@@ -1,0 +1,60 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}RSSI — Dashboard | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_rssi.html" with active_route="dashboard" %}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    {% include "sentinel/components/kpi_card.html" with title="Utilisateurs actifs" value=kpi_users_active|default:247 delta=5 delta_label="ce mois" accent="primary" icon_svg='<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>' %}
+    {% include "sentinel/components/kpi_card.html" with title="Comptes désactivés" value=kpi_users_inactive|default:18 delta=-2 delta_label="ce mois" accent="warning" icon_svg='<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11v-1a4 4 0 0 0-4-4"/><line x1="2" y1="2" x2="22" y2="22"/><circle cx="9" cy="7" r="4"/></svg>' %}
+    {% include "sentinel/components/kpi_card.html" with title="Tentatives échouées" value=kpi_failed|default:12 delta=8 delta_label="dernières 24h" accent="destructive" icon_svg='<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' %}
+    {% include "sentinel/components/kpi_card.html" with title="Espace disque" value="67%" accent="info" icon_svg='<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>' %}
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-3">
+    <div class="lg:col-span-1 rounded-xl border bg-card p-5 shadow-premium-sm">
+      <h3 class="text-base font-heading font-bold mb-4">Statut Système</h3>
+      <div class="space-y-3">
+        {% for s in system_status|default_if_none:default_status %}
+        <div class="flex items-center justify-between rounded-md border p-3">
+          <div class="flex items-center gap-2 text-sm">{{ s.icon|safe }}<span>{{ s.label }}</span></div>
+          {% include "sentinel/components/status_badge.html" with status=s.status %}
+        </div>
+        {% empty %}
+          {# Mock data #}
+          {% for s in "Serveur applicatif|Base de données|Synchronisation LDAP"|cut:" "|cut:""|stringformat:"s"|cut:"X" %}{% endfor %}
+          <div class="flex items-center justify-between rounded-md border p-3"><span class="text-sm">Serveur applicatif</span>{% include "sentinel/components/status_badge.html" with status="OK" %}</div>
+          <div class="flex items-center justify-between rounded-md border p-3"><span class="text-sm">Base de données</span>{% include "sentinel/components/status_badge.html" with status="OK" %}</div>
+          <div class="flex items-center justify-between rounded-md border p-3"><span class="text-sm">Synchronisation LDAP</span>{% include "sentinel/components/status_badge.html" with status="OK" %}</div>
+        {% endfor %}
+      </div>
+      <p class="text-xs text-muted-foreground mt-3">Dernière vérification : il y a 2 min</p>
+    </div>
+
+    <div class="lg:col-span-2 rounded-xl border bg-card p-5 shadow-premium-sm">
+      <h3 class="text-base font-heading font-bold mb-4">Alertes récentes</h3>
+      <table class="w-full text-sm">
+        <thead class="text-left text-xs text-muted-foreground border-b">
+          <tr><th class="py-2 font-medium">Type</th><th class="font-medium">Détail</th><th class="font-medium">Quand</th><th class="font-medium">Statut</th></tr>
+        </thead>
+        <tbody>
+          {% for a in alerts %}
+          <tr class="border-b last:border-0 hover:bg-muted/30 transition-smooth">
+            <td class="py-3 font-medium">{{ a.type }}</td>
+            <td class="text-muted-foreground max-w-xs truncate">{{ a.detail }}</td>
+            <td class="text-xs text-muted-foreground whitespace-nowrap">{{ a.time }}</td>
+            <td>{% include "sentinel/components/status_badge.html" with status=a.status %}</td>
+          </tr>
+          {% empty %}
+          {# Mock #}
+          <tr class="border-b"><td class="py-3 font-medium">Connexion échouée</td><td class="text-muted-foreground">3 tentatives — j.mbarga@bicec.cm</td><td class="text-xs text-muted-foreground">Il y a 5 min</td><td>{% include "sentinel/components/status_badge.html" with status="ERROR" %}</td></tr>
+          <tr class="border-b"><td class="py-3 font-medium">Synchronisation</td><td class="text-muted-foreground">Import organigramme — 12 directions</td><td class="text-xs text-muted-foreground">Il y a 22 min</td><td>{% include "sentinel/components/status_badge.html" with status="OK" %}</td></tr>
+          <tr class="border-b"><td class="py-3 font-medium">Maintenance</td><td class="text-muted-foreground">Sauvegarde automatique BDD</td><td class="text-xs text-muted-foreground">Il y a 1h</td><td>{% include "sentinel/components/status_badge.html" with status="OK" %}</td></tr>
+          <tr><td class="py-3 font-medium">Sécurité</td><td class="text-muted-foreground">Certificat SSL renouvelé</td><td class="text-xs text-muted-foreground">Il y a 3h</td><td>{% include "sentinel/components/status_badge.html" with status="OK" %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

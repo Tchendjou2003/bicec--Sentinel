@@ -71,14 +71,14 @@ class RoleRequiredMiddleware:
         "/admin/",
     )
 
-        if request.path.startswith(settings.STATIC_URL) or request.path.startswith(settings.MEDIA_URL):
-            return self.get_response(request)
-        # fix : Normalisation des préfixes
+    def __init__(self, get_response):
+        self.get_response = get_response
+        # Normalisation des préfixes
         self.static_prefix = "/" + settings.STATIC_URL.lstrip("/")
         self.media_prefix = "/" + settings.MEDIA_URL.lstrip("/")
 
     def __call__(self, request):
-        # fix: Utilisation des préfixes normalisés
+        # Vérification des requêtes statiques/media
         if request.path.startswith(self.static_prefix) or request.path.startswith(self.media_prefix):
             return self.get_response(request)
 

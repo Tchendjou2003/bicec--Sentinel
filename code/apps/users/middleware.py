@@ -26,13 +26,17 @@ class IdleTimeoutMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
         self.timeout = getattr(settings, "SESSION_COOKIE_AGE", 1800)
+        # Normalisation des préfixes
+        self.static_prefix = "/" + settings.STATIC_URL.lstrip("/")
+        self.media_prefix = "/" + settings.MEDIA_URL.lstrip("/")
 
     def __call__(self, request):
         # Ne pas traiter les routes publiques ni les requêtes statiques/media
         if any(request.path.startswith(p) for p in self.PUBLIC_PATHS):
             return self.get_response(request)
             
-        if request.path.startswith(settings.STATIC_URL) or request.path.startswith(settings.MEDIA_URL):
+        # Utilisation des préfixes normalisés
+        if request.path.startswith(self.static_prefix) or request.path.startswith(self.media_prefix):
             return self.get_response(request)
 
         if request.user.is_authenticated:
@@ -67,11 +71,15 @@ class RoleRequiredMiddleware:
         "/admin/",
     )
 
-    def __init__(self, get_response):
-        self.get_response = get_response
+        if request.path.startswith(settings.STATIC_URL) or request.path.startswith(settings.MEDIA_URL):
+            return self.get_response(request)
+        # fix : Normalisation des préfixes
+        self.static_prefix = "/" + settings.STATIC_URL.lstrip("/")
+        self.media_prefix = "/" + settings.MEDIA_URL.lstrip("/")
 
     def __call__(self, request):
-        if request.path.startswith(settings.STATIC_URL) or request.path.startswith(settings.MEDIA_URL):
+        # fix: Utilisation des préfixes normalisés
+        if request.path.startswith(self.static_prefix) or request.path.startswith(self.media_prefix):
             return self.get_response(request)
 
         # Si l'utilisateur est connecté et est une coquille vide

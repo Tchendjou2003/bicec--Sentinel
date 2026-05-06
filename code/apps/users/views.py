@@ -41,6 +41,8 @@ class SentinelLoginView(LoginView):
         
         if user.is_shell_account:
             return reverse_lazy("auth:pending")
+        if user.role == User.Role.RSSI or user.is_staff:
+            return reverse_lazy("admin:index")
             
         #TODO: Redirections spécifiques par rôle (Dashboards - Epic 6)
         # if user.role == User.Role.AUDIT: return reverse_lazy("dashboards:audit")

@@ -195,7 +195,7 @@ USE_TZ = True
 # ============================================
 # Static Files (Tailwind CSS compilé)
 # ============================================
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
@@ -207,7 +207,7 @@ STORAGES = {
 # ============================================
 # Media Files (Preuves d'audit — Volume Docker)
 # ============================================
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 Mo (FR15/NFR-SCA-01)
 

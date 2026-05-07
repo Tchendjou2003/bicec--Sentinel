@@ -1,0 +1,27 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}ETP — Historique | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_etp.html" with active_route="historique" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+  <h2 class="text-2xl font-bold font-heading">Historique de mes soumissions</h2>
+  <div class="rounded-xl border bg-card shadow-premium-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="text-left text-xs uppercase tracking-wider text-muted-foreground bg-muted/30 border-b"><tr><th class="px-4 py-3">Réf.</th><th>Titre</th><th>Soumis le</th><th>Statut</th><th>Validé par</th></tr></thead>
+      <tbody>
+        {% for s in history %}
+        <tr class="border-b last:border-0 hover:bg-muted/30">
+          <td class="px-4 py-3 font-mono text-xs text-primary">{{ s.ref }}</td>
+          <td class="font-medium">{{ s.title }}</td>
+          <td class="text-xs text-muted-foreground">{{ s.submitted_at }}</td>
+          <td>{% include "sentinel/components/status_badge.html" with status=s.status %}</td>
+          <td class="text-xs">{{ s.validator|default:"—" }}</td>
+        </tr>
+        {% empty %}<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-muted-foreground">Aucune soumission.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

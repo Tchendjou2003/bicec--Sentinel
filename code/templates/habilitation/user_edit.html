@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Éditer le profil de {{ target_user.username }} — Sentinel{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+    {# ── Header ── #}
+    <div class="flex items-center gap-4">
+        <a href="{% url 'auth:habilitation-list' %}"
+           class="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-border-subtle hover:bg-gray-50 transition-colors"
+           title="Retour à la liste">
+            <svg class="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-sentinel-brown">Éditer le profil</h1>
+            <p class="text-sm text-text-secondary mt-0.5">
+                {{ target_user.get_full_name|default:target_user.username }}
+                {% if target_user.email %}— {{ target_user.email }}{% endif %}
+            </p>
+        </div>
+    </div>
+
+    {# ── Card Formulaire ── #}
+    <div class="bg-white rounded-xl shadow-sm border border-border-subtle p-6 sm:p-8">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+
+            {# Rôle métier #}
+            <div>
+                <label for="id_role" class="block text-sm font-semibold text-text-primary mb-1.5">
+                    Rôle métier
+                </label>
+                <select name="role" id="id_role"
+                        class="block w-full py-2.5 px-3 border border-border-subtle rounded-lg text-text-primary bg-surface-base focus:outline-none focus:ring-2 focus:ring-sentinel-orange focus:border-transparent transition-all sm:text-sm">
+                    <option value="">— Aucun rôle (coquille vide) —</option>
+                    {% for value, label in roles %}
+                    <option value="{{ value }}" {% if target_user.role == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="mt-1.5 text-xs text-text-muted">
+                    Vide = le compte reste en attente d'activation (FR37).
+                </p>
+            </div>
+
+            {# Département #}
+            <div>
+                <label for="id_department" class="block text-sm font-semibold text-text-primary mb-1.5">
+                    Département de rattachement
+                </label>
+                <select name="department" id="id_department"
+                        class="block w-full py-2.5 px-3 border border-border-subtle rounded-lg text-text-primary bg-surface-base focus:outline-none focus:ring-2 focus:ring-sentinel-orange focus:border-transparent transition-all sm:text-sm">
+                    <option value="">— Aucun département —</option>
+                    {% for dept in departments %}
+                    <option value="{{ dept.pk }}" {% if target_user.department_id == dept.pk %}selected{% endif %}>
+                        {{ dept.name }} ({{ dept.code }})
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="mt-1.5 text-xs text-text-muted">
+                    Détermine le périmètre RBAC de visibilité des données (FR28).
+                </p>
+            </div>
+
+            {# Statut actuel #}
+            <div class="rounded-lg bg-gray-50 border border-border-subtle p-4">
+                <h3 class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Statut actuel</h3>
+                <div class="flex items-center gap-4 text-sm">
+                    <span class="text-text-secondary">Rôle :</span>
+                    {% if target_user.role %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sentinel-orange/10 text-sentinel-orange">
+                            {{ target_user.get_role_display }}
+                        </span>
+                    {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                            Coquille vide
+                        </span>
+                    {% endif %}
+                    {% if target_user.is_audit_admin %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                            Admin Audit
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Actions #}
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <a href="{% url 'auth:habilitation-list' %}"
+                   class="px-4 py-2.5 text-sm font-medium text-text-secondary border border-border-subtle rounded-lg hover:bg-gray-50 transition-colors">
+                    Annuler
+                </a>
+                {% include "components/btn_primary.html" with text="Enregistrer" type="submit" %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

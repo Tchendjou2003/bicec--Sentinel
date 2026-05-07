@@ -81,6 +81,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",
+    "apps.users.middleware.IdleTimeoutMiddleware",  # NFR-SEC-02
+    "apps.users.middleware.RoleRequiredMiddleware", # ADR-10 / FR37
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -124,6 +126,11 @@ DATABASES = {
 # ============================================
 # Authentication — Sessions Django Natives (ADR-06)
 # ============================================
+AUTH_USER_MODEL = "users.User"
+LOGIN_URL = "/auth/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/auth/login/"
+
 AUTHENTICATION_BACKENDS = [
     "axes.backends.AxesStandaloneBackend",
     "django.contrib.auth.backends.ModelBackend",
@@ -159,6 +166,11 @@ AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
 AXES_RESET_ON_SUCCESS = True
 
 # ============================================
+# Security
+# ============================================
+X_FRAME_OPTIONS = "SAMEORIGIN"
+
+# ============================================
 # Django-Q2 — Task Queue Asynchrone (ADR-05)
 # ============================================
 Q_CLUSTER = {
@@ -183,7 +195,7 @@ USE_TZ = True
 # ============================================
 # Static Files (Tailwind CSS compilé)
 # ============================================
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
@@ -195,7 +207,7 @@ STORAGES = {
 # ============================================
 # Media Files (Preuves d'audit — Volume Docker)
 # ============================================
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 Mo (FR15/NFR-SCA-01)
 

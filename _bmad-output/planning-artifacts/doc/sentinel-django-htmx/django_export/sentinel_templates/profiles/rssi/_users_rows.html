@@ -1,0 +1,13 @@
+{# Partial: lignes du tableau utilisateurs (rendu seul par HTMX sur filtres) #}
+{% for u in users %}
+<tr class="border-b last:border-0 hover:bg-muted/30 transition-smooth">
+  <td class="px-4 py-3"><div class="font-medium">{{ u.name }}</div><div class="text-xs text-muted-foreground">{{ u.email }}</div></td>
+  <td>{{ u.direction }}</td>
+  <td>{% if u.role %}<span class="text-sm">{{ u.role }}</span>{% else %}<span class="inline-flex items-center gap-1 rounded-full bg-warning/10 text-warning px-2 py-0.5 text-[10px] font-semibold">En attente de rôle</span>{% endif %}</td>
+  <td>{% include "sentinel/components/status_badge.html" with status=u.status %}</td>
+  <td class="text-xs text-muted-foreground">{{ u.last_login|default:"Jamais" }}</td>
+  <td class="px-4 text-right"><button class="text-xs text-muted-foreground hover:text-primary">Modifier</button></td>
+</tr>
+{% empty %}
+<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-muted-foreground">Aucun utilisateur trouvé.</td></tr>
+{% endfor %}

@@ -893,8 +893,9 @@ flowchart LR
         UC11["Approuver / Refuser\ndemande de report"]
         UC12["Consulter Dashboard\nAudit (filtré RBAC)"]
         UC13["Consulter Timeline\nAudit Trail"]
-        UC14["Gérer comptes\nutilisateurs et rôles"]
+        UC14["Attribuer rôles métiers\net habilitations aux comptes\n(Directeur Audit / Délégué — ADR-10)"]
         UC15["Télécharger template\nd'import"]
+        UC16["Déléguer permissions admin\nà un auditeur interne\n(Directeur Audit uniquement — ADR-10)"]
     end
 
     AU(("🔵 Auditeur\nInterne"))
@@ -914,6 +915,7 @@ flowchart LR
     AU --- UC13
     AU --- UC14
     AU --- UC15
+    AU --- UC16
 ```
 
 ### 5.2 Directeur Métier (DM)
@@ -1036,14 +1038,19 @@ flowchart LR
 flowchart LR
     subgraph "Système Sentinel"
         UC1["Gérer organigramme\n(Directions, Agences)"]
-        UC2["Créer / Modifier\ncomptes utilisateurs"]
-        UC3["Désactiver compte\n(révocation immédiate)"]
-        UC4["Consulter logs\nsystème (12 mois)"]
-        UC5["Monitorer Django-Q2\n(Admin Django)"]
-        UC6["Vérifier heartbeat\nscheduler"]
-        UC7["Superviser espace\ndisque (alertes 80%)"]
-        UC8["Gérer certificats TLS"]
-        UC9["Backups et\nRestauration"]
+        UC2["Créer / Désactiver\ncomptes utilisateurs\n(coquille vide sans rôle — ADR-10)"]
+        UC3["Consulter logs\nsystème (12 mois)"]
+        UC4["Monitorer Django-Q2\n(Admin Django)"]
+        UC5["Vérifier heartbeat\nscheduler"]
+        UC6["Superviser espace\ndisque (alertes 80%)"]
+        UC7["Gérer certificats TLS"]
+        UC8["Backups et\nRestauration"]
+    end
+
+    subgraph "Restrictions (ADR-10)"
+        R1["❌ Aucune attribution\nde rôles métiers"]
+        R2["❌ Aucune modification\ndes rôles existants"]
+        R3["❌ Aucun accès aux\ndonnées métier (recos, preuves)"]
     end
 
     RSSI(("⚫ RSSI /\nAdmin"))
@@ -1056,7 +1063,6 @@ flowchart LR
     RSSI --- UC6
     RSSI --- UC7
     RSSI --- UC8
-    RSSI --- UC9
 ```
 
 ---
@@ -1092,6 +1098,7 @@ classDiagram
             +String last_name
             +String role
             +Department department
+            +Boolean is_audit_admin
             +Boolean is_active
             +DateTime last_login
             +DateTime date_joined

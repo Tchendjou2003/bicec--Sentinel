@@ -1,0 +1,61 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}DG — Dashboard | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_dg.html" with active_route="dashboard" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+  <div>
+    <h2 class="text-2xl font-bold font-heading">Tableau de bord exécutif</h2>
+    <p class="text-sm text-muted-foreground">Vue consolidée des recommandations à l'échelle de la banque.</p>
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    {% include "sentinel/components/kpi_card.html" with title="Recommandations actives" value=kpi.active|default:142 delta=-8 delta_label="vs trim. dernier" accent="primary" %}
+    {% include "sentinel/components/kpi_card.html" with title="Taux de clôture" value="78%" delta=12 accent="success" %}
+    {% include "sentinel/components/kpi_card.html" with title="En retard" value=kpi.overdue|default:24 delta=15 accent="destructive" %}
+    {% include "sentinel/components/kpi_card.html" with title="Délai moyen" value="42j" accent="info" %}
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-2">
+    <div class="rounded-xl border bg-card p-5 shadow-premium-sm">
+      <h3 class="font-heading font-bold mb-4">Répartition par direction</h3>
+      <div class="space-y-3">
+        {% for d in by_direction %}
+        <div>
+          <div class="flex justify-between text-sm mb-1"><span>{{ d.name }}</span><span class="text-muted-foreground">{{ d.count }}</span></div>
+          <div class="h-2 rounded-full bg-muted overflow-hidden"><div class="h-full bg-primary" style="width: {{ d.percent }}%"></div></div>
+        </div>
+        {% empty %}
+          {% for n in "Direction Crédit:23:45,Direction Conformité:18:35,Direction Risques:15:30,Direction Réseau:12:25"|cut:" "|cut:""|stringformat:"s"|cut:"X" %}{% endfor %}
+          <div><div class="flex justify-between text-sm mb-1"><span>Direction Crédit</span><span class="text-muted-foreground">23</span></div><div class="h-2 rounded-full bg-muted overflow-hidden"><div class="h-full bg-primary" style="width:90%"></div></div></div>
+          <div><div class="flex justify-between text-sm mb-1"><span>Direction Conformité</span><span class="text-muted-foreground">18</span></div><div class="h-2 rounded-full bg-muted overflow-hidden"><div class="h-full bg-primary" style="width:70%"></div></div></div>
+          <div><div class="flex justify-between text-sm mb-1"><span>Direction Risques</span><span class="text-muted-foreground">15</span></div><div class="h-2 rounded-full bg-muted overflow-hidden"><div class="h-full bg-primary" style="width:55%"></div></div></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="rounded-xl border bg-card p-5 shadow-premium-sm">
+      <h3 class="font-heading font-bold mb-4">Tendance mensuelle</h3>
+      <div class="h-48 flex items-end gap-2">
+        {% for m in monthly_trend %}
+        <div class="flex-1 flex flex-col items-center gap-1">
+          <div class="w-full bg-gradient-to-t from-primary to-primary/40 rounded-t" style="height: {{ m.height }}%"></div>
+          <span class="text-[10px] text-muted-foreground">{{ m.label }}</span>
+        </div>
+        {% empty %}
+          {% for m in "J,F,M,A,M,J,J,A,S,O,N,D"|cut:" "|cut:""|stringformat:"s"|cut:"X" %}{% endfor %}
+          {% for h in "30 45 60 50 70 65 80 75 90 70 85 78"|cut:" "|cut:""|stringformat:"s"|cut:"X" %}{% endfor %}
+          <div class="flex-1"><div class="bg-gradient-to-t from-primary to-primary/40 rounded-t" style="height:30%"></div><span class="text-[10px] text-muted-foreground">J</span></div>
+          <div class="flex-1"><div class="bg-gradient-to-t from-primary to-primary/40 rounded-t" style="height:55%"></div><span class="text-[10px] text-muted-foreground">F</span></div>
+          <div class="flex-1"><div class="bg-gradient-to-t from-primary to-primary/40 rounded-t" style="height:70%"></div><span class="text-[10px] text-muted-foreground">M</span></div>
+          <div class="flex-1"><div class="bg-gradient-to-t from-primary to-primary/40 rounded-t" style="height:60%"></div><span class="text-[10px] text-muted-foreground">A</span></div>
+          <div class="flex-1"><div class="bg-gradient-to-t from-primary to-primary/40 rounded-t" style="height:80%"></div><span class="text-[10px] text-muted-foreground">M</span></div>
+          <div class="flex-1"><div class="bg-gradient-to-t from-primary to-primary/40 rounded-t" style="height:75%"></div><span class="text-[10px] text-muted-foreground">J</span></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

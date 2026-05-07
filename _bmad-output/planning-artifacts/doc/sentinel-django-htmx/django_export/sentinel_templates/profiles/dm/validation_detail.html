@@ -1,0 +1,63 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}DM — Validation détail | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_dm.html" with active_route="recommandations" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+  <div class="flex items-center gap-3">
+    <a href="{% url 'dm_dashboard' %}" class="p-2 rounded-md hover:bg-muted text-muted-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></a>
+    <div><h2 class="text-2xl font-bold font-heading">Validation de preuve</h2><p class="text-sm text-muted-foreground">Examinez et validez les preuves soumises par l'ETP.</p></div>
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-3">
+    <div class="lg:col-span-2 space-y-6">
+      <div class="rounded-xl border-l-4 border-l-primary bg-card p-6 shadow-premium-sm">
+        <div class="flex justify-between items-start mb-3">
+          <span class="font-mono text-sm text-primary font-semibold">{{ dossier.ref }}</span>
+          <span class="text-xs text-muted-foreground">Échéance {{ dossier.due_date }}</span>
+        </div>
+        <h3 class="text-lg font-bold font-heading mb-2">{{ dossier.title }}</h3>
+        <p class="text-sm text-muted-foreground">{{ dossier.description }}</p>
+      </div>
+
+      <div class="rounded-xl border bg-card p-5 shadow-premium-sm">
+        <h3 class="font-heading font-bold mb-3">Preuves déposées ({{ preuves|length }})</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {% for p in preuves %}
+          <a href="{{ p.url }}" target="_blank" class="flex flex-col items-center gap-2 rounded-lg border p-4 hover:bg-muted/50 transition-smooth text-center">
+            <div class="rounded-lg bg-muted p-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/></svg></div>
+            <p class="text-xs font-medium truncate w-full">{{ p.name }}</p>
+            <p class="text-[10px] text-muted-foreground">{{ p.size }} • {{ p.date }}</p>
+          </a>
+          {% endfor %}
+        </div>
+        {% if dossier.commentaire_etp %}
+        <div class="mt-4 rounded-lg bg-muted/50 border p-4">
+          <p class="text-xs font-semibold mb-1">{{ dossier.etp }} — Commentaire</p>
+          <p class="text-sm text-muted-foreground">{{ dossier.commentaire_etp }}</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="space-y-6" x-data="{ checkValid: false, motif: '' }">
+      <form hx-post="{% url 'dm_validate' dossier.id %}" class="rounded-xl border-2 border-success/30 bg-card p-5 space-y-3">
+        {% csrf_token %}
+        <h3 class="font-heading font-bold text-success flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 12 15 15 12"/></svg> Valider</h3>
+        <input type="file" name="pv_recette" accept="application/pdf" class="text-xs w-full" />
+        <label class="flex items-start gap-2 text-xs cursor-pointer"><input type="checkbox" x-model="checkValid" required class="mt-0.5" /><span>Je certifie avoir vérifié l'ensemble des preuves.</span></label>
+        <button type="submit" :disabled="!checkValid" class="w-full h-9 rounded-md bg-success text-success-foreground font-medium text-sm disabled:opacity-50">Valider & Transmettre</button>
+      </form>
+
+      <form hx-post="{% url 'dm_reject' dossier.id %}" class="rounded-xl border-2 border-destructive/30 bg-card p-5 space-y-3">
+        {% csrf_token %}
+        <h3 class="font-heading font-bold text-destructive flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Rejeter</h3>
+        <textarea name="motif" x-model="motif" rows="3" placeholder="Motif du rejet..." required class="w-full rounded-md border bg-background px-3 py-2 text-sm"></textarea>
+        <button type="submit" :disabled="!motif.trim()" class="w-full h-9 rounded-md border-2 border-destructive text-destructive font-medium text-sm hover:bg-destructive/5 disabled:opacity-50">Rejeter & Notifier l'ETP</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

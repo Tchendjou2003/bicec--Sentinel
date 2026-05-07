@@ -559,6 +559,63 @@ Ces 5 préoccupations traversent **tous les composants** de l'architecture :
 
 ---
 
+### ADR-10 : Gouvernance des Comptes Utilisateurs — Séparation IT / Audit (Option C)
+
+**Statut :** DÉCIDÉ
+**Date :** 2026-04-24
+
+**Contexte :** La gestion des comptes utilisateurs dans Sentinel implique deux actions distinctes : (1) la création de l'identité technique (login, mot de passe) et (2) l'attribution des habilitations métiers (rôle, périmètre direction). La question est de savoir qui — le Support IT ou l'Audit Interne — doit être responsable de chaque action. Un risque de **conflit d'intérêts** a été identifié : si le Support IT/RSSI pouvait à la fois créer des comptes ET attribuer des rôles, il pourrait potentiellement se créer un accès métier non autorisé, contournant la ségrégation des fonctions (SoD) exigée par la COBAC.
+
+**Options évaluées :**
+
+| Critère | **Option A** — IT crée + Audit assigne (modèle initial) | **Option B** — Audit gère tout | **Option C** — IT crée « coquille vide », Audit habilite |
+|---|---|---|---|
+| **Risque corruption IT** | ⭐⭐⭐ IT crée des comptes fonctionnels | ⭐⭐⭐⭐⭐ IT n'a aucun accès | ⭐⭐⭐⭐ IT crée des comptes mais ils sont inertes sans rôle |
+| **Risque corruption Audit** | ⭐⭐⭐⭐ Audit ne gère que les rôles | ⭐⭐ Audit contrôle tout (concentration de pouvoir) | ⭐⭐⭐⭐ Audit ne gère que les rôles |
+| **Séparation des Fonctions (SoD)** | ⭐⭐⭐ Partielle — frontière floue | ⭐⭐⭐ Forte mais concentration sur un seul acteur | ⭐⭐⭐⭐⭐ Optimale — deux acteurs, deux responsabilités |
+| **Problème « œuf et poule »** | ⭐⭐⭐⭐ IT peut bootstrapper | ⭐⭐ Qui crée le 1er compte Audit ? | ⭐⭐⭐⭐⭐ IT bootstrappe le 1er compte, Audit l'active |
+| **Complexité technique** | ⭐⭐⭐⭐⭐ Existante | ⭐⭐⭐ Nouvelles vues admin complexes | ⭐⭐⭐⭐ Interface dédiée simple |
+| **Conformité bancaire** | ⭐⭐⭐ Acceptable | ⭐⭐⭐⭐ Conforme | ⭐⭐⭐⭐⭐ Standard bancaire (IT = identité, Métier = habilitation) |
+
+**Décision : Option C — Le Support IT crée les comptes « coquille vide », l'Audit Interne assigne les rôles et habilitations via une interface dédiée.**
+
+**Justification :**
+
+1. **Séparation des Fonctions optimale (SoD) :** Cette architecture reflète les bonnes pratiques bancaires où l'IT gère l'identité technique (login/mot de passe, comparable à la création d'un compte Active Directory) et le métier gère les habilitations applicatives. Aucun acteur isolé ne peut créer un accès métier fonctionnel.
+
+2. **Mitigation du risque de corruption :** Un compte créé par l'IT sans rôle assigné par l'Audit est **strictement inerte** — l'utilisateur voit une page « Votre compte est en attente d'activation par l'Audit Interne » et ne peut accéder à aucune donnée métier (recommandations, preuves, dashboards). Le RSSI peut créer 100 comptes : sans activation Audit, ils sont inutilisables.
+
+3. **Évite la concentration de pouvoir :** Contrairement à l'Option B où l'Audit contrôlerait intégralement la chaîne (création + habilitation), l'Option C garantit que deux acteurs distincts doivent coopérer pour créer un accès fonctionnel. Un auditeur malveillant seul ne pourrait pas créer un faux profil.
+
+4. **Pragmatisme opérationnel :** Le Support IT gère déjà les identités techniques de l'institution (email, Active Directory). Confier la création des identifiants Sentinel au même acteur est cohérent avec les processus existants de la BICEC.
+
+5. **Résolution du problème « œuf et poule » :** Lors du déploiement initial, le Support IT crée le premier compte (Directeur Audit Interne) via un script technique (`manage.py create_audit_director`). Le Directeur Audit active ensuite son propre rôle et prend la main sur toutes les habilitations futures.
+
+**Mécanisme du Directeur Audit Interne :**
+
+Le rôle `AUDIT` est enrichi d'un flag `is_audit_admin` identifiant le Directeur de l'Audit Interne (ou ses délégués) :
+
+| Capacité | Auditeur Interne Standard | Directeur Audit (`is_audit_admin=True`) |
+|---|:---:|:---:|
+| Fonctions Audit métier (créer recos, clôturer, etc.) | ✅ | ✅ |
+| Assigner/modifier rôles et habilitations | ❌ | ✅ |
+| Désactiver le rôle métier d'un compte | ❌ | ✅ |
+| Déléguer `is_audit_admin` à un autre auditeur | ❌ | ✅ |
+
+La délégation est **explicitement tracée** dans l'Audit Log : `"Délégation admin accordée à [Auditeur Y] par [Directeur X]"`.
+
+**Conséquences :**
+
+- Le modèle de données `User` est enrichi d'un champ `is_audit_admin: BooleanField(default=False)`.
+- Une **interface dédiée** (distincte du Django Admin) est développée pour l'Audit : tableau des comptes en attente d'habilitation, formulaire d'assignation rôle/direction, gestion des délégations.
+- Le middleware RBAC est renforcé pour garantir qu'un utilisateur dont le champ `role` est `NULL` ou vide est redirigé vers une page « en attente d'activation » — jamais vers un dashboard.
+- Le RSSI conserve l'accès au Django Admin pour la gestion de l'organigramme (Directions, Services, Agences) et le monitoring technique (Django-Q2, Audit Logs système), mais les formulaires de modification de rôle métier lui sont masqués.
+- Le risque résiduel (accès direct BDD par le DBA) est couvert par les Triggers d'Audit PostgreSQL (append-only) qui détecteront toute modification non-applicative des rôles.
+
+**Références :** PRD FR3, FR35, FR36, FR37, NFR-SEC-05 (Audit Logs), COBAC R-2016/04 (Séparation des Fonctions)
+
+---
+
 *Fin de la section §2 — ADRs. La section §3 (Vue C4 — Architecture Système) suit.*
 
 ---
@@ -677,7 +734,9 @@ flowchart LR
         UC12["Consulter Dashboard\nAudit (filtré RBAC)"]
         UC13["Consulter Timeline\nAudit Trail"]
         UC14["Télécharger template\nd'import"]
-        UC15["Génerer rapport de synthèse statistique en PDF"]
+        UC15["Générer rapport de synthèse statistique en PDF"]
+        UC16["Attribuer rôles métiers\net habilitations aux comptes\n(Directeur Audit / Délégué — ADR-10)"]
+        UC17["Déléguer permissions admin\nà un auditeur interne\n(Directeur Audit uniquement — ADR-10)"]
     end
 
     AU(("🔵 Auditeur\nInterne"))
@@ -697,6 +756,8 @@ flowchart LR
     AU --- UC13
     AU --- UC14
     AU --- UC15
+    AU --- UC16
+    AU --- UC17
 ```
 
 ### 4.2 Directeur Métier (DM)
@@ -824,10 +885,16 @@ flowchart LR
 flowchart LR
     subgraph "Système Sentinel (Espace Admin)"
         UC1["Gérer l'organigramme\n(Directions, Départements)"]
-        UC2["Gérer les utilisateurs\n(Rôles & Révocation)"]
+        UC2["Créer / Désactiver\ncomptes utilisateurs\n(coquille vide sans rôle — ADR-10)"]
         UC3["Monitorer les tâches asynchrones\n(Dashboard Django-Q2)"]
         UC4["Consulter l'Audit Log\nglobal (Sécurité)"]
         UC5["Gérer les paramètres globaux\n(Variables applicatives)"]
+    end
+
+    subgraph "Restrictions (ADR-10)"
+        R1["❌ Aucune attribution\nde rôles métiers"]
+        R2["❌ Aucune modification\ndes rôles existants"]
+        R3["❌ Aucun accès aux\ndonnées métier (recos, preuves)"]
     end
 
     RSSI(("⚫ IT Admin /\nSupport"))
@@ -1558,6 +1625,7 @@ erDiagram
         uuid department_id FK
         boolean is_active
         boolean is_staff
+        boolean is_audit_admin
         timestamp last_login
         timestamp date_joined
         timestamp created_at
@@ -1764,6 +1832,7 @@ Ce dictionnaire de données explique l'**enjeu métier** de chaque colonne criti
 | Table | Colonne | Type | Contrainte | Description / Enjeu Métier | Exemple |
 |---|---|---|---|---|---|
 | `users_user` | `role` | `VARCHAR(20)` | NOT NULL, CHECK | **Clé de voûte du RBAC**. Détermine les actions autorisées (voir §4 Use Cases), les dashboards accessibles et les données visibles (couplé au `department_id`). Immuable par l'utilisateur lui-même. | `DM` |
+| `users_user` | `is_audit_admin` | `BOOLEAN` | DEFAULT FALSE | Flag de **super-administration métier**. Permet au Directeur Audit (ou délégué) d'assigner des rôles et habilitations via l'interface dédiée. Découple l'admin technique (IT) de l'admin métier (Audit). | `TRUE` |
 | `audit_auditlog` | `action` | `VARCHAR(20)` | NOT NULL | L'événement précis stocké pendant **12 mois minimum** (NFR-SEC-05). Catégories : `CREATE`, `UPDATE`, `DELETE` (soft), `LOGIN`, `LOGIN_FAILED`, `LOGOUT`, `TRANSITION`, `EXPORT`. Chaque action est un enregistrement append-only. | `TRANSITION` |
 | `audit_auditlog` | `changes` | `JSONB` | NULLABLE | Le **différentiel exact** (avant/après) pour chaque champ modifié. Format structuré permettant la reconstruction complète de l'historique d'une recommandation. Essentiel pour répondre à la question d'un inspecteur : « Qui a changé quoi, et quand ? ». | `{"status": ["IN_PROGRESS", "CLOSED_RESOLVED"]}` |
 | `audit_auditlog` | `ip_address` | `INET` | NULLABLE | Adresse IP interne (réseau BICEC) d'où l'action a été exécutée. **Preuve d'imputabilité** : en cas d'incident de sécurité, permet de remonter au poste de travail physique. Type PostgreSQL natif `inet` pour queries optimisées. | `10.0.5.42` |
@@ -1810,6 +1879,7 @@ classDiagram
             +String last_name
             +String role
             +Department department
+            +Boolean is_audit_admin
             +Boolean is_active
             +DateTime last_login
             +DateTime date_joined
@@ -2171,7 +2241,8 @@ Légende : **R** (Read), **C** (Create), **U** (Update), **D** (Delete/Soft-Dele
 | **Commentaire** | R, C | R, C | R, C | - | - | - |
 | **Demande de Report**| R, X | R, C | R | - | R | - |
 | **Audit Trail** | R | R (sur ses recos) | R (sur ses recos) | - | R | R |
-| **Utilisateurs / Rôles**| R, C, U (Métier) | R | - | - | - | R, C, U, D |
+| **Comptes Utilisateurs** (CRUD technique) | R | R | - | - | - | R, C, U, D |
+| **Rôles & Habilitations** (attribution métier) | R, C, U | - | - | - | - | - |
 | **Logs Système** | - | - | - | - | - | R, Export |
 
 *Restrictions contextuelles :*

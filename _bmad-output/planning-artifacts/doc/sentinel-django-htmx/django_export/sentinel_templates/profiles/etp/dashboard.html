@@ -1,0 +1,27 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}ETP — Mes Tâches | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_etp.html" with active_route="mes" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+  <div><h2 class="text-2xl font-bold font-heading">Mes recommandations</h2><p class="text-sm text-muted-foreground">Recommandations qui vous sont assignées.</p></div>
+  <div class="grid gap-4 md:grid-cols-3">
+    {% include "sentinel/components/kpi_card.html" with title="Assignées" value=kpi.assigned|default:8 accent="info" %}
+    {% include "sentinel/components/kpi_card.html" with title="En cours" value=kpi.in_progress|default:5 accent="primary" %}
+    {% include "sentinel/components/kpi_card.html" with title="En retard" value=kpi.overdue|default:1 accent="destructive" %}
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    {% for r in tasks %}
+    <a href="{% url 'etp_soumission_for' r.id %}" class="block rounded-xl border bg-card p-5 shadow-premium-sm hover:shadow-premium-md hover:-translate-y-0.5 transition-smooth border-l-4 border-l-primary">
+      <div class="flex items-center justify-between mb-2"><span class="font-mono text-xs text-primary font-semibold">{{ r.ref }}</span>{% include "sentinel/components/status_badge.html" with status=r.status %}</div>
+      <h3 class="font-heading font-bold text-sm mb-2">{{ r.title }}</h3>
+      <p class="text-xs text-muted-foreground line-clamp-2 mb-3">{{ r.description }}</p>
+      <div class="flex items-center justify-between text-xs text-muted-foreground"><span>Échéance {{ r.due_date }}</span>{% if r.days_left < 7 %}<span class="font-bold text-warning">{{ r.days_left }}j restants</span>{% endif %}</div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

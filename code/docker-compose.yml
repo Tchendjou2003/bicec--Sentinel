@@ -27,21 +27,29 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
     depends_on:
       db:
         condition: service_healthy
     volumes:
+      - .:/app
       - static_files:/app/staticfiles
       - media_files:/app/media
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"
+    command: python manage.py runserver 0.0.0.0:8000
 
   # ── Django-Q2 Worker (Scheduler nocturne) ──
   worker:
     build: .
     restart: unless-stopped
     env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
     command: python manage.py qcluster
+    volumes:
+      - .:/app
     depends_on:
       db:
         condition: service_healthy

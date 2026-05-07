@@ -1,0 +1,40 @@
+{# Sidebar — Profil Employé Traitant. Active item via variable `active_route` ("dashboard", "users"...) #}
+<aside x-show="$store.sentinel.sidebarOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="-translate-x-full opacity-0" x-transition:enter-end="translate-x-0 opacity-100" class="w-64 shrink-0 bg-sidebar text-sidebar-foreground border-r border-sidebar-border/50 flex flex-col" style="display:none">
+  <div class="p-4 border-b border-sidebar-border/40">
+    <div class="flex items-center gap-2.5">
+      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-primary shadow-glow shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sidebar-primary-foreground"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="min-w-0">
+        <p class="text-sm font-bold text-sidebar-foreground font-heading tracking-tight">SENTINEL</p>
+        <p class="text-[10px] text-sidebar-foreground/60 truncate">BICEC • Employé Traitant</p>
+      </div>
+    </div>
+  </div>
+  <nav class="flex-1 overflow-y-auto py-3 px-2">
+    <p class="text-sidebar-foreground/50 text-[10px] uppercase tracking-wider px-3 mb-2">Espace ETP</p>
+    <ul class="space-y-0.5">
+      <li>
+        <a href="/etp/" class="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-smooth hover:bg-sidebar-accent {% if active_route == 'mes' %}bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-sidebar-primary{% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+          <span>Mes Tâches</span>
+        </a>
+      </li>
+      <li>
+        <a href="/etp/soumission/" class="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-smooth hover:bg-sidebar-accent {% if active_route == 'soumettre' %}bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-sidebar-primary{% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>Soumettre Preuves</span>
+        </a>
+      </li>
+      <li>
+        <a href="/etp/historique/" class="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-smooth hover:bg-sidebar-accent {% if active_route == 'historique' %}bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-sidebar-primary{% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+          <span>Historique</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+  <div class="p-3 border-t border-sidebar-border/40">
+    <p class="text-[10px] text-sidebar-foreground/40 text-center">© 2026 BICEC Sentinel</p>
+  </div>
+</aside>

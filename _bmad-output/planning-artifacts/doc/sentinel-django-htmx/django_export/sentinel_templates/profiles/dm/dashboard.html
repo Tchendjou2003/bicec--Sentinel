@@ -1,0 +1,33 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}DM — Dashboard | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_dm.html" with active_route="dashboard" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+  <div><h2 class="text-2xl font-bold font-heading">Validation des preuves</h2><p class="text-sm text-muted-foreground">Recommandations en attente de validation pour votre département.</p></div>
+  <div class="grid gap-4 md:grid-cols-3">
+    {% include "sentinel/components/kpi_card.html" with title="À valider" value=kpi.to_validate|default:5 accent="warning" %}
+    {% include "sentinel/components/kpi_card.html" with title="Validées (mois)" value=kpi.validated|default:18 accent="success" %}
+    {% include "sentinel/components/kpi_card.html" with title="Rejetées (mois)" value=kpi.rejected|default:2 accent="destructive" %}
+  </div>
+
+  <div class="rounded-xl border bg-card shadow-premium-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="text-left text-xs uppercase tracking-wider text-muted-foreground bg-muted/30 border-b"><tr><th class="px-4 py-3">Réf.</th><th>Titre</th><th>ETP</th><th>Soumis</th><th class="px-4 text-right">Action</th></tr></thead>
+      <tbody>
+        {% for r in pending %}
+        <tr class="border-b last:border-0 hover:bg-muted/30">
+          <td class="px-4 py-3 font-mono text-xs text-primary">{{ r.ref }}</td>
+          <td class="font-medium">{{ r.title }}</td>
+          <td class="text-xs">{{ r.etp }}</td>
+          <td class="text-xs text-muted-foreground">{{ r.submitted_at }}</td>
+          <td class="px-4 text-right"><a href="{% url 'dm_validation_detail' r.id %}" class="text-xs text-primary hover:underline font-medium">Examiner →</a></td>
+        </tr>
+        {% empty %}<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-muted-foreground">Aucune preuve en attente.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

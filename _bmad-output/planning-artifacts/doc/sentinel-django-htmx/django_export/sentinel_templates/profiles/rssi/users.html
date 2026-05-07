@@ -1,0 +1,81 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}RSSI — Utilisateurs | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_rssi.html" with active_route="utilisateurs" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6 animate-fade-in" x-data="{ openCreate: false, form: { name:'', email:'', direction:'' } }">
+  <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold font-heading tracking-tight">Gestion des comptes utilisateurs</h2>
+      <p class="text-sm text-muted-foreground mt-1">Créez les comptes et affectez-les à une direction. <span class="text-foreground font-medium">L'attribution des rôles est gérée par l'Auditeur Interne.</span></p>
+    </div>
+    <button @click="openCreate = true" class="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium shadow-sm hover:shadow-md transition-smooth">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+      Créer un compte
+    </button>
+  </div>
+
+  {# KPIs #}
+  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    {% include "sentinel/components/kpi_card.html" with title="Total comptes" value=stats.total|default:8 accent="primary" %}
+    {% include "sentinel/components/kpi_card.html" with title="Actifs" value=stats.active|default:6 accent="success" %}
+    {% include "sentinel/components/kpi_card.html" with title="En attente de rôle" value=stats.pending_role|default:2 accent="warning" %}
+    {% include "sentinel/components/kpi_card.html" with title="Inactifs" value=stats.inactive|default:2 accent="info" %}
+  </div>
+
+  {# Filtres #}
+  <div class="rounded-xl border bg-card p-4 shadow-premium-sm flex flex-col md:flex-row gap-3">
+    <div class="relative flex-1">
+      <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" name="q" placeholder="Rechercher par nom ou email..." class="w-full pl-9 h-9 text-sm rounded-md border bg-background"
+             hx-get="{% url 'rssi_users_table' %}" hx-trigger="keyup changed delay:300ms" hx-target="#users-tbody" hx-include="[name='direction'],[name='status']" />
+    </div>
+    <select name="direction" class="h-9 rounded-md border bg-background text-sm px-3" hx-get="{% url 'rssi_users_table' %}" hx-trigger="change" hx-target="#users-tbody" hx-include="[name='q'],[name='status']">
+      <option value="">Toutes les directions</option>
+      {% for d in directions %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+    </select>
+    <select name="status" class="h-9 rounded-md border bg-background text-sm px-3" hx-get="{% url 'rssi_users_table' %}" hx-trigger="change" hx-target="#users-tbody" hx-include="[name='q'],[name='direction']">
+      <option value="">Tous statuts</option>
+      <option value="ACTIVE">Actif</option>
+      <option value="INACTIVE">Inactif</option>
+    </select>
+  </div>
+
+  {# Tableau #}
+  <div class="rounded-xl border bg-card shadow-premium-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="text-left text-xs uppercase tracking-wider text-muted-foreground bg-muted/30 border-b">
+        <tr><th class="px-4 py-3">Nom</th><th>Direction</th><th>Rôle</th><th>Statut</th><th>Dernière connexion</th><th class="px-4 text-right">Actions</th></tr>
+      </thead>
+      <tbody id="users-tbody">
+        {% include "sentinel/profiles/rssi/_users_rows.html" %}
+      </tbody>
+    </table>
+  </div>
+
+  {# Modale création #}
+  <div x-show="openCreate" x-transition.opacity class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" @click.self="openCreate = false" style="display:none">
+    <div x-show="openCreate" x-transition class="w-full max-w-md rounded-xl bg-card shadow-premium-lg p-6 space-y-4">
+      <h3 class="text-lg font-bold font-heading">Créer un compte</h3>
+      <p class="text-xs text-muted-foreground">Le compte sera créé avec le statut <span class="font-semibold text-warning">En attente de rôle</span>. L'Auditeur Interne attribuera le rôle métier.</p>
+      <form hx-post="{% url 'rssi_users_create' %}" hx-target="#users-tbody" hx-swap="afterbegin" @htmx:after-request="openCreate = false; form = {name:'',email:'',direction:''}" class="space-y-3">
+        {% csrf_token %}
+        <div><label class="block text-xs font-medium mb-1">Nom complet</label><input name="name" x-model="form.name" required class="w-full h-9 rounded-md border bg-background px-3 text-sm" /></div>
+        <div><label class="block text-xs font-medium mb-1">Email</label><input type="email" name="email" x-model="form.email" required class="w-full h-9 rounded-md border bg-background px-3 text-sm" /></div>
+        <div><label class="block text-xs font-medium mb-1">Direction</label>
+          <select name="direction" x-model="form.direction" required class="w-full h-9 rounded-md border bg-background px-3 text-sm">
+            <option value="">Sélectionner...</option>
+            {% for d in directions %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" @click="openCreate = false" class="h-9 px-4 rounded-md border text-sm hover:bg-muted">Annuler</button>
+          <button type="submit" class="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">Créer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}ETP — Soumettre Preuves | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_etp.html" with active_route="soumettre" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6 max-w-3xl">
+  <div><h2 class="text-2xl font-bold font-heading">Soumission de preuves</h2><p class="text-sm text-muted-foreground">Joignez les éléments justificatifs de mise en conformité.</p></div>
+
+  <form hx-post="{% url 'etp_soumission_post' %}" hx-encoding="multipart/form-data" class="rounded-xl border bg-card p-6 shadow-premium-sm space-y-4">
+    {% csrf_token %}
+    <div>
+      <label class="block text-sm font-medium mb-2">Recommandation</label>
+      <select name="recommandation_id" required class="w-full h-9 rounded-md border bg-background px-3 text-sm">{% for r in tasks %}<option value="{{ r.id }}">{{ r.ref }} — {{ r.title }}</option>{% endfor %}</select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-2">Pièces justificatives</label>
+      <div class="rounded-lg border-2 border-dashed border-muted-foreground/25 p-8 text-center hover:border-primary/50 transition-smooth cursor-pointer relative">
+        <input type="file" name="files" multiple class="absolute inset-0 opacity-0 cursor-pointer" />
+        <svg class="h-8 w-8 text-muted-foreground mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <p class="text-sm text-muted-foreground">PDF, images, Excel — max 10MB par fichier</p>
+      </div>
+    </div>
+    <div><label class="block text-sm font-medium mb-2">Commentaire</label><textarea name="commentaire" rows="4" class="w-full rounded-md border bg-background px-3 py-2 text-sm" placeholder="Décrivez les actions menées..."></textarea></div>
+    <button type="submit" class="w-full h-10 rounded-md bg-primary text-primary-foreground font-medium hover:opacity-90">Soumettre au DM pour validation</button>
+  </form>
+</div>
+
+{% endblock %}

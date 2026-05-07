@@ -43,7 +43,7 @@ development_status:
   # ── Epic 1: Connexion Sécurisée & Gestion des Périmètres ──
   epic-1: in-progress
   1-1-setup-projet-starter-template: done
-  1-2-authentification-utilisateurs-internes: backlog
+  1-2-authentification-utilisateurs-internes: ready-for-dev
   1-3-plateforme-auditeurs-externes: backlog
   1-4-gestion-organigramme-institutionnel: backlog
   1-5-assignation-profils-metiers-rbac: backlog

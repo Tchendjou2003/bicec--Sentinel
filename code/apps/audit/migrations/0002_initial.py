@@ -24,10 +24,7 @@ class Migration(migrations.Migration):
             model_name='auditlog',
             index=models.Index(fields=['user', '-created_at'], name='audit_audit_user_id_429f6b_idx'),
         ),
-        migrations.AddIndex(
-            model_name='auditlog',
-            index=models.Index(fields=['user', '-created_at'], name='audit_audit_user_id_429f6b_idx'),
-        ),
+    
         migrations.AddIndex(
             model_name='auditlog',
             index=models.Index(fields=['action', '-created_at'], name='audit_audit_action_0c6a84_idx'),

@@ -65,6 +65,7 @@ jobs:
       - name: 🔍 Lint avec Ruff
         run: |
           pip install ruff
+           ruff check code/ --fix
           ruff check code/
 
       - name: 🧪 Lancer les tests Django

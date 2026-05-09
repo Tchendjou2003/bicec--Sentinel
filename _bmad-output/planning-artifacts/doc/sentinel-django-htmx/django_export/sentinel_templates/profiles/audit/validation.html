@@ -1,0 +1,34 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}Audit — Validation | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_audit.html" with active_route="validation" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+  <div><h2 class="text-2xl font-bold font-heading">Validation finale & clôture</h2><p class="text-sm text-muted-foreground">Recommandations validées par les DM, en attente de clôture finale.</p></div>
+
+  <div class="grid gap-4 md:grid-cols-3">
+    {% include "sentinel/components/kpi_card.html" with title="À clôturer" value=kpi.to_close|default:8 accent="warning" %}
+    {% include "sentinel/components/kpi_card.html" with title="Clôturées (mois)" value=kpi.closed|default:18 accent="success" %}
+    {% include "sentinel/components/kpi_card.html" with title="Délai moyen" value="42j" accent="info" %}
+  </div>
+
+  <div class="rounded-xl border bg-card shadow-premium-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="text-left text-xs uppercase tracking-wider text-muted-foreground bg-muted/30 border-b"><tr><th class="px-4 py-3">Réf.</th><th>Titre</th><th>DM validateur</th><th>Date validation</th><th class="px-4 text-right">Action</th></tr></thead>
+      <tbody>
+        {% for r in to_close %}
+        <tr class="border-b last:border-0 hover:bg-muted/30">
+          <td class="px-4 py-3 font-mono text-xs text-primary">{{ r.ref }}</td>
+          <td class="font-medium">{{ r.title }}</td>
+          <td class="text-xs">{{ r.validator }}</td>
+          <td class="text-xs text-muted-foreground">{{ r.validated_at }}</td>
+          <td class="px-4 text-right"><button hx-post="{% url 'audit_close' r.id %}" hx-confirm="Clôturer définitivement cette recommandation ?" class="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-success text-success-foreground text-xs font-medium hover:opacity-90"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Clôturer</button></td>
+        </tr>
+        {% empty %}<tr><td colspan="5" class="px-4 py-8 text-center text-sm text-muted-foreground">Aucune recommandation à clôturer.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

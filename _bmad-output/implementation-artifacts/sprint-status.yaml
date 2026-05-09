@@ -1,0 +1,93 @@
+# generated: 2026-04-12T22:12:00+01:00
+# project: bicec--Sentinel
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: "{project-root}/_bmad-output/implementation-artifacts"
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-04-12T22:12:00+01:00
+project: bicec--Sentinel
+project_key: NOKEY
+tracking_system: file-system
+story_location: "{project-root}/_bmad-output/implementation-artifacts"
+
+development_status:
+  # ── Epic 1: Connexion Sécurisée & Gestion des Périmètres ──
+  epic-1: in-progress
+  1-1-setup-projet-starter-template: done
+  1-2-authentification-utilisateurs-internes: done
+  1-3-plateforme-auditeurs-externes: done
+  1-4-gestion-organigramme-institutionnel: done
+  1-5-assignation-profils-metiers-rbac: done
+  epic-1-retrospective: optional
+
+  # ── Epic 2: Création & Import des Recommandations ──
+  epic-2: backlog
+  2-1-creation-unitaire-formulaire-standard: backlog
+  2-2-soft-delete-recommandations-brouillons: backlog
+  2-3-importation-atomique-historique: backlog
+  2-4-triage-auto-assignation: backlog
+  2-5-assignation-definitive-dm: backlog
+  epic-2-retrospective: optional
+
+  # ── Epic 3: Evidence Submission & Collaborative Workflow ──
+  epic-3: backlog
+  3-1-todo-list-filter-historique-recent: backlog
+  3-2-delegation-operationnelle-dm-etp: backlog
+  3-3-soumission-preuves-etp-immutabilite: backlog
+  3-4-rejet-interne-dm-boucle-amelioration: backlog
+  3-5-validation-dm-envoi-audit-exemption-pv: backlog
+  3-6-demande-report-echeance: backlog
+  3-7-soumission-exclusive-dg: backlog
+  3-8-cloture-definitive-audit-interne: backlog
+  3-9-bascule-automatique-overdue-cron: backlog
+  3-10-generation-sceau-hmac-sha256-cloture: backlog
+  epic-3-retrospective: optional
+
+  # ── Epic 4: Proactive Alerting & Notification Engine ──
+  epic-4: backlog
+  4-1-alertes-journalieres-critiques: backlog
+  4-2-digest-hebdomadaire-anticipation-j7: backlog
+  epic-4-retrospective: optional
+
+  # ── Epic 5: Confiance Réglementaire & Audit Trail ──
+  epic-5: backlog
+  5-1-timeline-statique-audit-trail: backlog
+  5-2-compilation-archive-zip-audit-externe: backlog
+  epic-5-retrospective: optional
+
+  # ── Epic 6: Executive Supervision Dashboards ──
+  epic-6: backlog
+  6-1-dashboard-supervision-indicateurs-urgence: backlog
+  6-2-todo-list-executive: backlog
+  6-3-optimisation-impression-pdf-css-print: backlog
+  6-4-configuration-interim-delegation: backlog
+  epic-6-retrospective: optional

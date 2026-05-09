@@ -1,0 +1,51 @@
+# Sentinel — .dockerignore
+# Empêcher la copie de fichiers inutiles/secrets dans le contexte Docker
+
+# Git
+.git
+.gitignore
+
+# Node (dev only)
+node_modules
+package-lock.json
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.idea
+.cursor
+
+# BMAD (planning/workflow tools)
+_bmad
+_bmad-output
+.agent
+.clinerules
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+
+# Docker
+docker-compose.yml
+Dockerfile
+
+# Media uploads (managed as Docker volume)
+media
+
+# Tailwind source (only output.css needed)
+static/css/input.css
+tailwind.config.js
+package.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+docs

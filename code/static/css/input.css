@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   Sentinel — Custom Animations & Utilities
+   Design System Sentinel (Orange/Brun)
+   ============================================ */
+
+@layer utilities {
+    /* Hide Alpine.js elements before initialization */
+    [x-cloak] {
+        display: none !important;
+    }
+}
+
+@layer components {
+    /* ── Animated Background Orbs ────────────────────── */
+    .login-orb {
+        @apply absolute rounded-full opacity-20 blur-3xl;
+        animation: float 8s ease-in-out infinite;
+    }
+    .login-orb-1 {
+        @apply w-72 h-72 bg-sentinel-orange -top-20 -right-20;
+        animation-delay: 0s;
+    }
+    .login-orb-2 {
+        @apply w-96 h-96 bg-sentinel-brown -bottom-32 -left-32;
+        animation-delay: 3s;
+    }
+    .login-orb-3 {
+        @apply w-48 h-48 bg-sentinel-orange bottom-20 right-10;
+        animation-delay: 5s;
+        animation-duration: 10s;
+    }
+
+    /* ── Card Entrance ──────────────────────────────── */
+    .animate-card-in {
+        animation: cardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* ── Shake for errors ───────────────────────────── */
+    .animate-shake {
+        animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    /* ── Subtle pulse for the security badge ─────────── */
+    .animate-pulse-slow {
+        animation: pulseSlow 3s ease-in-out infinite;
+    }
+}
+
+/* ── Keyframes ───────────────────────────────────────── */
+@keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33%      { transform: translate(15px, -20px) scale(1.05); }
+    66%      { transform: translate(-10px, 15px) scale(0.95); }
+}
+
+@keyframes cardIn {
+    from {
+        opacity: 0;
+        transform: translateY(24px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes shake {
+    10%, 90%  { transform: translateX(-1px); }
+    20%, 80%  { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-3px); }
+    40%, 60%  { transform: translateX(3px); }
+}
+
+@keyframes pulseSlow {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.6; }
+}

@@ -1,0 +1,52 @@
+{% comment %}
+Composant réutilisable : Champ de texte avec icône (Design System Sentinel)
+
+Usage :
+  {% include "components/forms/input_text.html" with field_name="username" field_id="id_username" field_type="text" label="Nom d'utilisateur" placeholder="Votre identifiant" icon="user" value=form.username.value required=True %}
+
+Paramètres :
+  - field_name    : name="" de l'input (requis)
+  - field_id      : id="" de l'input (requis)
+  - field_type    : type="" — "text", "email", etc. (défaut: "text")
+  - label         : Texte du label (requis)
+  - placeholder   : Texte du placeholder
+  - icon          : "user" | "lock" | "email" | "search" (défaut: aucun)
+  - value         : Valeur pré-remplie
+  - required      : True/False
+  - autocomplete  : Valeur autocomplete (ex: "username")
+{% endcomment %}
+
+<div class="group">
+    <label for="{{ field_id }}"
+           class="block text-sm font-semibold text-text-primary mb-1.5 transition-colors group-focus-within:text-sentinel-orange">
+        {{ label }}
+    </label>
+    <div class="relative">
+        {% if icon %}
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            {% if icon == "user" %}
+            <svg class="h-5 w-5 text-text-muted group-focus-within:text-sentinel-orange transition-colors" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+            </svg>
+            {% elif icon == "email" %}
+            <svg class="h-5 w-5 text-text-muted group-focus-within:text-sentinel-orange transition-colors" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+            </svg>
+            {% elif icon == "search" %}
+            <svg class="h-5 w-5 text-text-muted group-focus-within:text-sentinel-orange transition-colors" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+            </svg>
+            {% endif %}
+        </div>
+        {% endif %}
+        <input type="{{ field_type|default:'text' }}"
+               name="{{ field_name }}"
+               id="{{ field_id }}"
+               value="{{ value|default_if_none:'' }}"
+               {% if required %}required{% endif %}
+               {% if autocomplete %}autocomplete="{{ autocomplete }}"{% endif %}
+               class="block w-full {% if icon %}pl-10{% else %}pl-3{% endif %} pr-3 py-2.5 border border-border-subtle rounded-lg text-text-primary bg-surface-base placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-sentinel-orange focus:border-transparent transition-all sm:text-sm"
+               placeholder="{{ placeholder|default:'' }}">
+    </div>
+</div>

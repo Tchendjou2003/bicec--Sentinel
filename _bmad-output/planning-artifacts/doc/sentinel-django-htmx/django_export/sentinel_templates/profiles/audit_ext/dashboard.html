@@ -1,0 +1,23 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}Audit Externe — Dashboard | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_audit_ext.html" with active_route="dashboard" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+  <div class="rounded-lg border-l-4 border-info bg-info/5 p-4 text-sm flex gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-info shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/></svg><div><strong>Mode lecture seule.</strong> Vous consultez le périmètre qui vous a été attribué. Aucune modification possible.</div></div>
+
+  <div class="grid gap-4 md:grid-cols-4">
+    {% include "sentinel/components/kpi_card.html" with title="Périmètre" value=scope|default:"COBAC 2025" accent="primary" %}
+    {% include "sentinel/components/kpi_card.html" with title="Recommandations" value=kpi.total|default:42 accent="info" %}
+    {% include "sentinel/components/kpi_card.html" with title="Clôturées" value=kpi.closed|default:28 accent="success" %}
+    {% include "sentinel/components/kpi_card.html" with title="En cours" value=kpi.in_progress|default:14 accent="warning" %}
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-2">
+    <a href="{% url 'audit_ext_consultation' %}" class="block rounded-xl border bg-card p-6 shadow-premium-sm hover:shadow-premium-md transition-smooth"><h3 class="font-heading font-bold mb-2">Consulter les recommandations</h3><p class="text-sm text-muted-foreground">Accéder au détail des recommandations et de leurs preuves.</p></a>
+    <a href="{% url 'audit_ext_export' %}" class="block rounded-xl border bg-card p-6 shadow-premium-sm hover:shadow-premium-md transition-smooth"><h3 class="font-heading font-bold mb-2">Export ZIP sécurisé</h3><p class="text-sm text-muted-foreground">Télécharger un dossier complet (recommandations + preuves + hash).</p></a>
+  </div>
+</div>
+
+{% endblock %}

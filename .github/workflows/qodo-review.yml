@@ -1,0 +1,30 @@
+# ============================================================
+# Sentinel — Qodo AI Code Review
+# Déclencheur : toute Pull Request ouverte / mise à jour
+# ============================================================
+name:  Qodo AI — Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  qodo-review:
+    name:  Qodo Merge Review
+    runs-on: ubuntu-latest
+
+    steps:
+      - name:  Checkout code
+        uses: actions/checkout@v4
+
+      - name:  Qodo AI Code Review
+        uses: Codium-ai/pr-agent@main
+        with:
+          command: review
+        env:
+          QODO_KEY: ${{ secrets.QODO_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

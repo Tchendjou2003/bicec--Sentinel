@@ -1,0 +1,64 @@
+{% extends "sentinel/base/base.html" %}
+{% load static %}
+{% block title %}SENTINEL — Sélection du profil{% endblock %}
+
+{% block body %}
+<div class="min-h-screen bg-background relative overflow-hidden">
+  <div class="absolute inset-0 bg-gradient-hero pointer-events-none"></div>
+  <div class="absolute top-0 left-1/2 -translate-x-1/2 h-[500px] w-[900px] rounded-full bg-primary/5 blur-3xl pointer-events-none"></div>
+
+  <div class="relative flex flex-col items-center justify-center min-h-screen p-6 py-12">
+    <div class="text-center mb-12 animate-fade-in">
+      <div class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 mb-6 text-xs font-medium text-primary">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+        <span>Plateforme de conformité — BICEC</span>
+      </div>
+      <div class="inline-flex items-center justify-center h-20 w-20 rounded-3xl bg-gradient-primary mb-5 shadow-glow">
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary-foreground"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <h1 class="text-5xl font-bold font-heading text-foreground tracking-tight">
+        <span class="text-gradient-primary">SENTINEL</span>
+      </h1>
+      <p class="text-muted-foreground mt-3 max-w-md mx-auto">Suivi intelligent des recommandations réglementaires et opérationnelles.</p>
+      <p class="text-xs text-muted-foreground/70 mt-2">Sélectionnez votre profil pour accéder à votre espace</p>
+    </div>
+
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 max-w-5xl w-full animate-slide-up">
+      {% for p in profiles %}
+      <a href="{{ p.url }}" class="block group">
+        <div class="relative overflow-hidden h-full p-5 rounded-xl border border-border/60 bg-card hover:border-primary/40 hover:shadow-premium-lg transition-smooth hover:-translate-y-1 cursor-pointer">
+          <div class="flex items-start gap-4">
+            <div class="shrink-0 rounded-xl p-3 transition-smooth
+              {% if p.accent == 'primary' %}bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground
+              {% elif p.accent == 'info' %}bg-info/10 text-info group-hover:bg-info group-hover:text-info-foreground
+              {% elif p.accent == 'success' %}bg-success/10 text-success group-hover:bg-success group-hover:text-success-foreground
+              {% elif p.accent == 'warning' %}bg-warning/10 text-warning group-hover:bg-warning group-hover:text-warning-foreground{% endif %}">
+              {{ p.icon|safe }}
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="text-sm font-bold font-heading text-foreground group-hover:text-primary transition-smooth">{{ p.title }}</h3>
+              <p class="text-xs text-muted-foreground mt-1 leading-relaxed">{{ p.desc }}</p>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-1 transition-smooth shrink-0 mt-1"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    <div class="mt-12 flex items-center gap-6 text-xs text-muted-foreground">
+      <span class="flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-success animate-pulse-slow"></span> Système opérationnel</span>
+      <span class="font-mono">© 2026 BICEC — Sentinel v2.1.0</span>
+    </div>
+  </div>
+</div>
+
+{# Contexte attendu (à fournir par la vue Django) :
+profiles = [
+  {"title": "RSSI / Support IT", "desc": "Création de comptes & affectation aux directions",
+   "url": reverse("rssi_dashboard"), "accent": "primary",
+   "icon": '<svg ...lucide users.../>'},
+  ...
+]
+#}
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}DG — Vue par Direction | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_dg.html" with active_route="vue" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+  <h2 class="text-2xl font-bold font-heading">Vue détaillée par direction</h2>
+  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    {% for d in directions %}
+    <div class="rounded-xl border bg-card p-5 shadow-premium-sm hover:shadow-premium-md transition-smooth">
+      <div class="flex items-start justify-between mb-3">
+        <div><h3 class="font-heading font-bold">{{ d.name }}</h3><p class="text-xs text-muted-foreground">{{ d.head }}</p></div>
+        {% include "sentinel/components/status_badge.html" with status=d.health %}
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div><p class="text-xs text-muted-foreground">Total</p><p class="text-xl font-bold tabular-nums">{{ d.total }}</p></div>
+        <div><p class="text-xs text-muted-foreground">Clôt.</p><p class="text-xl font-bold tabular-nums text-success">{{ d.closed }}</p></div>
+        <div><p class="text-xs text-muted-foreground">Retard</p><p class="text-xl font-bold tabular-nums text-destructive">{{ d.overdue }}</p></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

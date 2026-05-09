@@ -1,0 +1,39 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}Audit Externe — Export ZIP | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_audit_ext.html" with active_route="export" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6 max-w-3xl" x-data="{ generating: false }">
+  <div><h2 class="text-2xl font-bold font-heading">Export ZIP sécurisé</h2><p class="text-sm text-muted-foreground">Téléchargez l'ensemble de votre périmètre dans une archive signée.</p></div>
+
+  <div class="rounded-xl border bg-card p-6 shadow-premium-sm">
+    <div class="flex items-start gap-4 mb-4">
+      <div class="rounded-xl bg-primary/10 text-primary p-3"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg></div>
+      <div><h3 class="font-heading font-bold">Préparer l'archive</h3><p class="text-sm text-muted-foreground">Inclut les recommandations, leurs preuves et un manifeste avec hashes SHA-256 de chaque fichier.</p></div>
+    </div>
+
+    <form hx-post="{% url 'audit_ext_export_generate' %}" hx-target="#export-progress" @htmx:before-request="generating = true" class="space-y-3">
+      {% csrf_token %}
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="include_metadata" checked /> Inclure les métadonnées (timeline, validations)</label>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="include_evidence" checked /> Inclure les fichiers preuves</label>
+      <button type="submit" :disabled="generating" class="w-full h-10 rounded-md bg-primary text-primary-foreground font-medium hover:opacity-90 disabled:opacity-50"><span x-show="!generating">Générer l'archive ZIP</span><span x-show="generating">Génération en cours...</span></button>
+    </form>
+
+    <div id="export-progress" class="mt-4"></div>
+  </div>
+
+  <div class="rounded-xl border bg-card p-5 shadow-premium-sm">
+    <h3 class="font-heading font-bold mb-3">Exports précédents</h3>
+    <ul class="space-y-2">
+      {% for e in past_exports %}
+      <li class="flex items-center justify-between border-b pb-2 last:border-0">
+        <div><p class="text-sm font-medium">{{ e.filename }}</p><p class="text-xs text-muted-foreground font-mono">SHA-256: {{ e.hash|truncatechars:24 }}</p></div>
+        <a href="{{ e.url }}" class="text-xs text-primary hover:underline">Télécharger</a>
+      </li>
+      {% empty %}<li class="text-sm text-muted-foreground py-2">Aucun export précédent.</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,29 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}SENTINEL — BICEC{% endblock %}</title>
+  <meta name="description" content="{% block description %}Suivi intelligent des recommandations réglementaires et opérationnelles.{% endblock %}" />
+  <link rel="stylesheet" href="{% static 'sentinel/css/output.css' %}" />
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="{% static 'sentinel/js/sentinel.js' %}" defer></script>
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-background text-foreground font-sans antialiased">
+  {% block body %}{% endblock %}
+
+  {# Toasts globaux #}
+  <div x-data class="fixed bottom-4 right-4 z-[100] space-y-2">
+    <template x-for="n in $store.sentinel.notifications" :key="n.id">
+      <div x-transition class="rounded-lg border bg-card shadow-premium-lg px-4 py-3 text-sm font-medium" :class="{
+        'border-success/30 text-success': n.type === 'success',
+        'border-destructive/30 text-destructive': n.type === 'error',
+        'border-info/30 text-info': n.type === 'info',
+        'border-warning/30 text-warning': n.type === 'warning'
+      }" x-text="n.msg"></div>
+    </template>
+  </div>
+</body>
+</html>

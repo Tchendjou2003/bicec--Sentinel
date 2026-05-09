@@ -48,8 +48,8 @@ Transformer et centraliser le suivi des recommandations d'audit de la BICEC en r
 ## UI Guidelines & Brand Identity (BICEC)
 
 ### Visual Identity & Corporate Design
-- **Palette Chromatique :** Binôme Jaune institutionnel (`#FAB50B`) comme point focal fonctionnel (appels à l'action / CTA, alertes) et Bleu corporate pour les barres de navigation et éléments structurels inspirant la sécurité et la stabilité.
-- **Architecture Typographique :** Utilisation de **Roboto** (Bold pour le scan visuel des titres, Regular pour un confort de lecture prolongé). La police **PF DIN Text** est réservée aux affichages nécessitant une évocation de rigueur technique ou de précision bancaire.
+- **Palette Chromatique :** Binôme **Orange Sentinel** (`#E87722`) comme point focal fonctionnel (appels à l'action / CTA, alertes) et **Brun corporate** (`#4A2C2A`) pour les barres de navigation et éléments structurels inspirant la sécurité et la stabilité, complété par des neutres chauds pour le confort visuel.
+- **Architecture Typographique :** Utilisation de **Inter** (Bold pour le scan visuel des titres, Regular pour un confort de lecture prolongé). La police **JetBrains Mono** est réservée aux affichages nécessitant une évocation de rigueur technique (codes, références, HMAC).
 - **Accessibilité Universelle (WCAG AA) :** Strict respect d'un ratio de contraste minimum de 4.5:1 pour les textes. L'interface sera intégralement navigable au clavier et utilisera un langage clair, dépouillé de jargon inutile.
 
 ### UX Design Philosophy & Operational Efficiency
@@ -108,7 +108,7 @@ L'utilisateur ne doit pas se sentir "surveillé" mais "protégé" par le systèm
 - **Fierté > Anxiété :** Le tableau de bord du DG et l'interface pour la COBAC transforment une donnée qui fait peur en un résultat auditable dont le porteur (l'Audit) est fier de faire la démonstration.
 
 ### Design Implications
-- **Sentiment de Sérénité :** Exploitation maximale de l'espace blanc et du bleu corporate BICEC pour une sensation de stabilité enveloppante, réduisant viscéralement la pression.
+- **Sentiment de Sérénité :** Exploitation maximale de l'espace blanc, des surfaces neutres chaudes et du Brun corporate pour une sensation de stabilité enveloppante, réduisant viscéralement la pression.
 - **Sentiment de Fierté et Confiance (Le Sceau Institutionnel) :** L'empreinte cryptographique (HMAC) ne sera pas affichée uniquement comme un long hash technique rebutant, mais sera incarnée visuellement par un "Badge d'Intégrité" (sceau visuel) perçu comme un certificat d'authenticité prestigieux.
 - **Sentiment de Soulagement (Reward) :** Des micro-animations fluides de transition : l'apparition du check vert confirmant l'absence de retour en arrière inutile.
 
@@ -135,7 +135,7 @@ L'utilisateur ne doit pas se sentir "surveillé" mais "protégé" par le systèm
 - **Formulaires Punitifs :** Laisser l'employé remplir 15 champs, puis après le clic "Soumettre", effacer une partie des données sous prétexte d'une erreur d'extension de fichier.
 
 ### Design Inspiration Strategy
-- **Nous Adoptons :** Le minimalisme visuel de Linear (fusionné avec la charte BICEC) pour la liste des recommandations `OVERDUE` et `PENDING`, où chaque ligne est appel à l'action.
+- **Nous Adoptons :** Le minimalisme visuel de Linear (fusionné avec la charte Orange/Brun) pour la liste des recommandations `OVERDUE` et `PENDING`, où chaque ligne est appel à l'action.
 - **Nous Adaptons :** L'approche tableur interactif. L'utilisateur "Audit" aura une expérience fluide de création, mais bridée au schéma strict de la base PostgreSQL (pas de colonnes libres).
 - **Nous BANNISSONS :** Tout pattern qui force ou encourage l'action hors-système (téléchargement de DOCX/PDF locaux forçant le DM à utiliser Acrobat Reader plutôt que notre interface intra-navigateur).
 
@@ -151,11 +151,11 @@ L'application s'appuie formellement sur l'architecture technique exigée : **Dja
 - **Rigueur Typographique & Brand Control :** Tailwind permet de brider facilement le système dans `tailwind.config.js`, rendant impossible pour un développeur d'utiliser une couleur hors du "One BCP" BICEC sans lever une alerte au build.
 
 ### Implementation Approach
-- **Configuration Verrouillée (`tailwind.config.js`) :** Modification du thème pour n'exposer que les variables de la charte BICEC (ex: `colors.bicec-yellow: '#FAB50B'`) et déclaration globale des polices `Roboto` et `PF DIN Text`.
+- **Configuration Verrouillée (`tailwind.config.js`) :** Modification du thème pour n'exposer que les variables de la charte (ex: `colors.sentinel-orange: '#E87722'`) et déclaration globale des polices `Inter` et `JetBrains Mono`.
 - **Atomic Design via Django Templates :** Les éléments répétitifs sont encapsulés dans des composants Django (ou des `{% include %}`). L'UX est factorisée côté backend. Alpine `x-data` est injecté directement sur ces partiels pour l'interactivité.
 
 ### Customization Strategy
-- **Le Thème "Action-Oriented" :** Le jaune institutionnel sera implémenté exclusivement comme utilitaire d'Appel à l'Action Principal.
+- **Le Thème "Action-Oriented" :** L'Orange institutionnel sera implémenté exclusivement comme utilitaire d'Appel à l'Action Principal.
 - **Design Tokens Stricts :** Tous les espacements seront limités à l'échelle Tailwind standard (multiples de 4px) pour garantir le rythme vertical apaisant requis par nos objectifs émotionnels.
 
 ### Technical Guardrails (Pre-Mortem Mitigations)
@@ -214,42 +214,46 @@ Si Sentinel réussit une seule chose parfaitement, c'est celle-là : un Directeu
 
 ### Color System
 
-Palette entièrement fondée sur la charte institutionnelle BICEC (One BCP), traduite en tokens Tailwind CSS et affinée pour éviter toute confusion entre les états du workflow.
+Palette entièrement fondée sur la nouvelle charte ergonomique Sentinel (Orange/Brun), traduite en tokens Tailwind CSS et affinée pour éviter toute confusion entre les états du workflow tout en favorisant le confort visuel.
 
 #### Palette Primaire (Tokens Tailwind)
 | Token                  | Valeur Hex  | Rôle Sémantique                                        |
 |------------------------|-------------|--------------------------------------------------------|
-| `bicec-yellow`         | `#FAB50B`   | CTA primaire, alertes urgentes, badges clés            |
-| `bicec-yellow-dark`    | `#D89A0A`   | Hover state du CTA jaune                               |
-| `bicec-blue`           | `#1A3A5C`   | Navbar, sidebar, textes importants, stabilité          |
-| `bicec-blue-light`     | `#2B5080`   | Hover/active states sur fond bleu foncé                |
+| `sentinel-orange`      | `#E87722`   | CTA primaire, alertes urgentes, badges clés            |
+| `sentinel-orange-dark` | `#C9631A`   | Hover state du CTA orange                              |
+| `sentinel-orange-light`| `#FFF3EB`   | Background doux pour les encarts actifs                |
+| `sentinel-brown`       | `#4A2C2A`   | Navbar, sidebar, textes importants, stabilité          |
+| `sentinel-brown-light` | `#6B4A3A`   | Hover/active states sur fond brun                      |
 
 #### Palette Sémantique (États du Workflow)
 | Token                  | Valeur Hex         | Pattern Badge           | Usage UX                                               |
 |------------------------|--------------------|-------------------------|--------------------------------------------------------|
-| `status-draft`         | `#6B7280`          | Soft (`bg-gray-100 text-gray-700`)   | DRAFT — Zone de sécurité psychologique          |
-| `status-pending`       | `#06B6D4`          | Soft (`bg-cyan-100 text-cyan-800`)   | PENDING — En attente de décision DM (Cyan froid pour ne pas cannibaliser le Jaune BICEC CTA) |
-| `status-approved`      | `#10B981`          | Solid (`bg-emerald-500 text-white`)  | APPROVED — Succès validé, scellé                |
-| `status-rejected`      | `#EF4444`          | Soft (`bg-red-100 text-red-700`)     | REJECTED — Retour au travail, pas une urgence vitale. Icône ↩️ |
-| `status-overdue`       | `#991B1B`          | Solid (`bg-red-800 text-white`)      | OVERDUE — Violation de délai COBAC. Badge le plus lourd visuellement. Icône ⚠️, `animate-pulse` sur bordure |
+| `status-draft`         | `#8B7E74`          | Soft (`bg-gray-100 text-[#8B7E74]`)  | DRAFT — Zone de sécurité psychologique          |
+| `status-in-progress`   | `#E87722`          | Soft (`bg-[#FFF3EB] text-[#E87722]`) | IN_PROGRESS — Traitement actif de la reco       |
+| `status-pending`       | `#D4A843`          | Soft (`bg-[#FEF9E7] text-[#92700C]`) | PENDING — En attente de décision DM             |
+| `status-approved`      | `#2D8B56`          | Solid (`bg-[#D1FAE5] text-[#065F46]`) | APPROVED — Succès validé, scellé                |
+| `status-rejected`      | `#C93B3B`          | Soft (`bg-[#FEE2E2] text-[#C93B3B]`) | REJECTED — Retour au travail. Icône ↩️           |
+| `status-overdue`       | `#991B1B`          | Solid (`bg-[#991B1B] text-white`)    | OVERDUE — Violation de délai COBAC.             |
 
 #### Palette Neutre (Structure)
 | Token                  | Valeur Hex  | Usage                                                  |
 |------------------------|-------------|--------------------------------------------------------|
-| `surface-base`         | `#F8F9FB`   | Fond global de l'application                           |
+| `surface-base`         | `#FAF7F4`   | Fond global de l'application                           |
 | `surface-card`         | `#FFFFFF`   | Fond des cartes / panneaux                             |
-| `border-subtle`        | `#E5E7EB`   | Séparateurs, bordures de tableaux                      |
-| `text-primary`         | `#111827`   | Corps de texte principal                               |
-| `text-secondary`       | `#6B7280`   | Labels, textes secondaires, métadonnées                |
+| `surface-warm`         | `#F5EDE6`   | Fond pour sections secondaires (hover, sidebar active) |
+| `border-subtle`        | `#E8DFD6`   | Séparateurs, bordures de tableaux                      |
+| `text-primary`         | `#2D1F1E`   | Corps de texte principal                               |
+| `text-secondary`       | `#8B7E74`   | Labels, textes secondaires                             |
+| `text-muted`           | `#B5A99E`   | Métadonnées, placeholders                              |
 
 ### Typography System
 
 #### Polices
 | Rôle                  | Police         | Grammage    | Usage                                          |
 |-----------------------|----------------|-------------|------------------------------------------------|
-| Titres & Headings     | **Roboto**     | Bold (700)  | H1 → H3, scan visuel rapide                   |
-| Corps de texte        | **Roboto**     | Regular (400) | Paragraphes, formulaires, labels             |
-| Données Techniques    | **PF DIN Text**| Regular (400) | Codes HMAC, références d'audit, numéros      |
+| Titres & Headings     | **Inter**     | Bold/Extra (700-800)  | H1 → H3, scan visuel rapide                   |
+| Corps de texte        | **Inter**     | Regular (400) | Paragraphes, formulaires, labels             |
+| Données Techniques    | **JetBrains Mono**| Regular (400) | Codes HMAC, références d'audit, numéros      |
 | Monospace (Code)      | **JetBrains Mono** | Regular | Hash d'intégrité, métadonnées système        |
 
 #### Hiérarchie Typographique (Échelle Tailwind)
@@ -310,34 +314,33 @@ Tous les espacements sont des multiples de 4px pour assurer le rythme vertical a
 
 ## Design Direction Decision
 
-### Design Directions Explorées
+### Design Directions (Vues Stitch)
 
-4 directions ont été générées, soumises au Cognitive Walkthrough et à un Component Tear-Down avant d'être validées :
+4 vues clés ont été modélisées et retenues (issues de l'outil Stitch) pour encadrer l'expérience par persona :
 
-| # | Direction | Rôle Cible | Concept Clé |
+| # | Vue / Écran | Rôle Cible | Concept Clé |
 |---|-----------|------------|-------------|
-| ① | **Corporate Fortress** | DM / ETP | Dashboard quotidien, Sidebar Bleu BICEC, alertes OVERDUE pulsantes |
-| ② | **Split-Screen Validator** | DM (Validation) | Recommandation épinglée + PDF in-app + Quick Reject Buttons |
-| ③ | **Data-Grid Power User** | Audit Interne | Tableur éditable, Bulk Create/Edit, raccourcis clavier, Optimistic UI |
-| ④ | **Executive DG View** | Direction Générale | KPIs MTTC + Taux d'échec + Risques par Direction + Timeline |
+| ① | **To-Do List (Dashboard)** | ETP | Alertes OVERDUE, PDEs assignées, KPIs personnels. |
+| ② | **Détail Recommandation & Preuves** | ETP | Soumission de preuves, Dropzone résiliente, Historique des retours (Timeline). |
+| ③ | **Historique des Preuves** | ETP | Data-table complet des soumissions avec filtres, stats de revue. |
+| ④ | **Détail Recommandation & Clôture** | Audit Interne | Supervision, vérification d'Audit Trail et décision finale (Rejeter/Clôturer). |
 
 ### Direction Retenue
 
-**Les 4 directions sont adoptées comme vues contextuelles par rôle au sein d'un système unifié.** Elles ne sont pas en compétition — elles représentent les interfaces distinctes que chaque persona vivra dans Sentinel selon son contexte d'action.
+**Le design system est unifié autour de la charte ergonomique Orange/Brun.** Ces 4 vues représentent le socle interactif validé. Elles abandonnent les anciennes propositions théoriques au profit d'une implémentation pragmatique et fonctionnelle.
 
 ### Rationale de Design
 
-- **Direction ①** : Point d'entrée universel. Fournit la visibilité globale et oriente vers l'action urgente.
-- **Direction ②** : Mode Focus. Conçu pour la décision de validation sans distraction. Le PDF reste toujours visible. Les Boutons de Rejet Rapide (Illisible / Signature / Incomplet) éliminent la saisie répétitive. L'Historique des soumissions empêche les rejets naïfs (le DM sait si c'est la 3ème tentative).
-- **Direction ③** : Mode Productivité. L'Audit Interne travaille avec des dizaines de recommandations simultanément. La Data-Grid avec Optimistic UI (Alpine montre la sauvegarde, HTMX travaille en fond) garantit la fluidité sans anxiété de perte de données.
-- **Direction ④** : Mode Pilotage. Le DG ne lit pas, il *lit la vitesse*. 3 KPIs managériaux (Critiques ouvertes, MTTC, Taux d'allers-retours) lui donnent la météo COBAC en 10 secondes.
+- **Vue ① (To-Do List)** : Point d'entrée de l'ETP. Focale sur l'urgence (Bannière rouge pour OVERDUE) afin de responsabiliser sans forcer à chercher l'information.
+- **Vue ② (Centre de Preuves)** : Mode Focus. L'ETP ne peut pas se tromper. L'historique d'échange est fusionné avec l'upload de preuves pour qu'il comprenne immédiatement *pourquoi* sa précédente preuve a été rejetée avant d'en soumettre une nouvelle.
+- **Vue ③ (Historique)** : Transparence et Empowerement. L'ETP suit ses métriques (Temps de revue, Taux d'acceptation) et réduit son anxiété quant aux "trous noirs" administratifs.
+- **Vue ④ (Audit Interne)** : Écran de pouvoir. Consolide toutes les preuves, tous les échanges passés (Audit Trail), et offre une double action destructrice pure : le Rejet (qui relance la boucle) ou la Clôture définitive.
 
 ### Approche d'Implémentation
 
-- Les 4 vues partagent les mêmes tokens BICEC (palette, typographie, grille 4px).
-- Le fichier de maquettes interactives est disponible dans : `_bmad-output/planning-artifacts/ux-design-directions.html`
-- Chaque vue est implémentée comme un template Django distinct (`dashboard.html`, `validate.html`, `bulk-edit.html`, `executive.html`) partageant un `base.html` commun.
-- Les composants Tailwind/AlpineJS définis (badges statuts, DataGridRow, ActionBar, SplitScreen) sont documentés dans l'Étape 11 (Component Strategy).
+- Les 4 vues partagent les mêmes tokens (palette, typographie Inter/JetBrains Mono, grille).
+- Le fichier de maquettes interactives HTML/CSS pur (`ux-design-directions.html`) servira de base canonique pour les templates Django.
+- Les composants Tailwind/AlpineJS (Dropzone résiliente, Timeline, Badges, KPIs) devront être extraits en `{% include %}` dans l'architecture Django.
 
 ## User Journey Flows
 

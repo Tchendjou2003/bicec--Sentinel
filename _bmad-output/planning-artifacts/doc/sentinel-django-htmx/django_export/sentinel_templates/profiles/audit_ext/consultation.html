@@ -1,0 +1,33 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}Audit Externe — Consultation | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_audit_ext.html" with active_route="recommandations" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+  <div class="rounded-lg border-l-4 border-info bg-info/5 p-3 text-sm flex gap-2 items-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/></svg> Lecture seule — périmètre <strong>{{ scope|default:"COBAC 2025" }}</strong></div>
+
+  <h2 class="text-2xl font-bold font-heading">Recommandations</h2>
+
+  <div class="rounded-xl border bg-card shadow-premium-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="text-left text-xs uppercase tracking-wider text-muted-foreground bg-muted/30 border-b"><tr><th class="px-4 py-3">Réf.</th><th>Titre</th><th>Direction</th><th>Statut</th><th>Preuves</th><th class="px-4 text-right">Détails</th></tr></thead>
+      <tbody>
+        {% for r in recommandations %}
+        <tr class="border-b last:border-0 hover:bg-muted/30">
+          <td class="px-4 py-3 font-mono text-xs text-primary">{{ r.ref }}</td>
+          <td class="font-medium max-w-md truncate">{{ r.title }}</td>
+          <td class="text-xs">{{ r.direction }}</td>
+          <td>{% include "sentinel/components/status_badge.html" with status=r.status %}</td>
+          <td class="text-xs"><span class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium">{{ r.preuves_count }} fichier(s)</span></td>
+          <td class="px-4 text-right"><button hx-get="{% url 'audit_ext_reco_detail' r.id %}" hx-target="#detail-panel" class="text-xs text-primary hover:underline">Voir →</button></td>
+        </tr>
+        {% empty %}<tr><td colspan="6" class="px-4 py-8 text-center text-muted-foreground">Aucune recommandation dans votre périmètre.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div id="detail-panel"></div>
+</div>
+
+{% endblock %}

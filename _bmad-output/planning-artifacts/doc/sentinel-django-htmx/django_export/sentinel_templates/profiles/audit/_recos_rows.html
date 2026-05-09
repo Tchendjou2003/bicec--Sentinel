@@ -1,0 +1,11 @@
+{% for r in recommandations %}
+<tr class="border-b last:border-0 hover:bg-muted/30 transition-smooth">
+  <td class="px-4 py-3 font-mono text-xs text-primary font-semibold">{{ r.ref }}</td>
+  <td class="max-w-md"><p class="font-medium truncate">{{ r.title }}</p><p class="text-xs text-muted-foreground truncate">{{ r.description }}</p></td>
+  <td><span class="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium">{{ r.source }}</span></td>
+  <td class="text-xs">{{ r.direction }}</td>
+  <td class="text-xs whitespace-nowrap">{{ r.due_date }}{% if r.days_left and r.days_left < 7 %}<span class="ml-1 inline-flex items-center rounded-full bg-warning/10 text-warning px-2 py-0.5 text-[10px] font-bold">{{ r.days_left }}j</span>{% endif %}</td>
+  <td>{% include "sentinel/components/status_badge.html" with status=r.status %}</td>
+  <td class="px-4 text-right"><a href="{% url 'audit_recommandation_detail' r.id %}" class="text-xs text-primary hover:underline">Détails →</a></td>
+</tr>
+{% empty %}<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-muted-foreground">Aucune recommandation.</td></tr>{% endfor %}

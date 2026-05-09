@@ -1,0 +1,28 @@
+{% extends "sentinel/base/app_shell.html" %}
+{% block title %}Audit — Recommandations | SENTINEL{% endblock %}
+{% block sidebar %}{% include "sentinel/partials/sidebar_audit.html" with active_route="recommandations" %}{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6">
+  <div class="flex justify-between items-end">
+    <div><h2 class="text-2xl font-bold font-heading">Recommandations</h2><p class="text-sm text-muted-foreground">Pilotage complet du portefeuille de recommandations.</p></div>
+    <a href="{% url 'audit_import' %}" class="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Importer</a>
+  </div>
+
+  <div class="rounded-xl border bg-card p-4 shadow-premium-sm grid grid-cols-1 md:grid-cols-4 gap-3">
+    <input type="search" name="q" placeholder="Référence, mot-clé..." class="h-9 rounded-md border bg-background px-3 text-sm" hx-get="{% url 'audit_recos_table' %}" hx-trigger="keyup changed delay:300ms" hx-target="#recos-tbody" hx-include="[name='source'],[name='status'],[name='direction']" />
+    <select name="source" class="h-9 rounded-md border bg-background px-3 text-sm" hx-get="{% url 'audit_recos_table' %}" hx-trigger="change" hx-target="#recos-tbody" hx-include="[name='q'],[name='status'],[name='direction']"><option value="">Toutes sources</option><option>COBAC</option><option>BEAC</option><option>Audit Interne</option><option>Commissaire aux Comptes</option></select>
+    <select name="status" class="h-9 rounded-md border bg-background px-3 text-sm" hx-get="{% url 'audit_recos_table' %}" hx-trigger="change" hx-target="#recos-tbody" hx-include="[name='q'],[name='source'],[name='direction']"><option value="">Tous statuts</option><option value="ASSIGNED">Assignée</option><option value="IN_PROGRESS">En cours</option><option value="OVERDUE">En retard</option><option value="CLOSED">Clôturée</option></select>
+    <select name="direction" class="h-9 rounded-md border bg-background px-3 text-sm" hx-get="{% url 'audit_recos_table' %}" hx-trigger="change" hx-target="#recos-tbody" hx-include="[name='q'],[name='source'],[name='status']"><option value="">Toutes directions</option>{% for d in directions %}<option>{{ d }}</option>{% endfor %}</select>
+  </div>
+
+  <div class="rounded-xl border bg-card shadow-premium-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="text-left text-xs uppercase tracking-wider text-muted-foreground bg-muted/30 border-b"><tr><th class="px-4 py-3">Réf.</th><th>Titre</th><th>Source</th><th>Direction</th><th>Échéance</th><th>Statut</th><th class="px-4 text-right">Actions</th></tr></thead>
+      <tbody id="recos-tbody">{% include "sentinel/profiles/audit/_recos_rows.html" %}</tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

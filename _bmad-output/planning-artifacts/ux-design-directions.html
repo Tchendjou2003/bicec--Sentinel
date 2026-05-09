@@ -3,708 +3,969 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sentinel — Design Directions Showcase</title>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <title>Sentinel — Maquettes Interfaces (Stitch Design)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    /* ═══════════════════════════════════════════
+       SENTINEL DESIGN SYSTEM — PALETTE v3
+       Orange #E87722 + Brun #4A2C2A
+       ═══════════════════════════════════════════ */
     :root {
-      --bicec-yellow: #FAB50B;
-      --bicec-yellow-dark: #D89A0A;
-      --bicec-blue: #1A3A5C;
-      --bicec-blue-light: #2B5080;
-      --status-draft: #6B7280;
-      --status-pending: #06B6D4;
-      --status-approved: #10B981;
-      --status-rejected: #EF4444;
-      --status-overdue: #991B1B;
-      --surface-base: #F8F9FB;
+      /* ── Primary ── */
+      --sentinel-orange: #E87722;
+      --sentinel-orange-dark: #C9631A;
+      --sentinel-orange-light: #FFF3EB;
+      --sentinel-orange-100: #FDDCBF;
+      --sentinel-brown: #4A2C2A;
+      --sentinel-brown-light: #6B4A3A;
+      --sentinel-brown-dark: #3A1F1A;
+
+      /* ── Neutrals (Warm) ── */
+      --surface-base: #FAF7F4;
       --surface-card: #FFFFFF;
-      --border-subtle: #E5E7EB;
-      --text-primary: #111827;
-      --text-secondary: #6B7280;
+      --surface-warm: #F5EDE6;
+      --surface-hover: #F0E8E0;
+      --border-subtle: #E8DFD6;
+      --border-strong: #D1C4B8;
+      --text-primary: #2D1F1E;
+      --text-secondary: #8B7E74;
+      --text-muted: #B5A99E;
+
+      /* ── Semantic / Status ── */
+      --status-in-progress: #E87722;
+      --status-pending: #D4A843;
+      --status-approved: #2D8B56;
+      --status-rejected: #C93B3B;
+      --status-overdue: #991B1B;
+      --status-closed: #10B981;
+      --status-draft: #8B7E74;
+
+      /* ── Priority ── */
+      --priority-critical: #C93B3B;
+      --priority-high: #E87722;
+      --priority-medium: #D4A843;
+      --priority-low: #2D8B56;
+
+      /* ── Accents ── */
+      --accent-teal: #0D9488;
+      --accent-indigo: #6366F1;
     }
 
+    /* ═══════════════════════════════════════════
+       RESET & BASE
+       ═══════════════════════════════════════════ */
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Roboto', sans-serif; background: #0F172A; color: white; }
+    body { font-family: 'Inter', sans-serif; background: #1a1118; color: white; line-height: 1.5; }
 
-    /* Navigation */
+    /* ═══════════════════════════════════════════
+       SHOWCASE NAV
+       ═══════════════════════════════════════════ */
     .showcase-nav {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-      background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px);
-      border-bottom: 2px solid var(--bicec-yellow);
-      padding: 16px 32px; display: flex; align-items: center; gap: 24px;
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      background: rgba(26, 17, 24, 0.97); backdrop-filter: blur(16px);
+      border-bottom: 3px solid var(--sentinel-orange);
+      padding: 14px 32px; display: flex; align-items: center; gap: 20px;
     }
-    .showcase-nav h1 { font-size: 18px; font-weight: 700; color: var(--bicec-yellow); }
-    .showcase-nav .tabs { display: flex; gap: 8px; margin-left: auto; }
-    .showcase-nav .tab {
-      padding: 8px 20px; border-radius: 8px; cursor: pointer;
-      font-size: 13px; font-weight: 600; border: 1px solid rgba(255,255,255,0.15);
-      background: transparent; color: rgba(255,255,255,0.7); transition: all 0.3s;
+    .showcase-nav h1 {
+      font-size: 17px; font-weight: 800; color: var(--sentinel-orange);
+      letter-spacing: -0.3px;
     }
-    .showcase-nav .tab:hover { border-color: var(--bicec-yellow); color: white; }
-    .showcase-nav .tab.active { background: var(--bicec-yellow); color: var(--bicec-blue); border-color: var(--bicec-yellow); }
-
-    /* Sections */
-    .direction { display: none; padding: 100px 32px 48px; min-height: 100vh; }
-    .direction.active { display: block; }
-    .direction-header { text-align: center; margin-bottom: 48px; }
-    .direction-header h2 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
-    .direction-header p { font-size: 16px; color: rgba(255,255,255,0.6); max-width: 600px; margin: 0 auto; }
-    .direction-header .tag {
-      display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 11px;
-      font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;
+    .showcase-nav h1 span { color: var(--text-muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+    .showcase-tabs { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+    .showcase-tab {
+      padding: 7px 18px; border-radius: 8px; cursor: pointer;
+      font-size: 12px; font-weight: 600; border: 1px solid rgba(255,255,255,0.12);
+      background: transparent; color: rgba(255,255,255,0.55); transition: all 0.25s;
+      white-space: nowrap;
+    }
+    .showcase-tab:hover { border-color: var(--sentinel-orange); color: white; }
+    .showcase-tab.active {
+      background: var(--sentinel-orange); color: white;
+      border-color: var(--sentinel-orange); box-shadow: 0 2px 12px rgba(232,119,34,0.3);
     }
 
-    /* Mockup frame */
+    /* ═══════════════════════════════════════════
+       SECTION WRAPPERS
+       ═══════════════════════════════════════════ */
+    .screen { display: none; padding: 90px 32px 48px; min-height: 100vh; }
+    .screen.active { display: block; }
+    .screen-header { text-align: center; margin-bottom: 40px; }
+    .screen-header .tag {
+      display: inline-block; padding: 4px 14px; border-radius: 999px; font-size: 11px;
+      font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 12px;
+      background: rgba(232,119,34,0.12); color: var(--sentinel-orange);
+    }
+    .screen-header h2 { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .screen-header p { font-size: 15px; color: rgba(255,255,255,0.5); max-width: 560px; margin: 0 auto; }
+
     .mockup-frame {
       max-width: 1200px; margin: 0 auto; border-radius: 16px; overflow: hidden;
-      box-shadow: 0 25px 60px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.06);
     }
 
-    /* ==============================
-       DIRECTION 1 — CORPORATE FORTRESS
-       ============================== */
-    .d1-app { background: var(--surface-base); display: flex; height: 700px; }
-    .d1-sidebar {
-      width: 256px; background: var(--bicec-blue); color: white;
-      padding: 0; display: flex; flex-direction: column;
+    /* ═══════════════════════════════════════════
+       PALETTE SHOWCASE SECTION
+       ═══════════════════════════════════════════ */
+    .palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; max-width: 1200px; margin: 0 auto; }
+    .palette-swatch {
+      border-radius: 12px; overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
     }
-    .d1-sidebar-header {
-      padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,0.1);
-      display: flex; align-items: center; gap: 12px;
-    }
-    .d1-sidebar-header .logo {
-      width: 36px; height: 36px; background: var(--bicec-yellow); border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; color: var(--bicec-blue); font-size: 14px;
-    }
-    .d1-sidebar-header span { font-weight: 700; font-size: 15px; }
-    .d1-nav-items { padding: 16px 12px; flex: 1; }
-    .d1-nav-item {
-      padding: 10px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;
-      display: flex; align-items: center; gap: 12px; margin-bottom: 4px;
-      color: rgba(255,255,255,0.7); transition: all 0.2s;
-    }
-    .d1-nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
-    .d1-nav-item.active { background: rgba(250,181,11,0.15); color: var(--bicec-yellow); }
-    .d1-nav-item .badge {
-      margin-left: auto; background: var(--status-overdue); color: white;
-      font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
-      animation: pulse-border 2s infinite;
-    }
-    @keyframes pulse-border { 0%,100%{opacity:1} 50%{opacity:0.6} }
+    .palette-swatch .color-block { height: 64px; }
+    .palette-swatch .color-info { padding: 10px 12px; background: rgba(255,255,255,0.04); }
+    .palette-swatch .color-name { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+    .palette-swatch .color-hex { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: rgba(255,255,255,0.5); }
 
-    .d1-main { flex: 1; display: flex; flex-direction: column; }
-    .d1-topbar {
-      height: 64px; background: white; border-bottom: 1px solid var(--border-subtle);
-      padding: 0 32px; display: flex; align-items: center; justify-content: space-between;
-    }
-    .d1-topbar h3 { font-size: 20px; font-weight: 700; color: var(--text-primary); }
-    .d1-topbar .user-avatar {
-      width: 36px; height: 36px; background: var(--bicec-blue); border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      color: white; font-size: 13px; font-weight: 700;
-    }
-    .d1-content { flex: 1; padding: 24px 32px; overflow-y: auto; }
+    /* ═══════════════════════════════════════════
+       SHARED APP COMPONENTS
+       ═══════════════════════════════════════════ */
 
-    /* Cards */
-    .d1-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-    .d1-stat-card {
-      background: white; border-radius: 12px; padding: 20px; border: 1px solid var(--border-subtle);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    /* ── Sidebar (ETP Style) ── */
+    .app-sidebar {
+      width: 200px; background: var(--surface-card); border-right: 1px solid var(--border-subtle);
+      display: flex; flex-direction: column; padding: 0; flex-shrink: 0;
     }
-    .d1-stat-card .label { font-size: 12px; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
-    .d1-stat-card .value { font-size: 28px; font-weight: 700; color: var(--text-primary); margin-top: 4px; }
-    .d1-stat-card .delta { font-size: 12px; margin-top: 4px; font-weight: 600; }
-    .d1-stat-card .delta.danger { color: var(--status-overdue); }
-    .d1-stat-card .delta.success { color: var(--status-approved); }
+    .sidebar-brand {
+      padding: 20px 16px; border-bottom: 1px solid var(--border-subtle);
+    }
+    .sidebar-brand .brand-name {
+      font-size: 14px; font-weight: 800; color: var(--sentinel-orange);
+      text-transform: uppercase; letter-spacing: 0.3px; line-height: 1.2;
+    }
+    .sidebar-brand .brand-sub {
+      font-size: 9px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 1px; margin-top: 2px;
+    }
+    .sidebar-nav { padding: 12px 8px; flex: 1; }
+    .sidebar-item {
+      padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 500;
+      color: var(--text-secondary); display: flex; align-items: center; gap: 10px;
+      cursor: pointer; transition: all 0.2s; margin-bottom: 2px;
+    }
+    .sidebar-item:hover { background: var(--surface-warm); color: var(--text-primary); }
+    .sidebar-item.active { color: var(--sentinel-orange); font-weight: 700; }
+    .sidebar-item .icon { font-size: 16px; width: 20px; text-align: center; }
+    .sidebar-footer {
+      padding: 12px 8px; border-top: 1px solid var(--border-subtle);
+    }
+    .sidebar-footer .sidebar-item { font-size: 12px; }
 
-    /* Table */
-    .d1-table-card {
-      background: white; border-radius: 12px; border: 1px solid var(--border-subtle);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04); overflow: hidden;
+    /* ── Top Navbar ── */
+    .app-topbar {
+      height: 52px; background: var(--surface-card); border-bottom: 1px solid var(--border-subtle);
+      padding: 0 24px; display: flex; align-items: center; gap: 16px;
     }
-    .d1-table-header {
-      padding: 16px 24px; border-bottom: 1px solid var(--border-subtle);
-      display: flex; align-items: center; justify-content: space-between;
+    .topbar-logo { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+    .topbar-breadcrumb { font-size: 13px; color: var(--text-secondary); }
+    .topbar-breadcrumb .current { color: var(--sentinel-orange); font-weight: 600; }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+    .topbar-right .notif {
+      width: 32px; height: 32px; border-radius: 50%; background: var(--surface-warm);
+      display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer;
+      position: relative;
     }
-    .d1-table-header h4 { font-size: 16px; font-weight: 700; color: var(--text-primary); }
-    .d1-table-header .btn-primary {
-      padding: 8px 20px; background: var(--bicec-yellow); color: var(--bicec-blue);
-      border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
-      transition: background 0.2s;
+    .topbar-right .notif-dot {
+      position: absolute; top: 2px; right: 2px; width: 8px; height: 8px;
+      background: var(--sentinel-orange); border-radius: 50%; border: 2px solid white;
     }
-    .d1-table-header .btn-primary:hover { background: var(--bicec-yellow-dark); }
-    table { width: 100%; border-collapse: collapse; }
-    th { text-align: left; padding: 12px 24px; font-size: 11px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border-subtle); }
-    td { padding: 14px 24px; font-size: 14px; color: var(--text-primary); border-bottom: 1px solid var(--border-subtle); }
-    tr:hover td { background: #F9FAFB; }
-
-    /* Status badges */
-    .badge-draft { background: #F3F4F6; color: #374151; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-    .badge-pending { background: #ECFEFF; color: #155E75; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-    .badge-approved { background: #10B981; color: white; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-    .badge-rejected { background: #FEF2F2; color: #B91C1C; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-    .badge-overdue {
-      background: #991B1B; color: white; padding: 4px 12px; border-radius: 999px;
-      font-size: 11px; font-weight: 700; border: 2px solid #FCA5A5;
-      animation: pulse-border 2s infinite;
+    .topbar-right .user-badge {
+      display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--text-primary);
+    }
+    .topbar-right .avatar {
+      width: 32px; height: 32px; border-radius: 50%; background: var(--sentinel-brown);
+      color: white; display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
     }
 
-    /* ==============================
-       DIRECTION 2 — SPLIT-SCREEN VALIDATOR
-       ============================== */
-    .d2-app { background: var(--surface-base); height: 700px; display: flex; flex-direction: column; }
-    .d2-topnav {
-      height: 56px; background: var(--bicec-blue); display: flex; align-items: center;
-      padding: 0 24px; gap: 24px;
+    /* ── Status Badges ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 999px; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
     }
-    .d2-topnav .logo { color: var(--bicec-yellow); font-weight: 700; font-size: 16px; }
-    .d2-topnav .nav-links { display: flex; gap: 4px; margin-left: 32px; }
-    .d2-topnav .nav-link {
-      padding: 8px 16px; border-radius: 6px; color: rgba(255,255,255,0.7);
-      font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;
-    }
-    .d2-topnav .nav-link:hover { color: white; background: rgba(255,255,255,0.08); }
-    .d2-topnav .nav-link.active { color: var(--bicec-yellow); background: rgba(250,181,11,0.12); }
+    .badge-in-progress { background: var(--sentinel-orange-light); color: var(--sentinel-orange); }
+    .badge-critical { background: #FEE2E2; color: var(--priority-critical); }
+    .badge-high { background: var(--sentinel-orange-light); color: var(--sentinel-orange); }
+    .badge-medium { background: #FEF9E7; color: #92700C; }
+    .badge-overdue { background: #991B1B; color: white; animation: pulse-glow 2s infinite; }
+    .badge-pending { background: #FEF9E7; color: #92700C; }
+    .badge-accepted { background: #D1FAE5; color: #065F46; }
+    .badge-rejected { background: #FEE2E2; color: #991B1B; }
+    .badge-closed { background: #D1FAE5; color: #065F46; }
 
-    .d2-split { flex: 1; display: flex; overflow: hidden; }
-    .d2-left {
-      width: 35%; background: white; border-right: 1px solid var(--border-subtle);
-      padding: 24px; overflow-y: auto;
-    }
-    .d2-left .reco-badge { font-size: 11px; font-weight: 700; color: var(--bicec-blue); background: #EFF6FF; padding: 4px 10px; border-radius: 6px; display: inline-block; margin-bottom: 12px; }
-    .d2-left h3 { font-size: 18px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
-    .d2-left .meta { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; }
-    .d2-left .field { margin-bottom: 16px; }
-    .d2-left .field-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-    .d2-left .field-value { font-size: 14px; color: var(--text-primary); line-height: 1.5; }
+    @keyframes pulse-glow { 0%,100%{opacity:1} 50%{opacity:0.7} }
 
-    .d2-right {
-      flex: 1; background: #F1F5F9; display: flex; flex-direction: column;
-    }
-    .d2-pdf-header {
-      padding: 12px 24px; background: white; border-bottom: 1px solid var(--border-subtle);
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .d2-pdf-header span { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
-    .d2-pdf-body {
-      flex: 1; display: flex; align-items: center; justify-content: center;
-      background: repeating-linear-gradient(0deg, transparent, transparent 24px, #E2E8F0 24px, #E2E8F0 25px);
-    }
-    .d2-pdf-placeholder {
-      width: 80%; height: 85%; background: white; border-radius: 4px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.1); display: flex;
-      align-items: center; justify-content: center; flex-direction: column;
-      color: var(--text-secondary);
-    }
-    .d2-pdf-placeholder .icon { font-size: 48px; margin-bottom: 12px; }
-    .d2-pdf-placeholder p { font-size: 14px; }
-
-    .d2-action-bar {
-      padding: 16px 24px; background: white; border-top: 2px solid var(--border-subtle);
-      display: flex; align-items: center; justify-content: flex-end; gap: 16px;
-    }
-    .d2-btn-reject {
-      padding: 14px 32px; background: #FEF2F2; color: #B91C1C; border: 2px solid #FECACA;
-      border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s;
-    }
-    .d2-btn-reject:hover { background: #FEE2E2; border-color: #FCA5A5; }
-    .d2-btn-accept {
-      padding: 14px 40px; background: var(--status-approved); color: white; border: none;
-      border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s;
-      box-shadow: 0 2px 8px rgba(16,185,129,0.3);
-    }
-    .d2-btn-accept:hover { background: #059669; }
-
-    /* ==============================
-       DIRECTION 3 — DATA-GRID POWER USER
-       ============================== */
-    .d3-app { background: var(--surface-base); height: 700px; display: flex; flex-direction: column; }
-    .d3-topnav {
-      height: 48px; background: var(--bicec-blue); display: flex; align-items: center;
-      padding: 0 20px; gap: 16px;
-    }
-    .d3-topnav .logo { color: var(--bicec-yellow); font-weight: 700; font-size: 14px; }
-    .d3-topnav .breadcrumb { color: rgba(255,255,255,0.5); font-size: 12px; }
-    .d3-topnav .breadcrumb .current { color: white; font-weight: 600; }
-    .d3-topnav .shortcut-hint {
-      margin-left: auto; font-size: 11px; color: rgba(255,255,255,0.4);
-      display: flex; align-items: center; gap: 8px;
-    }
-    .d3-topnav .kbd {
-      background: rgba(255,255,255,0.12); padding: 2px 6px; border-radius: 4px;
-      font-family: 'JetBrains Mono', monospace; font-size: 11px;
-    }
-
-    .d3-toolbar {
-      padding: 12px 24px; background: white; border-bottom: 1px solid var(--border-subtle);
-      display: flex; align-items: center; gap: 12px;
-    }
-    .d3-toolbar .filter-btn {
-      padding: 6px 14px; border: 1px solid var(--border-subtle); border-radius: 6px;
-      font-size: 12px; font-weight: 500; cursor: pointer; background: white;
-      color: var(--text-secondary); transition: all 0.2s;
-    }
-    .d3-toolbar .filter-btn:hover { border-color: var(--bicec-blue); color: var(--bicec-blue); }
-    .d3-toolbar .filter-btn.active { background: var(--bicec-blue); color: white; border-color: var(--bicec-blue); }
-    .d3-toolbar .action-group { margin-left: auto; display: flex; gap: 8px; }
-    .d3-toolbar .btn-bulk {
-      padding: 6px 16px; background: var(--bicec-yellow); color: var(--bicec-blue);
-      border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;
-    }
-
-    .d3-grid { flex: 1; overflow: auto; }
-    .d3-grid table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .d3-grid th {
-      text-align: left; padding: 8px 16px; font-size: 11px; color: var(--text-secondary);
-      font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
-      background: #F9FAFB; border-bottom: 2px solid var(--border-subtle);
-      position: sticky; top: 0; z-index: 1;
-    }
-    .d3-grid td {
-      padding: 10px 16px; border-bottom: 1px solid var(--border-subtle);
-      color: var(--text-primary);
-    }
-    .d3-grid tr:hover td { background: #FFFBEB; }
-    .d3-grid .cell-editable {
-      border: 1px dashed transparent; padding: 4px 8px; border-radius: 4px;
-      transition: border-color 0.2s;
-    }
-    .d3-grid tr:hover .cell-editable { border-color: var(--bicec-yellow); cursor: text; }
-    .d3-grid .cell-error {
-      background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 4px;
-      padding: 4px 8px; color: var(--status-rejected);
-    }
-    .d3-grid .row-checkbox { width: 16px; height: 16px; accent-color: var(--bicec-yellow); }
-    .d3-statusbar {
-      padding: 8px 24px; background: var(--bicec-blue); color: rgba(255,255,255,0.7);
-      font-size: 11px; display: flex; align-items: center; gap: 24px;
-    }
-    .d3-statusbar .count { color: var(--bicec-yellow); font-weight: 700; }
-
-    /* ==============================
-       DIRECTION 4 — DG EXECUTIVE VIEW
-       ============================== */
-    .d4-app { background: var(--surface-base); height: 700px; display: flex; flex-direction: column; }
-    .d4-topnav {
-      height: 56px; background: white; border-bottom: 1px solid var(--border-subtle);
-      display: flex; align-items: center; padding: 0 32px;
-    }
-    .d4-topnav .logo { font-weight: 700; font-size: 16px; color: var(--bicec-blue); }
-    .d4-topnav .logo span { color: var(--bicec-yellow); }
-    .d4-topnav .date-range {
-      margin-left: auto; padding: 6px 16px; border: 1px solid var(--border-subtle);
-      border-radius: 8px; font-size: 13px; color: var(--text-secondary);
-    }
-
-    .d4-content { flex: 1; padding: 24px 32px; overflow-y: auto; }
-
-    .d4-hero {
-      background: linear-gradient(135deg, var(--bicec-blue), #2B5080);
-      border-radius: 16px; padding: 32px; color: white; margin-bottom: 24px;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .d4-hero h2 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
-    .d4-hero p { font-size: 14px; opacity: 0.7; }
-    .d4-hero .score {
-      font-size: 56px; font-weight: 700; color: var(--bicec-yellow);
-      line-height: 1;
-    }
-    .d4-hero .score-label { font-size: 12px; opacity: 0.6; text-align: center; }
-
-    .d4-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
-    .d4-card {
-      background: white; border-radius: 12px; padding: 24px;
+    /* ── Cards ── */
+    .card {
+      background: var(--surface-card); border-radius: 12px;
       border: 1px solid var(--border-subtle); box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
-    .d4-card h4 { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 16px; }
-    .d4-risk-item {
-      display: flex; align-items: center; gap: 12px; padding: 12px 0;
+    .card-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-header h3 { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+    .card-header .icon { font-size: 18px; }
+    .card-body { padding: 20px; }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 10px 24px; border-radius: 8px; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: all 0.2s; border: none; display: inline-flex;
+      align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-primary {
+      background: var(--sentinel-orange); color: white;
+      box-shadow: 0 2px 8px rgba(232,119,34,0.25);
+    }
+    .btn-primary:hover { background: var(--sentinel-orange-dark); }
+    .btn-secondary {
+      background: transparent; color: var(--text-primary);
+      border: 1.5px solid var(--border-strong);
+    }
+    .btn-secondary:hover { background: var(--surface-warm); }
+    .btn-danger {
+      background: transparent; color: var(--status-rejected);
+      border: 1.5px solid #FCA5A5;
+    }
+    .btn-danger:hover { background: #FEF2F2; }
+    .btn-success {
+      background: var(--text-primary); color: white;
+    }
+    .btn-success:hover { background: var(--sentinel-brown); }
+    .btn-lg { padding: 14px 32px; font-size: 14px; }
+
+    /* ═══════════════════════════════════════════
+       SCREEN 1 — ETP MA TO-DO LIST
+       ═══════════════════════════════════════════ */
+    .s1-app { background: var(--surface-base); display: flex; height: 820px; }
+    .s1-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .s1-content { flex: 1; padding: 0; overflow-y: auto; }
+
+    .s1-alert-banner {
+      background: #FEF2F2; border-bottom: 1px solid #FECACA;
+      padding: 12px 24px; display: flex; align-items: center; gap: 12px;
+      font-size: 14px; font-weight: 600; color: var(--status-overdue);
+    }
+    .s1-alert-banner .alert-icon { font-size: 18px; }
+    .s1-alert-banner .alert-count { font-weight: 800; }
+    .s1-alert-banner .alert-btn {
+      margin-left: auto; padding: 6px 16px; border: 1.5px solid var(--status-overdue);
+      border-radius: 6px; background: white; color: var(--status-overdue);
+      font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+
+    .s1-page { padding: 28px 28px; }
+    .s1-page h1 { font-size: 28px; font-weight: 800; color: var(--text-primary); margin-bottom: 4px; }
+    .s1-page .subtitle { font-size: 13px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; margin-bottom: 24px; }
+
+    .s1-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+    .s1-kpi {
+      background: white; border-radius: 12px; padding: 20px; border: 1px solid var(--border-subtle);
+      border-left: 4px solid var(--border-subtle); position: relative;
+    }
+    .s1-kpi.orange { border-left-color: var(--sentinel-orange); }
+    .s1-kpi.red { border-left-color: var(--status-overdue); }
+    .s1-kpi .kpi-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; }
+    .s1-kpi .kpi-value { font-size: 36px; font-weight: 800; color: var(--text-primary); margin-top: 4px; }
+    .s1-kpi.orange .kpi-value { color: var(--sentinel-orange); }
+    .s1-kpi.red .kpi-value { color: var(--status-overdue); }
+
+    .s1-table { width: 100%; border-collapse: collapse; }
+    .s1-table thead th {
+      text-align: left; padding: 10px 16px; font-size: 10px; font-weight: 700;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;
       border-bottom: 1px solid var(--border-subtle);
     }
-    .d4-risk-item:last-child { border-bottom: none; }
-    .d4-risk-item .dept { font-size: 14px; font-weight: 600; color: var(--text-primary); flex: 1; }
-    .d4-risk-item .count { font-size: 13px; font-weight: 700; }
-    .d4-risk-item .count.critical { color: var(--status-overdue); }
-    .d4-risk-item .count.warning { color: #D97706; }
-    .d4-risk-item .count.ok { color: var(--status-approved); }
-    .d4-risk-bar {
-      height: 6px; border-radius: 3px; background: #F3F4F6; width: 120px; overflow: hidden;
+    .s1-table tbody td {
+      padding: 16px 16px; border-bottom: 1px solid var(--border-subtle);
+      font-size: 14px; color: var(--text-primary); vertical-align: top;
     }
-    .d4-risk-bar .fill { height: 100%; border-radius: 3px; }
+    .s1-table tbody tr:hover td { background: var(--surface-warm); }
+    .s1-reco-title { font-weight: 600; margin-bottom: 2px; }
+    .s1-reco-ref { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+    .s1-source-name { font-size: 13px; font-weight: 500; }
+    .s1-source-author { font-size: 11px; color: var(--text-muted); }
+    .s1-deadline { font-size: 13px; font-weight: 600; }
+    .s1-deadline.overdue { color: var(--status-overdue); }
+    .s1-deadline-sub { font-size: 11px; color: var(--text-muted); }
+    .s1-deadline-sub.overdue { color: var(--status-overdue); }
 
-    .d4-timeline-item {
-      padding: 10px 0; border-bottom: 1px solid var(--border-subtle);
-      display: flex; align-items: flex-start; gap: 12px;
+    .btn-action-orange {
+      padding: 8px 20px; background: var(--sentinel-orange); color: white;
+      border: none; border-radius: 6px; font-size: 12px; font-weight: 700;
+      cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;
     }
-    .d4-timeline-item:last-child { border-bottom: none; }
-    .d4-timeline-dot {
-      width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0;
+    .btn-action-ghost {
+      padding: 8px 20px; background: transparent; color: var(--sentinel-orange);
+      border: none; font-size: 12px; font-weight: 700;
+      cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;
     }
-    .d4-timeline-item .text { font-size: 13px; color: var(--text-primary); line-height: 1.4; }
-    .d4-timeline-item .time { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 
-    /* Responsive */
-    @media (max-width: 900px) {
-      .mockup-frame { margin: 0 16px; }
-      .d1-stats { grid-template-columns: repeat(2, 1fr); }
+    .s1-pagination { padding: 12px 16px; font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .s1-cta-card {
+      background: linear-gradient(135deg, var(--sentinel-brown) 0%, var(--sentinel-brown-light) 100%);
+      border-radius: 16px; padding: 28px; color: white; margin-top: 24px;
+      display: flex; align-items: center; gap: 20px; position: relative; overflow: hidden;
+    }
+    .s1-cta-card .cta-icon { font-size: 36px; opacity: 0.9; }
+    .s1-cta-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .s1-cta-card p { font-size: 13px; opacity: 0.7; }
+    .s1-cta-card .cta-link { font-size: 13px; font-weight: 700; color: var(--sentinel-orange); text-decoration: underline; margin-top: 8px; display: inline-block; cursor: pointer; }
+
+    /* ═══════════════════════════════════════════
+       SCREEN 2 — ETP DETAIL RECOMMANDATION
+       ═══════════════════════════════════════════ */
+    .s2-app { background: var(--surface-base); display: flex; height: 900px; }
+    .s2-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .s2-content { flex: 1; padding: 24px; overflow-y: auto; display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-content: start; }
+
+    .s2-header { grid-column: 1 / -1; }
+    .s2-header h1 { font-size: 24px; font-weight: 800; color: var(--text-primary); margin-bottom: 8px; line-height: 1.3; }
+    .s2-badges { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+    .s2-ref { font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+
+    .s2-meta-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+      border: 1px solid var(--border-subtle); border-radius: 8px; overflow: hidden; margin-bottom: 16px;
+    }
+    .s2-meta-item {
+      padding: 12px 16px; background: white; border-right: 1px solid var(--border-subtle);
+    }
+    .s2-meta-item:last-child { border-right: none; }
+    .s2-meta-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .s2-meta-value { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .s2-meta-value.orange { color: var(--sentinel-orange); }
+
+    .s2-description { font-size: 14px; color: var(--text-primary); line-height: 1.7; margin-bottom: 16px; }
+    .s2-attention { font-size: 14px; color: var(--text-primary); }
+    .s2-attention strong { font-weight: 700; }
+
+    /* ── Right Panel: Centre de Preuves ── */
+    .s2-proof-panel { grid-row: 2 / 5; }
+    .proof-textarea {
+      width: 100%; min-height: 80px; border: 1px solid var(--border-subtle); border-radius: 8px;
+      padding: 12px; font-family: 'Inter', sans-serif; font-size: 13px; resize: vertical;
+      color: var(--text-primary); margin-bottom: 16px;
+    }
+    .proof-textarea::placeholder { color: var(--text-muted); }
+    .proof-textarea:focus { outline: none; border-color: var(--sentinel-orange); box-shadow: 0 0 0 3px rgba(232,119,34,0.1); }
+
+    .proof-dropzone {
+      border: 2px dashed var(--border-strong); border-radius: 12px;
+      padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s;
+      background: var(--surface-warm); margin-bottom: 16px;
+    }
+    .proof-dropzone:hover { border-color: var(--sentinel-orange); background: var(--sentinel-orange-light); }
+    .proof-dropzone .drop-icon { font-size: 32px; margin-bottom: 8px; color: var(--sentinel-orange); }
+    .proof-dropzone .drop-text { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .proof-dropzone .drop-hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .proof-file {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border: 1px solid var(--border-subtle); border-radius: 8px; margin-bottom: 8px;
+      background: white;
+    }
+    .proof-file .file-icon { font-size: 24px; }
+    .proof-file .file-info { flex: 1; }
+    .proof-file .file-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .proof-file .file-meta { font-size: 11px; color: var(--text-muted); }
+    .proof-file .file-delete { color: var(--text-muted); cursor: pointer; font-size: 16px; }
+
+    .proof-note {
+      display: flex; gap: 8px; padding: 10px 12px; background: #F0F7FF;
+      border-radius: 8px; font-size: 11px; color: #1E40AF; margin-top: 16px;
+    }
+    .proof-note .note-icon { font-size: 14px; flex-shrink: 0; }
+
+    /* ── History Section ── */
+    .s2-timeline { }
+    .timeline-item {
+      display: flex; gap: 12px; padding: 16px; border-left: 3px solid var(--border-subtle);
+      margin-left: 8px; position: relative;
+    }
+    .timeline-item::before {
+      content: ''; position: absolute; left: -7px; top: 20px;
+      width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong);
+      border: 2px solid white;
+    }
+    .timeline-item.rejected { border-left-color: var(--status-rejected); }
+    .timeline-item.rejected::before { background: var(--status-rejected); }
+    .timeline-item.info { border-left-color: var(--accent-indigo); }
+    .timeline-item.info::before { background: var(--accent-indigo); }
+
+    .timeline-badge { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+    .timeline-badge.rejected { color: var(--status-rejected); }
+    .timeline-badge.info { color: var(--accent-indigo); }
+    .timeline-date { font-size: 11px; color: var(--text-muted); margin-left: 12px; }
+    .timeline-text { font-size: 13px; color: var(--text-secondary); margin-top: 6px; font-style: italic; line-height: 1.5; }
+    .timeline-author { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ═══════════════════════════════════════════
+       SCREEN 3 — ETP HISTORIQUE DES PREUVES
+       ═══════════════════════════════════════════ */
+    .s3-app { background: var(--surface-base); display: flex; height: 900px; }
+    .s3-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .s3-content { flex: 1; padding: 28px; overflow-y: auto; }
+
+    .s3-header h1 { font-size: 24px; font-weight: 800; color: var(--text-primary); margin-bottom: 4px; }
+    .s3-header p { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; }
+
+    .s3-filters {
+      display: flex; gap: 16px; align-items: flex-end; margin-bottom: 24px;
+      padding: 20px; background: white; border-radius: 12px; border: 1px solid var(--border-subtle);
+    }
+    .s3-filter-group { flex: 1; }
+    .s3-filter-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .s3-filter-input {
+      width: 100%; padding: 10px 14px; border: 1px solid var(--border-subtle); border-radius: 8px;
+      font-size: 13px; color: var(--text-primary); background: white; font-family: 'Inter', sans-serif;
+    }
+    .s3-filter-input:focus { outline: none; border-color: var(--sentinel-orange); }
+    .s3-filter-extra {
+      padding: 8px 14px; border: 1px solid var(--border-subtle); border-radius: 8px;
+      font-size: 12px; font-weight: 500; color: var(--text-secondary); background: white;
+      cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;
+    }
+
+    .s3-table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-subtle); }
+    .s3-table thead th {
+      text-align: left; padding: 14px 16px; font-size: 10px; font-weight: 700;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;
+      border-bottom: 1px solid var(--border-subtle); background: var(--surface-warm);
+    }
+    .s3-table tbody td {
+      padding: 18px 16px; border-bottom: 1px solid var(--border-subtle);
+      font-size: 13px; color: var(--text-primary); vertical-align: top;
+    }
+    .s3-table tbody tr:hover td { background: var(--sentinel-orange-light); }
+
+    .s3-file-link { display: flex; align-items: center; gap: 6px; color: var(--sentinel-orange); font-weight: 600; font-size: 13px; }
+    .s3-feedback { font-size: 12px; color: var(--text-secondary); font-style: italic; line-height: 1.5; max-width: 180px; }
+    .s3-feedback.rejected { color: var(--status-rejected); border-left: 2px solid var(--status-rejected); padding-left: 8px; }
+
+    .s3-pagination { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; }
+    .s3-pagination .info { font-size: 12px; color: var(--text-muted); }
+    .s3-page-btns { display: flex; gap: 4px; }
+    .s3-page-btn {
+      width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border-subtle);
+      background: white; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text-primary);
+    }
+    .s3-page-btn.active { background: var(--sentinel-brown); color: white; border-color: var(--sentinel-brown); }
+
+    .s3-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 24px; }
+    .s3-kpi { border-radius: 12px; padding: 24px; }
+    .s3-kpi.primary { background: var(--sentinel-orange); color: white; }
+    .s3-kpi.primary .kpi-value { font-size: 32px; font-weight: 800; }
+    .s3-kpi.primary .kpi-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.85; }
+    .s3-kpi.primary .kpi-delta { font-size: 12px; opacity: 0.75; margin-top: 4px; }
+    .s3-kpi.secondary { background: white; border: 1px solid var(--border-subtle); }
+    .s3-kpi.secondary .kpi-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+    .s3-kpi.secondary .kpi-value { font-size: 28px; font-weight: 800; color: var(--text-primary); margin-top: 4px; }
+    .s3-kpi.secondary .kpi-delta { font-size: 12px; color: var(--sentinel-orange); margin-top: 4px; }
+    .s3-kpi.secondary .kpi-delta.red { color: var(--status-rejected); }
+
+    /* ═══════════════════════════════════════════
+       SCREEN 4 — AUDIT INTERNE DETAIL
+       ═══════════════════════════════════════════ */
+    .s4-app { background: var(--surface-base); display: flex; flex-direction: column; height: 920px; }
+
+    /* Audit sidebar is different */
+    .s4-layout { display: flex; flex: 1; overflow: hidden; }
+    .s4-sidebar {
+      width: 220px; background: white; border-right: 1px solid var(--border-subtle);
+      display: flex; flex-direction: column; padding: 0; flex-shrink: 0;
+    }
+    .s4-sidebar-brand {
+      padding: 24px 20px; font-size: 18px; font-weight: 800; color: var(--text-primary);
+      letter-spacing: -0.5px;
+    }
+    .s4-sidebar-nav { padding: 0 10px; flex: 1; }
+    .s4-nav-item {
+      padding: 12px 14px; border-radius: 8px; font-size: 14px; font-weight: 500;
+      color: var(--text-secondary); display: flex; align-items: center; gap: 12px;
+      cursor: pointer; margin-bottom: 2px; transition: all 0.2s;
+    }
+    .s4-nav-item:hover { background: var(--surface-warm); }
+    .s4-nav-item.active { color: var(--sentinel-orange); font-weight: 700; }
+    .s4-nav-item .nav-icon { font-size: 18px; width: 24px; text-align: center; }
+
+    .s4-sidebar-footer {
+      padding: 16px 14px; border-top: 1px solid var(--border-subtle);
+    }
+    .s4-sidebar-user {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .s4-sidebar-user .user-avatar {
+      width: 36px; height: 36px; border-radius: 50%; background: var(--surface-warm);
+      font-size: 18px; display: flex; align-items: center; justify-content: center;
+    }
+    .s4-sidebar-user .user-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .s4-sidebar-user .user-role { font-size: 11px; color: var(--text-muted); }
+
+    .s4-topbar {
+      height: 52px; background: var(--surface-card); border-bottom: 1px solid var(--border-subtle);
+      padding: 0 28px; display: flex; align-items: center;
+    }
+    .s4-search {
+      display: flex; align-items: center; gap: 8px; padding: 8px 16px;
+      background: var(--surface-warm); border-radius: 8px; font-size: 13px; color: var(--text-muted);
+      border: 1px solid var(--border-subtle); flex: 0 0 340px;
+    }
+
+    .s4-main { flex: 1; overflow-y: auto; padding: 24px 28px; }
+    .s4-main-grid { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-content: start; }
+
+    .s4-ref-badges { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .s4-ref { font-size: 13px; font-weight: 600; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; }
+    .s4-title { font-size: 26px; font-weight: 800; color: var(--text-primary); line-height: 1.3; margin-bottom: 16px; }
+
+    .s4-actions { display: flex; gap: 12px; }
+
+    .s4-info-card { background: white; border-radius: 12px; border: 1px solid var(--border-subtle); padding: 24px; }
+    .s4-field-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .s4-field-value { font-size: 14px; color: var(--text-primary); line-height: 1.7; }
+    .s4-field-row { display: flex; gap: 32px; margin-top: 20px; }
+
+    /* Assignations panel */
+    .s4-assign-card {
+      background: white; border-radius: 12px; border: 1px solid var(--border-subtle);
+      padding: 20px; grid-row: 1 / 3;
+    }
+    .s4-assign-item {
+      padding: 12px; border-radius: 8px; background: var(--surface-warm);
+      margin-bottom: 10px;
+    }
+    .s4-assign-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+    .s4-assign-value { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+
+    .s4-user-row { display: flex; align-items: center; gap: 10px; }
+    .s4-user-avatar {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--sentinel-orange-light);
+      display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+
+    /* Proof & Audit Trail bottom section */
+    .s4-bottom-grid { display: grid; grid-template-columns: 1fr 300px; gap: 24px; margin-top: 24px; }
+    .s4-proof-item {
+      display: flex; align-items: center; gap: 12px; padding: 14px;
+      border: 1px solid var(--border-subtle); border-radius: 10px; margin-bottom: 8px;
+      background: white;
+    }
+    .s4-proof-icon { font-size: 28px; }
+    .s4-proof-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .s4-proof-meta { font-size: 11px; color: var(--text-muted); }
+    .s4-proof-dl { margin-left: auto; font-size: 18px; color: var(--text-muted); cursor: pointer; }
+
+    .s4-trail-item {
+      display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-subtle);
+      position: relative; padding-left: 24px;
+    }
+    .s4-trail-item:last-child { border-bottom: none; }
+    .s4-trail-item::before {
+      content: ''; position: absolute; left: 4px; top: 16px;
+      width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong);
+    }
+    .s4-trail-item::after {
+      content: ''; position: absolute; left: 8px; top: 28px; bottom: -2px;
+      width: 2px; background: var(--border-subtle);
+    }
+    .s4-trail-item:last-child::after { display: none; }
+    .s4-trail-item.important::before { background: var(--sentinel-orange); }
+    .s4-trail-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .s4-trail-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .s4-trail-quote { font-size: 12px; font-style: italic; color: var(--text-secondary); margin-top: 4px; border-left: 2px solid var(--sentinel-orange); padding-left: 8px; }
+
+    .s4-footer-bar {
+      padding: 14px 28px; background: white; border-top: 1px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .s4-footer-note { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+    .s4-footer-note strong { color: var(--text-primary); }
+
+    .s4-page-footer {
+      padding: 12px 28px; background: var(--surface-warm); border-top: 1px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px; color: var(--text-muted);
+    }
+
+    /* ═══════════════════════════════════════════
+       RESPONSIVE
+       ═══════════════════════════════════════════ */
+    @media (max-width: 1000px) {
+      .mockup-frame { margin: 0 12px; }
+      .showcase-tabs { gap: 4px; }
+      .showcase-tab { padding: 6px 12px; font-size: 11px; }
     }
   </style>
 </head>
 <body>
 
+  <!-- ══════════════════════════════════════════════════
+       SHOWCASE NAVIGATION
+       ══════════════════════════════════════════════════ -->
   <nav class="showcase-nav">
-    <h1>⚡ SENTINEL — Design Directions</h1>
-    <div class="tabs">
-      <div class="tab active" onclick="showDirection(0)">① Corporate Fortress</div>
-      <div class="tab" onclick="showDirection(1)">② Split-Screen Validator</div>
-      <div class="tab" onclick="showDirection(2)">③ Data-Grid Power</div>
-      <div class="tab" onclick="showDirection(3)">④ Executive DG</div>
+    <h1>SENTINEL <span>— Maquettes Stitch v3</span></h1>
+    <div class="showcase-tabs">
+      <div class="showcase-tab" onclick="showScreen(0)">🎨 Palette</div>
+      <div class="showcase-tab active" onclick="showScreen(1)">① To-Do List (ETP)</div>
+      <div class="showcase-tab" onclick="showScreen(2)">② Détail Reco (ETP)</div>
+      <div class="showcase-tab" onclick="showScreen(3)">③ Historique Preuves</div>
+      <div class="showcase-tab" onclick="showScreen(4)">④ Détail Audit</div>
     </div>
   </nav>
 
-  <!-- DIRECTION 1: Corporate Fortress (Dashboard DM) -->
-  <section class="direction active">
-    <div class="direction-header">
-      <div class="tag" style="background:rgba(250,181,11,0.15); color:var(--bicec-yellow);">Direction 1</div>
-      <h2>Corporate Fortress</h2>
-      <p>Sidebar permanente Bleu BICEC, dashboard statistique avec alertes OVERDUE pulsantes. Vision "Tableau de bord DM".</p>
+  <!-- ══════════════════════════════════════════════════
+       PALETTE SHOWCASE
+       ══════════════════════════════════════════════════ -->
+  <section class="screen">
+    <div class="screen-header">
+      <div class="tag">Design System</div>
+      <h2>Palette Chromatique Sentinel v3</h2>
+      <p>Fondée sur le binôme Orange #E87722 + Brun #4A2C2A, complétée par des neutres chauds pour le confort visuel.</p>
+    </div>
+
+    <h3 style="text-align:center; color:var(--sentinel-orange); font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:2px; margin-bottom:16px;">Couleurs Primaires</h3>
+    <div class="palette-grid" style="margin-bottom:32px;">
+      <div class="palette-swatch"><div class="color-block" style="background:#E87722;"></div><div class="color-info"><div class="color-name">Orange Sentinel</div><div class="color-hex">#E87722</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#C9631A;"></div><div class="color-info"><div class="color-name">Orange Dark</div><div class="color-hex">#C9631A</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#FFF3EB;"></div><div class="color-info"><div class="color-name">Orange Light</div><div class="color-hex">#FFF3EB</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#4A2C2A;"></div><div class="color-info"><div class="color-name">Brun Sentinel</div><div class="color-hex">#4A2C2A</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#6B4A3A;"></div><div class="color-info"><div class="color-name">Brun Light</div><div class="color-hex">#6B4A3A</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#3A1F1A;"></div><div class="color-info"><div class="color-name">Brun Dark</div><div class="color-hex">#3A1F1A</div></div></div>
+    </div>
+
+    <h3 style="text-align:center; color:rgba(255,255,255,0.5); font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:2px; margin-bottom:16px;">Neutres Chauds</h3>
+    <div class="palette-grid" style="margin-bottom:32px;">
+      <div class="palette-swatch"><div class="color-block" style="background:#FAF7F4;"></div><div class="color-info"><div class="color-name">Surface Base</div><div class="color-hex">#FAF7F4</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#F5EDE6;"></div><div class="color-info"><div class="color-name">Surface Warm</div><div class="color-hex">#F5EDE6</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#E8DFD6;"></div><div class="color-info"><div class="color-name">Border Subtle</div><div class="color-hex">#E8DFD6</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#2D1F1E;"></div><div class="color-info"><div class="color-name">Text Primary</div><div class="color-hex">#2D1F1E</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#8B7E74;"></div><div class="color-info"><div class="color-name">Text Secondary</div><div class="color-hex">#8B7E74</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#B5A99E;"></div><div class="color-info"><div class="color-name">Text Muted</div><div class="color-hex">#B5A99E</div></div></div>
+    </div>
+
+    <h3 style="text-align:center; color:rgba(255,255,255,0.5); font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:2px; margin-bottom:16px;">Statuts Sémantiques</h3>
+    <div class="palette-grid">
+      <div class="palette-swatch"><div class="color-block" style="background:#E87722;"></div><div class="color-info"><div class="color-name">In Progress</div><div class="color-hex">#E87722</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#D4A843;"></div><div class="color-info"><div class="color-name">Pending</div><div class="color-hex">#D4A843</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#2D8B56;"></div><div class="color-info"><div class="color-name">Approved</div><div class="color-hex">#2D8B56</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#C93B3B;"></div><div class="color-info"><div class="color-name">Rejected</div><div class="color-hex">#C93B3B</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#991B1B;"></div><div class="color-info"><div class="color-name">Overdue</div><div class="color-hex">#991B1B</div></div></div>
+      <div class="palette-swatch"><div class="color-block" style="background:#10B981;"></div><div class="color-info"><div class="color-name">Closed</div><div class="color-hex">#10B981</div></div></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════
+       SCREEN 1 — ETP MA TO-DO LIST
+       ══════════════════════════════════════════════════ -->
+  <section class="screen active">
+    <div class="screen-header">
+      <div class="tag">Écran 1 — ETP</div>
+      <h2>Ma To-Do List</h2>
+      <p>Dashboard principal de l'Employé Traitant. Alertes OVERDUE, KPIs, liste priorisée des recommandations.</p>
     </div>
     <div class="mockup-frame">
-      <div class="d1-app">
-        <aside class="d1-sidebar">
-          <div class="d1-sidebar-header">
-            <div class="logo">S</div>
-            <span>Sentinel</span>
+      <div class="s1-app">
+        <!-- Sidebar -->
+        <aside class="app-sidebar">
+          <div class="sidebar-brand">
+            <div class="brand-name">Sentinel<br>Compliance</div>
+            <div class="brand-sub">BICEC Institutional Audit</div>
           </div>
-          <div class="d1-nav-items">
-            <div class="d1-nav-item active">📊 Tableau de bord</div>
-            <div class="d1-nav-item">📋 Recommandations <span class="badge">3</span></div>
-            <div class="d1-nav-item">📎 Preuves soumises</div>
-            <div class="d1-nav-item">👥 Mon équipe</div>
-            <div class="d1-nav-item">📄 Rapports</div>
+          <nav class="sidebar-nav">
+            <div class="sidebar-item active"><span class="icon">📋</span> Ma To-Do List</div>
+            <div class="sidebar-item"><span class="icon">📂</span> Historique des Preuves</div>
+          </nav>
+          <div class="sidebar-footer">
+            <div class="sidebar-item"><span class="icon">⚙️</span> Paramètres</div>
+            <div class="sidebar-item" style="color:var(--sentinel-orange);"><span class="icon">🚪</span> Déconnexion</div>
           </div>
         </aside>
-        <main class="d1-main">
-          <div class="d1-topbar">
-            <h3>Tableau de bord — Direction Opérations</h3>
-            <div class="d1-topbar" style="border:none;padding:0;">
-              <div class="user-avatar">CD</div>
-            </div>
-          </div>
-          <div class="d1-content">
-            <div class="d1-stats">
-              <div class="d1-stat-card">
-                <div class="label">Total Recommandations</div>
-                <div class="value">24</div>
-                <div class="delta success">↑ 4 nouvelles cette semaine</div>
-              </div>
-              <div class="d1-stat-card">
-                <div class="label">En Attente (Pending)</div>
-                <div class="value" style="color:var(--status-pending);">8</div>
-                <div class="delta" style="color:var(--status-pending);">→ Requièrent votre validation</div>
-              </div>
-              <div class="d1-stat-card">
-                <div class="label">Approuvées</div>
-                <div class="value" style="color:var(--status-approved);">13</div>
-                <div class="delta success">✓ 54% de conformité</div>
-              </div>
-              <div class="d1-stat-card">
-                <div class="label">⚠️ En retard (Overdue)</div>
-                <div class="value" style="color:var(--status-overdue);">3</div>
-                <div class="delta danger">⚠ Risque COBAC — Action immédiate</div>
-              </div>
-            </div>
-            <div class="d1-table-card">
-              <div class="d1-table-header">
-                <h4>Recommandations récentes</h4>
-                <button class="btn-primary">+ Nouvelle recommandation</button>
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Référence</th><th>Intitulé</th><th>Priorité</th><th>Statut</th><th>Échéance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr><td style="font-family:'JetBrains Mono';font-size:12px;">REC-2026-042</td><td>Renforcement contrôles KYC agences</td><td style="color:var(--status-overdue);font-weight:700;">Critique</td><td><span class="badge-overdue">⚠️ OVERDUE</span></td><td style="color:var(--status-overdue);font-weight:600;">15/03/2026</td></tr>
-                  <tr><td style="font-family:'JetBrains Mono';font-size:12px;">REC-2026-038</td><td>Mise à jour procédure anti-blanchiment</td><td style="color:#D97706;font-weight:700;">Haute</td><td><span class="badge-pending">🔄 PENDING</span></td><td>28/04/2026</td></tr>
-                  <tr><td style="font-family:'JetBrains Mono';font-size:12px;">REC-2026-035</td><td>Audit des accès système T24</td><td style="font-weight:500;">Moyenne</td><td><span class="badge-approved">✓ APPROVED</span></td><td>01/04/2026</td></tr>
-                  <tr><td style="font-family:'JetBrains Mono';font-size:12px;">REC-2026-031</td><td>Formation conformité nouveaux agents</td><td style="font-weight:500;">Basse</td><td><span class="badge-draft">DRAFT</span></td><td>15/05/2026</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </main>
-      </div>
-    </div>
-  </section>
 
-  <!-- DIRECTION 2: Split-Screen Validator (DM Validation) -->
-  <section class="direction">
-    <div class="direction-header">
-      <div class="tag" style="background:rgba(16,185,129,0.15); color:var(--status-approved);">Direction 2</div>
-      <h2>Split-Screen Validator</h2>
-      <p>L'écran de validation DM. Recommandation épinglée à gauche, document PDF plein cadre à droite, boutons d'action massifs.</p>
-    </div>
-    <div class="mockup-frame">
-      <div class="d2-app">
-        <nav class="d2-topnav">
-          <span class="logo">⚡ Sentinel</span>
-          <div class="nav-links">
-            <span class="nav-link">Tableau de bord</span>
-            <span class="nav-link active">Validation en cours</span>
-            <span class="nav-link">Historique</span>
+        <!-- Main -->
+        <div class="s1-main">
+          <!-- Topbar -->
+          <div class="app-topbar">
+            <span class="topbar-logo">Sentinel</span>
+            <span class="topbar-breadcrumb">Home / <span class="current">Recommandation #123</span></span>
+            <div class="topbar-right">
+              <span class="topbar-breadcrumb">Employé Traitant (ETP)</span>
+              <div class="notif">🔔<div class="notif-dot"></div></div>
+              <div class="avatar">JD</div>
+            </div>
           </div>
-        </nav>
-        <div class="d2-split">
-          <div class="d2-left">
-            <span class="reco-badge">REC-2026-038</span>
-            <h3>Mise à jour procédure anti-blanchiment</h3>
-            <p class="meta">Soumise par Jean Ekotto (ETP) — 04/04/2026</p>
-            <div class="field">
-              <div class="field-label">Source Audit</div>
-              <div class="field-value">Mission COBAC Q1-2026 — Rapport Final §4.2.1</div>
-            </div>
-            <div class="field">
-              <div class="field-label">Description</div>
-              <div class="field-value">La procédure opérationnelle anti-blanchiment doit être mise en conformité avec les nouvelles directives CEMAC relatives aux obligations de vigilance renforcée pour les PEP.</div>
-            </div>
-            <div class="field">
-              <div class="field-label">Priorité</div>
-              <div class="field-value" style="color:#D97706;font-weight:700;">🟠 Haute</div>
-            </div>
-            <div class="field">
-              <div class="field-label">Date limite</div>
-              <div class="field-value">28 Avril 2026</div>
-            </div>
-            <div class="field">
-              <div class="field-label">Preuve soumise</div>
-              <div class="field-value">📄 Procedure_AML_v3.2_signee.pdf (2.4 Mo)</div>
-            </div>
-            
-            <div style="margin-top:24px; padding-top:16px; border-top:1px dashed var(--border-subtle);">
-              <div class="field-label" style="margin-bottom:12px;">Historique des soumissions</div>
-              <div style="font-size:12px;">
-                 <div style="display:flex;gap:8px;margin-bottom:8px;opacity:0.6;"><span style="color:#B91C1C;">✕ Rejeté</span><span>Tentative 1 (01/04) — Signature manquante</span></div>
-                 <div style="display:flex;gap:8px;"><span style="color:var(--status-pending);font-weight:600;">🔄 Actuel</span><span>Tentative 2 (04/04) — Corrigé avec DG</span></div>
-              </div>
+
+          <div class="s1-content">
+            <!-- OVERDUE Alert Banner -->
+            <div class="s1-alert-banner">
+              <span class="alert-icon">⚠️</span>
+              Vous avez <span class="alert-count">3 recommandations en retard</span> (OVERDUE)
+              <button class="alert-btn">CONSULTER</button>
             </div>
 
-            <div class="field" style="margin-top:16px;">
-              <div class="field-label">Sceau d'intégrité</div>
-              <div class="field-value" style="font-family:'JetBrains Mono';font-size:11px;color:var(--status-approved);">✓ HMAC-SHA256 vérifié</div>
-            </div>
-          </div>
-          <div class="d2-right">
-            <div class="d2-pdf-header">
-              <span>📄 Procedure_AML_v3.2_signee.pdf</span>
-              <span style="font-size:12px;color:var(--text-secondary);">Page 1 / 12</span>
-            </div>
-            <div class="d2-pdf-body">
-              <div class="d2-pdf-placeholder">
-                <div class="icon">📄</div>
-                <p>Visualiseur PDF In-App (iframe sécurisée)</p>
-                <p style="font-size:12px;margin-top:8px;opacity:0.6;">Aucun téléchargement nécessaire</p>
+            <div class="s1-page">
+              <h1>Ma To-Do List</h1>
+              <div class="subtitle">Recommandations assignées — BICEC Audit 2023</div>
+
+              <!-- KPI Cards -->
+              <div class="s1-kpis">
+                <div class="s1-kpi">
+                  <div class="kpi-label">Assignées</div>
+                  <div class="kpi-value">12</div>
+                </div>
+                <div class="s1-kpi orange">
+                  <div class="kpi-label">En Cours</div>
+                  <div class="kpi-value">05</div>
+                </div>
+                <div class="s1-kpi red">
+                  <div class="kpi-label">Overdue</div>
+                  <div class="kpi-value">03</div>
+                </div>
+              </div>
+
+              <!-- Table -->
+              <div class="card" style="margin-bottom:0;">
+                <div class="card-header" style="justify-content:space-between;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Registre des recommandations</span>
+                  </div>
+                  <button class="s3-filter-extra">≡ Filtrer</button>
+                </div>
+                <table class="s1-table">
+                  <thead>
+                    <tr><th>Priorité</th><th>Détails de la recommandation</th><th>Source / Auteur</th><th>Échéance</th><th>Action</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="badge badge-critical">CRITICAL</span></td>
+                      <td>
+                        <div class="s1-reco-title">Audit de Conformité Opérations Crédit #123</div>
+                        <div class="s1-reco-ref">Réf: BIC-AUD-2023-0045</div>
+                      </td>
+                      <td>
+                        <div class="s1-source-name">COBAC</div>
+                        <div class="s1-source-author">Par: Jean-Pierre N'Doume</div>
+                      </td>
+                      <td>
+                        <div class="s1-deadline overdue">12 Oct 2023</div>
+                        <div class="s1-deadline-sub overdue"><span class="badge badge-overdue" style="font-size:9px;">OVERDUE</span></div>
+                      </td>
+                      <td><button class="btn-action-orange">TRAITER</button></td>
+                    </tr>
+                    <tr>
+                      <td><span class="badge badge-critical">CRITICAL</span></td>
+                      <td>
+                        <div class="s1-reco-title">Mise à jour KYC Comptes Corporatifs #098</div>
+                        <div class="s1-reco-ref">Réf: BIC-AUD-2023-0051</div>
+                      </td>
+                      <td>
+                        <div class="s1-source-name">Compliance Interne</div>
+                        <div class="s1-source-author">Par: Marie-Louise Ewande</div>
+                      </td>
+                      <td>
+                        <div class="s1-deadline overdue">15 Oct 2023</div>
+                        <div class="s1-deadline-sub overdue"><span class="badge badge-overdue" style="font-size:9px;">OVERDUE</span></div>
+                      </td>
+                      <td><button class="btn-action-orange">TRAITER</button></td>
+                    </tr>
+                    <tr>
+                      <td><span class="badge badge-high">HIGH</span></td>
+                      <td>
+                        <div class="s1-reco-title">Sécurisation Flux SWIFT (Audit IT)</div>
+                        <div class="s1-reco-ref">Réf: BIC-IT-2023-0112</div>
+                      </td>
+                      <td>
+                        <div class="s1-source-name">BEAC</div>
+                        <div class="s1-source-author">Par: Samuel Eto'o Fils</div>
+                      </td>
+                      <td>
+                        <div class="s1-deadline">24 Nov 2023</div>
+                        <div class="s1-deadline-sub">12 Jours restants</div>
+                      </td>
+                      <td><button class="btn-action-ghost">VOIR DÉTAILS</button></td>
+                    </tr>
+                    <tr>
+                      <td><span class="badge badge-medium">MEDIUM</span></td>
+                      <td>
+                        <div class="s1-reco-title">Archivage Documents Crédits Bail</div>
+                        <div class="s1-reco-ref">Réf: BIC-ARCH-2023-0002</div>
+                      </td>
+                      <td>
+                        <div class="s1-source-name">Direction Juridique</div>
+                        <div class="s1-source-author">Par: Ibrahim Mbombo</div>
+                      </td>
+                      <td>
+                        <div class="s1-deadline">15 Déc 2023</div>
+                        <div class="s1-deadline-sub">En attente</div>
+                      </td>
+                      <td><button class="btn-action-ghost">VOIR DÉTAILS</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="s1-pagination">Affichage 1-4 de 12 recommandations</div>
+              </div>
+
+              <!-- CTA Card -->
+              <div class="s1-cta-card">
+                <span class="cta-icon">📊</span>
+                <div>
+                  <h3>Synthèse des Preuves</h3>
+                  <p>Générez un rapport consolidé de vos actions récentes pour la direction.</p>
+                  <span class="cta-link">GÉNÉRER LE RAPPORT</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="d2-action-bar" style="justify-content: space-between;">
-          <div style="display:flex; gap:8px;">
-             <span style="font-size:12px; color:var(--text-secondary); align-self:center;">Rejet rapide :</span>
-             <button style="font-size:11px; padding:4px 8px; border:1px solid #FECACA; border-radius:4px; background:white; color:#B91C1C; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='white'">Motif : Illisible</button>
-             <button style="font-size:11px; padding:4px 8px; border:1px solid #FECACA; border-radius:4px; background:white; color:#B91C1C; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='white'">Motif : Signature</button>
-             <button style="font-size:11px; padding:4px 8px; border:1px solid #FECACA; border-radius:4px; background:white; color:#B91C1C; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='white'">Motif : Incomplet</button>
-          </div>
-          <div style="display:flex; gap:16px;">
-             <button class="d2-btn-reject">✕ REJETER (Commentaire)</button>
-             <button class="d2-btn-accept">✓ ACCEPTER LA PREUVE</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- DIRECTION 3: Data-Grid Power User (Audit Bulk) -->
-  <section class="direction">
-    <div class="direction-header">
-      <div class="tag" style="background:rgba(250,181,11,0.15); color:var(--bicec-yellow);">Direction 3</div>
-      <h2>Data-Grid Power User</h2>
-      <p>Interface tableur pour l'Audit Interne. Saisie/édition en masse avec validation inline, raccourcis clavier, barre d'état.</p>
-    </div>
-    <div class="mockup-frame">
-      <div class="d3-app">
-        <nav class="d3-topnav">
-          <span class="logo">⚡ Sentinel</span>
-          <span class="breadcrumb">Missions > Mission COBAC Q1-2026 > <span class="current">Recommandations (Bulk Edit)</span></span>
-          <div class="shortcut-hint">
-            Raccourcis: <span class="kbd">A</span> Ajouter <span class="kbd">⌫</span> Supprimer <span class="kbd">⌘S</span> Sauvegarder
-          </div>
-        </nav>
-        <div class="d3-toolbar">
-          <span class="filter-btn active">Tous (12)</span>
-          <span class="filter-btn">Draft (5)</span>
-          <span class="filter-btn">Pending (4)</span>
-          <span class="filter-btn">Overdue (3)</span>
-          <div class="action-group">
-            <button class="btn-bulk">+ Ajouter ligne</button>
-            <button class="btn-bulk" style="background:var(--status-approved);color:white;">✓ Valider tout (Draft)</button>
-          </div>
-        </div>
-        <div class="d3-grid">
-          <table>
-            <thead>
-              <tr>
-                <th style="width:40px;"><input type="checkbox" class="row-checkbox"></th>
-                <th>Réf.</th><th>Intitulé</th><th>Direction</th><th>Priorité</th><th>Échéance</th><th>Statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><input type="checkbox" class="row-checkbox"></td>
-                <td style="font-family:'JetBrains Mono';font-size:11px;">REC-042</td>
-                <td><span class="cell-editable">Renforcement contrôles KYC agences</span></td>
-                <td><span class="cell-editable">Dir. Opérations</span></td>
-                <td style="color:var(--status-overdue);font-weight:700;">Critique</td>
-                <td><span class="cell-error">15/03/2026 ⚠</span></td>
-                <td><span class="badge-overdue">⚠️ OVERDUE</span></td>
-              </tr>
-              <tr>
-                <td><input type="checkbox" class="row-checkbox"></td>
-                <td style="font-family:'JetBrains Mono';font-size:11px;">REC-041</td>
-                <td><span class="cell-editable">Sécurisation accès coffres numériques</span></td>
-                <td><span class="cell-editable">Dir. Informatique</span></td>
-                <td style="color:var(--status-overdue);font-weight:700;">Critique</td>
-                <td><span class="cell-editable">20/04/2026</span></td>
-                <td><span class="badge-pending">🔄 PENDING</span></td>
-              </tr>
-              <tr>
-                <td><input type="checkbox" class="row-checkbox"></td>
-                <td style="font-family:'JetBrains Mono';font-size:11px;">REC-038</td>
-                <td><span class="cell-editable">Mise à jour procédure AML</span></td>
-                <td><span class="cell-editable">Dir. Conformité</span></td>
-                <td style="color:#D97706;font-weight:700;">Haute</td>
-                <td><span class="cell-editable">28/04/2026</span></td>
-                <td><span class="badge-pending">🔄 PENDING</span></td>
-              </tr>
-              <tr style="background:#FFFFF0;">
-                <td><input type="checkbox" class="row-checkbox" checked></td>
-                <td style="font-family:'JetBrains Mono';font-size:11px;color:var(--text-secondary);">REC-NEW</td>
-                <td><span class="cell-editable" style="border-color:var(--bicec-yellow);border-style:solid;">Nouvelle recommandation...</span></td>
-                <td><span class="cell-editable" style="border-color:var(--bicec-yellow);border-style:solid;">—</span></td>
-                <td>—</td>
-                <td><span class="cell-editable" style="border-color:var(--bicec-yellow);border-style:solid;">JJ/MM/AAAA</span></td>
-                <td><span class="badge-draft">DRAFT</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="d3-statusbar">
-          <span><span class="count">4</span> recommandations affichées</span>
-          <span><span class="count">1</span> sélectionnée</span>
-          <span>Dernière sauvegarde : <span class="count">il y a 2 min</span></span>
-          <span style="margin-left:auto;">Mode: <span class="count">ÉDITION EN MASSE</span></span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- DIRECTION 4: Executive DG View -->
-  <section class="direction">
-    <div class="direction-header">
-      <div class="tag" style="background:rgba(26,58,92,0.15); color:var(--bicec-blue);">Direction 4</div>
-      <h2>Executive DG View</h2>
-      <p>Vue macro pour la Direction Générale. Score de conformité global, risques par département, timeline des actions récentes.</p>
+  <!-- ══════════════════════════════════════════════════
+       SCREEN 2 — ETP DETAIL RECOMMANDATION + PREUVES
+       ══════════════════════════════════════════════════ -->
+  <section class="screen">
+    <div class="screen-header">
+      <div class="tag">Écran 2 — ETP</div>
+      <h2>Détail Recommandation & Centre de Preuves</h2>
+      <p>Vue détaillée avec historique des échanges et interface de soumission de preuves.</p>
     </div>
     <div class="mockup-frame">
-      <div class="d4-app">
-        <nav class="d4-topnav">
-          <span class="logo">Sentinel<span>.</span></span>
-          <span class="date-range">📅 T1 2026 (Janv — Mars)</span>
-        </nav>
-        <div class="d4-content">
-          <div class="d4-hero">
+      <div class="s2-app">
+        <!-- Sidebar -->
+        <aside class="app-sidebar">
+          <div class="sidebar-brand">
+            <div class="brand-name">Sentinel<br>Compliance</div>
+            <div class="brand-sub">BICEC Institutional Audit</div>
+          </div>
+          <nav class="sidebar-nav">
+            <div class="sidebar-item"><span class="icon">📋</span> Ma To-Do List</div>
+            <div class="sidebar-item active"><span class="icon">📂</span> Historique des Preuves</div>
+          </nav>
+          <div class="sidebar-footer">
+            <div class="sidebar-item"><span class="icon">⚙️</span> Paramètres</div>
+            <div class="sidebar-item" style="color:var(--sentinel-orange);"><span class="icon">🚪</span> Déconnexion</div>
+          </div>
+        </aside>
+
+        <!-- Main -->
+        <div class="s2-main">
+          <div class="app-topbar">
+            <span class="topbar-logo">Sentinel</span>
+            <span class="topbar-breadcrumb">Home / <span class="current">Recommandation #123</span></span>
+            <div class="topbar-right">
+              <div class="notif">🔔<div class="notif-dot"></div></div>
+              <div class="avatar">JD</div>
+            </div>
+          </div>
+
+          <div class="s2-content">
+            <!-- Header -->
+            <div class="s2-header">
+              <h1>Mise en conformité du registre des cautions - Agence Douala</h1>
+              <div class="s2-badges">
+                <span class="badge badge-in-progress">● IN_PROGRESS</span>
+                <span class="badge badge-critical">CRITIQUE</span>
+                <span class="s2-ref">Ref: BICEC-2023-R123</span>
+              </div>
+            </div>
+
+            <!-- Left Column: Description -->
             <div>
-              <h2>Vue d'ensemble — Direction Générale</h2>
-              <p>Score de conformité des recommandations d'audit COBAC</p>
-            </div>
-            <div style="text-align:center;">
-              <div class="score">72%</div>
-              <div class="score-label">Taux de conformité</div>
-            </div>
-          </div>
-          
-          <div class="d4-kpis" style="display:flex; gap:24px; margin-bottom:24px;">
-            <div class="d4-card" style="flex:1; border-left:4px solid var(--status-overdue);">
-               <div style="font-size:12px; color:var(--text-secondary); text-transform:uppercase;">Rec. Critiques (Ouvertes)</div>
-               <div style="font-size:28px; font-weight:700; color:var(--status-overdue);">7</div>
-               <div style="font-size:12px; color:#D97706; margin-top:4px;">+2 ce mois-ci</div>
-            </div>
-            <div class="d4-card" style="flex:1; border-left:4px solid var(--bicec-yellow);">
-               <div style="font-size:12px; color:var(--text-secondary); text-transform:uppercase;">Délai Moyen (MTTC)</div>
-               <div style="font-size:28px; font-weight:700; color:var(--text-primary);">42 jrs</div>
-               <div style="font-size:12px; color:var(--status-approved); margin-top:4px;">↓ -5 jours (en baisse)</div>
-            </div>
-            <div class="d4-card" style="flex:1; border-left:4px solid var(--bicec-blue);">
-               <div style="font-size:12px; color:var(--text-secondary); text-transform:uppercase;">Taux d'Échec (Allers-Retours)</div>
-               <div style="font-size:28px; font-weight:700; color:var(--text-primary);">18%</div>
-               <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">Preuves rejetées au 1er dépôt</div>
-            </div>
-          </div>
+              <!-- Description Card -->
+              <div class="card" style="margin-bottom:20px;">
+                <div class="card-header"><span class="icon">📋</span><h3>Description de la Recommandation</h3></div>
+                <div class="card-body">
+                  <div class="s2-meta-grid">
+                    <div class="s2-meta-item">
+                      <div class="s2-meta-label">Source</div>
+                      <div class="s2-meta-value">COBAC</div>
+                    </div>
+                    <div class="s2-meta-item">
+                      <div class="s2-meta-label">Deadline Initiale</div>
+                      <div class="s2-meta-value">15 Oct 2023</div>
+                    </div>
+                    <div class="s2-meta-item">
+                      <div class="s2-meta-label">Deadline Actuelle</div>
+                      <div class="s2-meta-value orange">02 Nov 2023</div>
+                    </div>
+                  </div>
+                  <p class="s2-description">
+                    L'audit thématique sur les engagements par signature a révélé des disparités significatives entre le registre physique et les enregistrements dans le système central. Il est impératif de procéder à un apurement complet et de soumettre les preuves de régularisation pour tous les dossiers supérieurs à 50M CFA.
+                  </p>
+                  <p class="s2-attention">
+                    <strong>Points d'attention particuliers :</strong> Validation des signatures des donneurs d'ordre et vérification des dates de validité des cautions de marché.
+                  </p>
+                </div>
+              </div>
 
-          <div class="d4-grid">
-            <div class="d4-card">
-              <h4>⚡ Risques par Direction (Recommandations Overdue)</h4>
-              <div class="d4-risk-item">
-                <span class="dept">Direction des Opérations</span>
-                <div class="d4-risk-bar"><div class="fill" style="width:75%;background:var(--status-overdue);"></div></div>
-                <span class="count critical">3 overdue</span>
-              </div>
-              <div class="d4-risk-item">
-                <span class="dept">Direction Informatique</span>
-                <div class="d4-risk-bar"><div class="fill" style="width:40%;background:#D97706;"></div></div>
-                <span class="count warning">1 overdue</span>
-              </div>
-              <div class="d4-risk-item">
-                <span class="dept">Direction Conformité</span>
-                <div class="d4-risk-bar"><div class="fill" style="width:0%;"></div></div>
-                <span class="count ok">0 overdue ✓</span>
-              </div>
-              <div class="d4-risk-item">
-                <span class="dept">Direction Commerciale</span>
-                <div class="d4-risk-bar"><div class="fill" style="width:0%;"></div></div>
-                <span class="count ok">0 overdue ✓</span>
+              <!-- History Card -->
+              <div class="card">
+                <div class="card-header"><span class="icon">🔄</span><h3>Historique des Échanges</h3></div>
+                <div class="card-body" style="padding:12px 20px;">
+                  <div class="s2-timeline">
+                    <div class="timeline-item rejected">
+                      <div>
+                        <div><span class="timeline-badge rejected">❌ REJECTED_V1: SIGNATURE ABSENTE</span><span class="timeline-date">20 Oct 2023, 14:30</span></div>
+                        <div class="timeline-text">"Le document scan_caution_DLA_002.pdf ne comporte pas la signature du Directeur d'Agence. Veuillez soumettre à nouveau le document certifié."</div>
+                        <div class="timeline-author">— Audit Team Africa</div>
+                      </div>
+                    </div>
+                    <div class="timeline-item info">
+                      <div>
+                        <div><span class="timeline-badge info">📝 DEMANDE DE PRÉCISION</span><span class="timeline-date">18 Oct 2023, 09:15</span></div>
+                        <div class="timeline-text">Un délai supplémentaire a été accordé suite à la demande de l'agence pour la consolidation des données.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="d4-card">
-              <h4>🕐 Activité récente</h4>
-              <div class="d4-timeline-item">
-                <div class="d4-timeline-dot" style="background:var(--status-approved);"></div>
-                <div>
-                  <div class="text">Claire Dupont a <strong>validé</strong> REC-035</div>
-                  <div class="time">Il y a 2 heures</div>
-                </div>
-              </div>
-              <div class="d4-timeline-item">
-                <div class="d4-timeline-dot" style="background:var(--status-rejected);"></div>
-                <div>
-                  <div class="text">Marc Fouda a <strong>rejeté</strong> REC-039</div>
-                  <div class="time">Il y a 5 heures</div>
-                </div>
-              </div>
-              <div class="d4-timeline-item">
-                <div class="d4-timeline-dot" style="background:var(--status-overdue);"></div>
-                <div>
-                  <div class="text">⚠️ REC-042 passée en <strong>OVERDUE</strong></div>
-                  <div class="time">Hier, 00:01</div>
-                </div>
-              </div>
-              <div class="d4-timeline-item">
-                <div class="d4-timeline-dot" style="background:var(--status-pending);"></div>
-                <div>
-                  <div class="text">Jean Ekotto a soumis une preuve pour REC-038</div>
-                  <div class="time">Hier, 14:32</div>
+
+            <!-- Right Column: Proof Center -->
+            <div class="s2-proof-panel">
+              <div class="card">
+                <div class="card-header"><span class="icon">✅</span><h3>Centre de Preuves</h3></div>
+                <div class="card-body">
+                  <div class="s4-field-label">Commentaire justificatif</div>
+                  <textarea class="proof-textarea" placeholder="Rédiger un commentaire justificatif..."></textarea>
+
+                  <div class="s4-field-label">Documents joints</div>
+                  <div class="proof-dropzone">
+                    <div class="drop-icon">📤</div>
+                    <div class="drop-text">Glissez-déposez vos preuves ici</div>
+                    <div class="drop-hint">PDF, JPG, PNG max 15Mo</div>
+                  </div>
+
+                  <div class="proof-file">
+                    <div class="file-icon">📄</div>
+                    <div class="file-info">
+                      <div class="file-name">registre_cautions_rev.p…</div>
+                      <div class="file-meta">2.4 Mo • Brouillon</div>
+                    </div>
+                    <span class="file-delete">🗑️</span>
+                  </div>
+                  <div class="proof-file">
+                    <div class="file-icon">🖼️</div>
+                    <div class="file-info">
+                      <div class="file-name">signature_dir_agence.jpg</div>
+                      <div class="file-meta">845 Ko • Brouillon</div>
+                    </div>
+                    <span class="file-delete">🗑️</span>
+                  </div>
+
+                  <div style="margin-top:20px;">
+                    <button class="btn btn-primary btn-lg" style="width:100%; margin-bottom:10px;">SOUMETTRE AU DM</button>
+                    <button class="btn btn-secondary" style="width:100%;">SAUVEGARDER EN BROUILLON</button>
+                  </div>
+
+                  <div class="proof-note">
+                    <span class="note-icon">ℹ️</span>
+                    <span>La soumission au DM (Directeur de Marché) est définitive. Assurez-vous que tous les documents sont dûment signés et tamponnés.</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -714,12 +975,332 @@
     </div>
   </section>
 
+  <!-- ══════════════════════════════════════════════════
+       SCREEN 3 — ETP HISTORIQUE DES PREUVES
+       ══════════════════════════════════════════════════ -->
+  <section class="screen">
+    <div class="screen-header">
+      <div class="tag">Écran 3 — ETP</div>
+      <h2>Historique des Preuves & Feedbacks</h2>
+      <p>Tableau complet des soumissions passées avec statuts, versioning et retours de l'audit.</p>
+    </div>
+    <div class="mockup-frame">
+      <div class="s3-app">
+        <aside class="app-sidebar">
+          <div class="sidebar-brand">
+            <div class="brand-name">Sentinel<br>Compliance</div>
+            <div class="brand-sub">BICEC Institutional Audit</div>
+          </div>
+          <nav class="sidebar-nav">
+            <div class="sidebar-item"><span class="icon">📋</span> Ma To-Do List</div>
+            <div class="sidebar-item active"><span class="icon">📂</span> Historique des Preuves</div>
+          </nav>
+          <div class="sidebar-footer">
+            <div class="sidebar-item"><span class="icon">⚙️</span> Paramètres</div>
+            <div class="sidebar-item" style="color:var(--sentinel-orange);"><span class="icon">🚪</span> Déconnexion</div>
+          </div>
+        </aside>
+
+        <div class="s3-main">
+          <div class="app-topbar">
+            <span class="topbar-logo">Sentinel</span>
+            <span class="topbar-breadcrumb">Home / <span class="current">Historique des Preuves</span></span>
+            <div class="topbar-right">
+              <div class="notif">🔔<div class="notif-dot"></div></div>
+              <div class="user-badge">J. DOS SANTOS</div>
+              <div class="avatar">JS</div>
+            </div>
+          </div>
+
+          <div class="s3-content">
+            <div class="s3-header">
+              <h1>Historique des Preuves & Feedbacks</h1>
+              <p>Consultez l'état d'avancement de vos soumissions et les retours de l'audit institutionnel.</p>
+            </div>
+
+            <!-- Filters -->
+            <div class="s3-filters">
+              <div class="s3-filter-group" style="flex:2;">
+                <div class="s3-filter-label">Recherche par recommandation</div>
+                <input class="s3-filter-input" type="text" placeholder="🔍 ID: REC-2024-001...">
+              </div>
+              <div class="s3-filter-group">
+                <div class="s3-filter-label">Statut</div>
+                <select class="s3-filter-input"><option>Tous les statuts</option></select>
+              </div>
+              <div class="s3-filter-group">
+                <div class="s3-filter-label">Période</div>
+                <select class="s3-filter-input"><option>Derniers 30 jours</option></select>
+              </div>
+              <button class="s3-filter-extra">≡ Plus de filtres</button>
+            </div>
+
+            <!-- Table -->
+            <table class="s3-table">
+              <thead>
+                <tr>
+                  <th>Date de soumission</th><th>Recommandation</th><th>Fichier</th><th>Version</th><th>Statut</th><th>Feedback & Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>12 Oct 2024,<br>14:30</td>
+                  <td><strong>#REC-8842-BIC</strong><br><span style="font-size:12px;color:var(--text-muted);">Audit des fonds propres T3</span></td>
+                  <td><span class="s3-file-link">📄 evidence_v2_final.zip</span></td>
+                  <td><span style="font-size:12px;font-weight:600;background:var(--surface-warm);padding:2px 8px;border-radius:4px;">V2</span></td>
+                  <td><span class="badge badge-rejected">● REJECTED</span></td>
+                  <td><div class="s3-feedback rejected">"Le document d'attestation de conformité manque la signature du contrôleur régional. Merci de resoumettre l'annexe C-4."</div></td>
+                </tr>
+                <tr>
+                  <td>10 Oct 2024,<br>09:15</td>
+                  <td><strong>#REC-1029-SYS</strong><br><span style="font-size:12px;color:var(--text-muted);">Sécurité des accès biométriques</span></td>
+                  <td><span class="s3-file-link">📄 log_security_audit.pdf</span></td>
+                  <td><span style="font-size:12px;font-weight:600;background:var(--surface-warm);padding:2px 8px;border-radius:4px;">V1</span></td>
+                  <td><span class="badge badge-accepted">● ACCEPTED</span></td>
+                  <td><div class="s3-feedback">Conformité validée par le comité d'audit central.</div></td>
+                </tr>
+                <tr>
+                  <td>14 Oct 2024,<br>11:02</td>
+                  <td><strong>#REC-9920-TRX</strong><br><span style="font-size:12px;color:var(--text-muted);">Rapprochement bancaire swift</span></td>
+                  <td><span class="s3-file-link">📄 batch_swift_reports.zip</span></td>
+                  <td><span style="font-size:12px;font-weight:600;background:var(--surface-warm);padding:2px 8px;border-radius:4px;">V1</span></td>
+                  <td><span class="badge badge-pending">● PENDING</span></td>
+                  <td><div class="s3-feedback" style="font-style:italic;color:var(--text-muted);">En cours de revue...</div></td>
+                </tr>
+                <tr>
+                  <td>08 Oct 2024,<br>16:45</td>
+                  <td><strong>#REC-4412-GOV</strong><br><span style="font-size:12px;color:var(--text-muted);">Charte éthique signée</span></td>
+                  <td><span class="s3-file-link">📄 charte_signed_vFinal.pdf</span></td>
+                  <td><span style="font-size:12px;font-weight:600;background:var(--surface-warm);padding:2px 8px;border-radius:4px;">V3</span></td>
+                  <td><span class="badge badge-accepted">● ACCEPTED</span></td>
+                  <td><div class="s3-feedback">Version finale approuvée.</div></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- Pagination -->
+            <div class="s3-pagination">
+              <span class="info">Affichage de 4 sur 128 preuves soumises</span>
+              <div class="s3-page-btns">
+                <div class="s3-page-btn">‹</div>
+                <div class="s3-page-btn active">1</div>
+                <div class="s3-page-btn">2</div>
+                <div class="s3-page-btn">3</div>
+                <div class="s3-page-btn">›</div>
+              </div>
+            </div>
+
+            <!-- KPIs -->
+            <div class="s3-kpis">
+              <div class="s3-kpi primary">
+                <div class="kpi-label">Taux d'acceptation</div>
+                <div class="kpi-value" style="margin-top:4px;">84.2%</div>
+                <div class="kpi-delta">+5% par rapport au mois dernier</div>
+              </div>
+              <div class="s3-kpi secondary">
+                <div class="kpi-label">Temps moyen de revue</div>
+                <div class="kpi-value">4.2 Jours</div>
+                <div class="kpi-delta">📈 Augmentation de 0.5j</div>
+              </div>
+              <div class="s3-kpi secondary">
+                <div class="kpi-label">Action requise</div>
+                <div class="kpi-value" style="color:var(--sentinel-orange);">12</div>
+                <div class="kpi-delta red">Preuves rejetées en attente de correction</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════
+       SCREEN 4 — AUDIT INTERNE DETAIL & CLÔTURE
+       ══════════════════════════════════════════════════ -->
+  <section class="screen">
+    <div class="screen-header">
+      <div class="tag">Écran 4 — Audit Interne</div>
+      <h2>Détail Recommandation & Clôture</h2>
+      <p>Vue complète pour l'Auditeur Interne : informations, assignations, preuves, audit trail et actions de clôture.</p>
+    </div>
+    <div class="mockup-frame">
+      <div class="s4-app">
+        <div class="s4-layout">
+          <!-- Audit Sidebar -->
+          <aside class="s4-sidebar">
+            <div class="s4-sidebar-brand">SENTINEL</div>
+            <nav class="s4-sidebar-nav">
+              <div class="s4-nav-item active"><span class="nav-icon">🏛️</span> Audit Interne</div>
+              <div class="s4-nav-item"><span class="nav-icon">📁</span> Direction Métier</div>
+              <div class="s4-nav-item"><span class="nav-icon">👥</span> ETP</div>
+              <div class="s4-nav-item"><span class="nav-icon">👁️</span> Supervision</div>
+            </nav>
+            <div class="s4-sidebar-footer">
+              <div class="s4-sidebar-user">
+                <div class="user-avatar">🧑‍💼</div>
+                <div>
+                  <div class="user-name">Utilisateur Sentinel</div>
+                  <div class="user-role">Administrateur BICEC</div>
+                </div>
+              </div>
+              <div style="margin-top:12px;">
+                <div class="sidebar-item" style="font-size:12px;"><span class="icon">⚙️</span> Paramètres</div>
+                <div class="sidebar-item" style="font-size:12px;color:var(--sentinel-orange);"><span class="icon">🚪</span> Déconnexion</div>
+              </div>
+            </div>
+          </aside>
+
+          <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+            <!-- Top Search Bar -->
+            <div class="s4-topbar">
+              <div class="s4-search">🔍 Rechercher une recommandation...</div>
+              <div class="topbar-right">
+                <div class="notif">🔔<div class="notif-dot"></div></div>
+                <span style="font-size:12px;color:var(--text-muted);">❓</span>
+                <span style="font-size:13px;font-weight:600;color:var(--text-primary);">BICEC</span>
+              </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="s4-main">
+              <div class="s4-main-grid">
+                <!-- Left: Title + Info -->
+                <div>
+                  <div class="s4-ref-badges">
+                    <span class="s4-ref">REF-2026-042</span>
+                    <span class="badge badge-overdue">OVERDUE</span>
+                    <span class="badge" style="background:var(--sentinel-brown);color:white;font-size:9px;letter-spacing:1px;">PRIORITÉ CRITIQUE</span>
+                  </div>
+                  <h2 class="s4-title">Réorganisation du contrôle des flux SWIFT</h2>
+                </div>
+
+                <!-- Right: Action Buttons + Assignations -->
+                <div>
+                  <div class="s4-actions" style="margin-bottom:16px;">
+                    <button class="btn btn-secondary btn-lg">Demander report</button>
+                    <button class="btn btn-primary btn-lg">Valider preuves</button>
+                  </div>
+
+                  <div class="s4-assign-card">
+                    <div class="card-header" style="padding:12px 0; border:none;"><span class="icon">🔐</span><h3>Assignations</h3></div>
+                    <div class="s4-assign-item">
+                      <div class="s4-assign-label">Direction Métier</div>
+                      <div class="s4-assign-value">Dpt. Opérations Bancaires (DOB)</div>
+                    </div>
+                    <div class="s4-assign-item">
+                      <div class="s4-assign-label">Entité Technique (ETP)</div>
+                      <div class="s4-assign-value">Direction des Systèmes d'Information</div>
+                    </div>
+                    <div class="s4-assign-item">
+                      <div class="s4-assign-label">Responsable</div>
+                      <div class="s4-user-row">
+                        <div class="s4-user-avatar">👤</div>
+                        <div class="s4-assign-value">Sarah Nkoa</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Info Card -->
+                <div class="s4-info-card">
+                  <div class="s4-field-label">Description de la recommandation</div>
+                  <p class="s4-field-value">Suite à la mission COBAC-2025, il a été identifié une vulnérabilité majeure dans le processus d'apurement des suspens SWIFT. La recommandation exige une séparation stricte des fonctions entre l'initiation des messages et la validation finale, avec un double regard systématique sur les montants excédant 500M XAF.</p>
+                  <div class="s4-field-row">
+                    <div>
+                      <div class="s4-field-label">Source de l'audit</div>
+                      <div class="s4-field-value" style="font-weight:600;">Mission Réglementaire COBAC</div>
+                    </div>
+                    <div>
+                      <div class="s4-field-label">Échéance finale</div>
+                      <div class="s4-field-value" style="font-weight:700;color:var(--sentinel-orange);">15 AVRIL 2026</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Bottom: Proofs + Audit Trail -->
+              <div class="s4-bottom-grid">
+                <div>
+                  <div class="card">
+                    <div class="card-header"><span class="icon">📎</span><h3>Historique & Preuves</h3></div>
+                    <div class="card-body">
+                      <div class="s4-proof-item">
+                        <div class="s4-proof-icon">📄</div>
+                        <div>
+                          <div class="s4-proof-name">Rapport_Intermédiaire_V2.pdf</div>
+                          <div class="s4-proof-meta">2.4 MB • 12/03/2026</div>
+                        </div>
+                        <span class="s4-proof-dl">⬇️</span>
+                      </div>
+                      <div class="s4-proof-item">
+                        <div class="s4-proof-icon">📦</div>
+                        <div>
+                          <div class="s4-proof-name">Preuves_Systeme_Log.zip</div>
+                          <div class="s4-proof-meta">45.8 MB • 10/03/2026</div>
+                        </div>
+                        <span class="s4-proof-dl">⬇️</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div class="card">
+                    <div class="card-header"><span class="icon">📜</span><h3>Audit Trail</h3></div>
+                    <div class="card-body" style="padding:12px 20px;">
+                      <div class="s4-trail-item important">
+                        <div>
+                          <div class="s4-trail-title">Demande de clôture rejetée</div>
+                          <div class="s4-trail-sub">Par Direction Audit • 14/03/2026</div>
+                          <div class="s4-trail-quote">"Preuves insuffisantes concernant le volet double validation."</div>
+                        </div>
+                      </div>
+                      <div class="s4-trail-item">
+                        <div>
+                          <div class="s4-trail-title">Document 'Preuves_Systeme_Log' uploadé</div>
+                          <div class="s4-trail-sub">Par Sarah Nkoa • 10/03/2026</div>
+                        </div>
+                      </div>
+                      <div class="s4-trail-item">
+                        <div>
+                          <div class="s4-trail-title">Recommandation assignée</div>
+                          <div class="s4-trail-sub">Système Automatique • 01/01/2026</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Footer -->
+            <div class="s4-footer-bar">
+              <div class="s4-footer-note"><strong>Action de supervision requise :</strong> L'auditeur doit vérifier l'intégrité des logs avant toute clôture définitive.</div>
+              <div style="display:flex;gap:12px;">
+                <button class="btn btn-danger btn-lg">Rejeter</button>
+                <button class="btn btn-success btn-lg">Clôturer</button>
+              </div>
+            </div>
+
+            <!-- Page Footer -->
+            <div class="s4-page-footer">
+              <span>© 2024 BICEC SENTINEL. SÉCURITÉ CONFORME LOI 2024-017.</span>
+              <span>CONFORMITÉ &nbsp; SUPPORT TECHNIQUE &nbsp; CONFIDENTIALITÉ</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════
+       NAVIGATION SCRIPT
+       ══════════════════════════════════════════════════ -->
   <script>
-    function showDirection(index) {
-      document.querySelectorAll('.direction').forEach((d, i) => {
-        d.classList.toggle('active', i === index);
+    function showScreen(index) {
+      document.querySelectorAll('.screen').forEach((s, i) => {
+        s.classList.toggle('active', i === index);
       });
-      document.querySelectorAll('.tab').forEach((t, i) => {
+      document.querySelectorAll('.showcase-tab').forEach((t, i) => {
         t.classList.toggle('active', i === index);
       });
       window.scrollTo({ top: 0, behavior: 'smooth' });

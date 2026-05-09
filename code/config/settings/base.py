@@ -83,6 +83,7 @@ MIDDLEWARE = [
     "axes.middleware.AxesMiddleware",
     "apps.users.middleware.IdleTimeoutMiddleware",  # NFR-SEC-02
     "apps.users.middleware.RoleRequiredMiddleware", # ADR-10 / FR37
+    "apps.users.middleware.ExternalIsolationMiddleware", # Story 1.3 / AC1+AC3
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -101,6 +102,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.users.context_processors.sidebar_context",
             ],
         },
     },

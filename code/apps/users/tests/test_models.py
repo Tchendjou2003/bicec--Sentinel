@@ -84,6 +84,53 @@ class DepartmentModelTest(TestCase):
             self.direction.delete()
 
 
+class DepartmentFullHierarchyTest(TestCase):
+    """Tests de la hiérarchie multi-niveaux réelle BICEC."""
+
+    def test_full_hierarchy_dg_to_service(self):
+        """DG → DIRECTION → SOUS_DIRECTION → DEPARTEMENT → SERVICE."""
+        dg = Department.objects.create(name="DG BICEC", code="DG", type=Department.Type.DG)
+        direction = Department.objects.create(
+            name="DOGSI", code="DOGSI",
+            type=Department.Type.DIRECTION, parent=dg,
+        )
+        sous_dir = Department.objects.create(
+            name="Sous-Direction SI", code="SDSI",
+            type=Department.Type.SOUS_DIRECTION, parent=direction,
+        )
+        dept = Department.objects.create(
+            name="Études et Développement", code="DEV",
+            type=Department.Type.DEPARTEMENT, parent=sous_dir,
+        )
+        service = Department.objects.create(
+            name="Service Support", code="SUP",
+            type=Department.Type.SERVICE, parent=dept,
+        )
+        self.assertEqual(service.parent.parent.parent.parent, dg)
+
+    def test_region_contains_agences(self):
+        """REGION → AGENCE."""
+        region = Department.objects.create(
+            name="Direction Régionale Littoral", code="DRLIT",
+            type=Department.Type.REGION,
+        )
+        agence = Department.objects.create(
+            name="Agence Douala Bonanjo", code="DLBON",
+            type=Department.Type.AGENCE, parent=region,
+        )
+        self.assertIn(agence, region.get_children())
+
+    def test_all_department_types_are_valid(self):
+        """Vérifie que tous les types de la hiérarchie sont créables."""
+        for i, (code, label) in enumerate(Department.Type.choices):
+            Department.objects.create(
+                name=f"Test {label}", code=f"T{i}", type=code,
+            )
+        self.assertEqual(
+            Department.objects.count(), len(Department.Type.choices),
+        )
+
+
 class UserShellAccountTest(TestCase):
     """Tests du concept « coquille vide » (ADR-10, FR37)."""
 
@@ -156,10 +203,10 @@ class UserAuditAdminTest(TestCase):
             role=User.Role.DM,
             is_audit_admin=True,  # Flag activé mais rôle non-AUDIT
         )
-        self.rssi = User.objects.create_user(
-            username="rssi",
+        self.admin_user = User.objects.create_user(
+            username="admin_user",
             password="testpass123",
-            role=User.Role.RSSI,
+            role=User.Role.ADMIN,
         )
 
     def test_audit_director_can_manage_users(self):
@@ -174,6 +221,6 @@ class UserAuditAdminTest(TestCase):
         """Un DM même avec is_audit_admin=True ne peut pas gérer les comptes."""
         self.assertFalse(self.dm_with_flag.can_manage_users)
 
-    def test_rssi_cannot_manage_users(self):
-        """Le RSSI ne peut pas gérer les habilitations (ADR-10)."""
-        self.assertFalse(self.rssi.can_manage_users)
+    def test_admin_cannot_manage_users(self):
+        """L'Admin ne peut pas gérer les habilitations (ADR-10)."""
+        self.assertFalse(self.admin_user.can_manage_users)

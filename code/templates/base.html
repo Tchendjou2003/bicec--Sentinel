@@ -14,77 +14,51 @@
     {% block extra_css %}{% endblock %}
 </head>
 
-<body class="flex flex-col min-h-screen bg-gray-50 text-gray-900 font-sans" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body class="bg-background text-foreground font-sans antialiased min-h-screen flex flex-col" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
-    <!-- Navigation -->
-    {% block navbar %}
-    <nav class="bg-sentinel-brown text-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <div class="flex items-center">
-                    <span class="text-xl font-bold text-sentinel-orange">Sentinel</span>
-                    <span class="ml-2 text-sm text-gray-300">Audit Compliance</span>
-                </div>
-                <div class="flex items-center space-x-4">
-                    {% block nav_right %}
-                    {% if user.is_authenticated %}
-                        {% if user.is_staff or user.role == 'RSSI' %}
-                        <a href="{% url 'admin:index' %}" class="text-sm font-medium text-gray-300 hover:text-white transition-colors flex items-center mr-4" target="_blank" title="Interface d'administration système">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                            Admin IT
-                        </a>
-                        {% endif %}
-                        {% if user.role %}
-                        <span class="text-xs bg-sentinel-orange/20 text-sentinel-orange px-2 py-1 rounded-full font-medium">
-                            {{ user.get_role_display }}
-                        </span>
-                        {% endif %}
-                        <span class="text-sm text-gray-300">{{ user.get_full_name|default:user.username }}</span>
-                        <form method="post" action="{% url 'auth:logout' %}">
-                            {% csrf_token %}
-                            <button type="submit" class="text-sm text-gray-300 hover:text-white transition-colors ml-4">
-                                Déconnexion
-                            </button>
-                        </form>
-                    {% endif %}
-                    {% endblock %}
-                </div>
-            </div>
-        </div>
-    </nav>
-    {% endblock %}
-
-    <!-- Messages Django -->
-    {% if messages %}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-        {% for message in messages %}
-        <div
-            class="rounded-md p-4 mb-2 {% if message.tags == 'error' %}bg-red-50 text-red-800{% elif message.tags == 'success' %}bg-green-50 text-green-800{% else %}bg-blue-50 text-blue-800{% endif %}">
-            {{ message }}
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- Contenu principal -->
+    {% block body %}
     {% block main %}
-    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="flex-grow w-full">
         {% block content %}{% endblock %}
     </main>
     {% endblock %}
-
-    <!-- Footer -->
-    {% block footer %}
-    <footer class="bg-sentinel-brown bg-opacity-95 text-gray-400 mt-auto">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-xs">
-            Sentinel v1.0 — BICEC © {% now "Y" %}
-        </div>
-    </footer>
     {% endblock %}
 
-    <!-- Scripts: HTMX + Alpine.js (LOCAL — On-Premise, pas de CDN) -->
+    {# Toasts globaux (Alpine.js) #}
+    <div x-data class="fixed bottom-4 right-4 z-[100] space-y-2 pointer-events-none">
+        <template x-for="n in $store.sentinel.notifications" :key="n.id">
+            <div x-transition class="rounded-lg border bg-card shadow-premium-lg px-4 py-3 text-sm font-medium pointer-events-auto" :class="{
+                'border-success/30 text-success': n.type === 'success',
+                'border-destructive/30 text-destructive': n.type === 'error',
+                'border-info/30 text-info': n.type === 'info',
+                'border-warning/30 text-warning': n.type === 'warning'
+            }" x-text="n.msg"></div>
+        </template>
+    </div>
+
+    <!-- Scripts: HTMX + Alpine.js (LOCAL) + Sentinel Helpers -->
     <script src="{% static 'js/htmx.min.js' %}"></script>
+    <script src="{% static 'js/sentinel.js' %}" defer></script>
     <script src="{% static 'js/alpine.min.js' %}" defer></script>
+
+    <!-- Pont entre Django Messages et Alpine Toasts -->
+    {% if messages %}
+    <script>
+        document.addEventListener('alpine:init', () => {
+            {% for message in messages %}
+                {% if message.tags == 'error' %}
+                    Alpine.store('sentinel').notify("{{ message|escapejs }}", 'error');
+                {% elif message.tags == 'success' %}
+                    Alpine.store('sentinel').notify("{{ message|escapejs }}", 'success');
+                {% elif message.tags == 'warning' %}
+                    Alpine.store('sentinel').notify("{{ message|escapejs }}", 'warning');
+                {% else %}
+                    Alpine.store('sentinel').notify("{{ message|escapejs }}", 'info');
+                {% endif %}
+            {% endfor %}
+        });
+    </script>
+    {% endif %}
 
     {% block extra_js %}{% endblock %}
 </body>

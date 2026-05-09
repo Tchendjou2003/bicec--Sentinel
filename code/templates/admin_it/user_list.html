@@ -1,0 +1,99 @@
+{% extends "layouts/app_shell.html" %}
+
+{% block title %}Sentinel — Utilisateurs{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+
+  {# ── En-tête + bouton ajout ── #}
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 font-heading">Gestion des comptes</h1>
+      <p class="text-sm text-gray-500 mt-1">{{ total_users }} compte{{ total_users|pluralize:"s" }} • {{ total_shell }} en attente d'habilitation</p>
+    </div>
+    <a href="{% url 'auth:admin-user-create' %}" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sentinel-orange to-[#C9631A] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+      Créer un compte
+    </a>
+  </div>
+
+  {# ── Filtres ── #}
+  <div class="flex gap-2">
+    <a href="{% url 'auth:admin-user-list' %}" class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-200 {% if not filtre_actif %}bg-sentinel-orange text-white shadow-sm{% else %}text-gray-500 hover:bg-gray-100{% endif %}">
+      Tous
+    </a>
+    <a href="{% url 'auth:admin-user-list' %}?filtre=shell" class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-200 {% if filtre_actif == 'shell' %}bg-amber-500 text-white shadow-sm{% else %}text-gray-500 hover:bg-gray-100{% endif %}">
+      🟡 Coquilles vides ({{ total_shell }})
+    </a>
+    <a href="{% url 'auth:admin-user-list' %}?filtre=actif" class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-200 {% if filtre_actif == 'actif' %}bg-green-600 text-white shadow-sm{% else %}text-gray-500 hover:bg-gray-100{% endif %}">
+      ✅ Habilités
+    </a>
+  </div>
+
+  {# ── Tableau des utilisateurs ── #}
+  <div class="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+    <table class="w-full">
+      <thead>
+        <tr class="border-b border-gray-100 bg-gray-50/50">
+          <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Utilisateur</th>
+          <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
+          <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Statut</th>
+          <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Département</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for u in users %}
+        <tr class="hover:bg-orange-50/30 transition-colors duration-150">
+          <td class="px-6 py-4">
+            <div class="flex items-center gap-3">
+              <div class="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-500 text-xs font-bold uppercase">
+                {{ u.first_name|first|default:"?" }}{{ u.last_name|first|default:"" }}
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-gray-900">{{ u.get_full_name|default:u.username }}</p>
+                <p class="text-xs text-gray-400">{{ u.username }}</p>
+              </div>
+            </div>
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-600">{{ u.email|default:"—" }}</td>
+          <td class="px-6 py-4">
+            {% if u.role %}
+              <span class="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                {{ u.get_role_display }}
+              </span>
+            {% else %}
+              <span class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                Coquille vide
+              </span>
+            {% endif %}
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-600">{{ u.department.name|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="4" class="px-6 py-12 text-center text-gray-400">
+            Aucun utilisateur trouvé.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ── Pagination ── #}
+  {% if is_paginated %}
+  <nav class="flex justify-center gap-2 py-4">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}{% if filtre_actif %}&filtre={{ filtre_actif }}{% endif %}" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">← Précédent</a>
+    {% endif %}
+    <span class="rounded-lg px-4 py-2 text-sm font-medium text-gray-400">
+      Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if filtre_actif %}&filtre={{ filtre_actif }}{% endif %}" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">Suivant →</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+</div>
+{% endblock %}

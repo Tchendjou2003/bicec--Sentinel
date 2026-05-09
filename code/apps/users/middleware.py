@@ -7,8 +7,9 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.shortcuts import redirect
-from django.urls import reverse_lazy
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import PermissionDenied
 
 
 class IdleTimeoutMiddleware:
@@ -20,8 +21,8 @@ class IdleTimeoutMiddleware:
     les boucles de redirection.
     """
 
-    # Routes exclues du contrôle d'inactivité
-    PUBLIC_PATHS = ("/auth/", "/admin/login/")
+    # Routes exclues du contrôle d'inactivité (paths exacts, PAS de préfixe large)
+    PUBLIC_PATHS = ("/auth/login/", "/auth/logout/", "/auth/pending/", "/admin/login/")
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -64,11 +65,12 @@ class RoleRequiredMiddleware:
     """
     
     # Routes accessibles même pour une coquille vide
+    # Note : /admin/ retiré volontairement (M2) — les superusers sont déjà exclus
     ALLOWED_PATHS = (
         "/auth/login/",
         "/auth/logout/",
         "/auth/pending/",
-        "/admin/",
+        "/auth/external/",
     )
 
     def __init__(self, get_response):
@@ -90,6 +92,73 @@ class RoleRequiredMiddleware:
             and not request.user.is_superuser
         ):
             if not any(request.path.startswith(p) for p in self.ALLOWED_PATHS):
-                return redirect(reverse_lazy("auth:pending"))
+                return redirect(reverse("auth:pending"))
+
+        return self.get_response(request)
+
+
+class ExternalIsolationMiddleware:
+    """
+    Middleware de sécurité pour l'isolation des auditeurs externes (Story 1.3).
+
+    Deux protections complémentaires :
+        1. **Read-Only (AC1)** : Bloque toute requête en écriture (POST, PUT,
+           PATCH, DELETE) sauf la déconnexion (/auth/logout/).
+        2. **Isolation des vues (AC3)** : Interdit l'accès aux URLs internes
+           (home, admin, gestion) et redirige vers le dashboard externe.
+
+    Ce middleware agit APRÈS l'authentification et le RoleRequiredMiddleware.
+    """
+
+    # Seules les routes autorisées pour un utilisateur externe
+    EXTERNAL_ALLOWED_PATHS = (
+        "/auth/login/",
+        "/auth/logout/",
+        "/auth/external/",
+    )
+
+    # Méthodes HTTP en écriture
+    WRITE_METHODS = ("POST", "PUT", "PATCH", "DELETE")
+
+    # Routes autorisées en POST (même pour les EXT)
+    WRITE_EXCEPTIONS = (
+        "/auth/logout/",
+    )
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        # Normalisation des préfixes (cohérent avec IdleTimeout et RoleRequired)
+        self.static_prefix = "/" + settings.STATIC_URL.lstrip("/")
+        self.media_prefix = "/" + settings.MEDIA_URL.lstrip("/")
+
+    def __call__(self, request):
+        # Ne pas traiter les fichiers statiques/media
+        if request.path.startswith(self.static_prefix) or request.path.startswith(self.media_prefix):
+            return self.get_response(request)
+
+        # Ne s'applique qu'aux utilisateurs externes authentifiés
+        # On vérifie à la fois la propriété is_external et le rôle (M-04)
+        is_ext = getattr(request.user, "is_external", False) or getattr(request.user, "role", None) == "EXT"
+        if not (request.user.is_authenticated and is_ext):
+            return self.get_response(request)
+
+        # --- AC1 : Blocage des écritures ---
+        if request.method in self.WRITE_METHODS:
+            if not any(request.path == p for p in self.WRITE_EXCEPTIONS):
+                raise PermissionDenied(
+                    "Accès refusé : les auditeurs externes n'ont pas "
+                    "le droit de modifier des données."
+                )
+
+        # --- AC3 : Blocage des vues internes ---
+        if not any(request.path.startswith(p) for p in self.EXTERNAL_ALLOWED_PATHS):
+            # UX (M-05) : Redirection gracieuse si tentative d'accès au login admin
+            if request.path.startswith("/admin/login"):
+                return redirect(reverse("auth:external-dashboard"))
+            
+            raise PermissionDenied(
+                "Accès refusé : cette section est réservée aux "
+                "utilisateurs internes de la BICEC."
+            )
 
         return self.get_response(request)

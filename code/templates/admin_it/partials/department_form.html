@@ -1,0 +1,51 @@
+{# Formulaire département (partial HTMX — modal) #}
+
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <h2 class="text-lg font-bold text-gray-900 font-heading">
+      {% if is_edit %}Modifier le département{% else %}Nouveau département{% endif %}
+    </h2>
+    <button @click="$store.sentinel.showModal = false"
+      class="rounded-lg p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </svg>
+    </button>
+  </div>
+
+  <form method="post" {% if is_edit %} action="{% url 'auth:department-edit' department.pk %}"
+    hx-post="{% url 'auth:department-edit' department.pk %}" {% else %} action="{% url 'auth:department-create' %}"
+    hx-post="{% url 'auth:department-create' %}" {% endif %} hx-target="#department-modal-content" hx-swap="innerHTML"
+    @htmx:after-request="if(event.detail.successful) $store.sentinel.showModal = false" class="space-y-4">
+    {% csrf_token %}
+
+    {% for field in form %}
+    <div>
+      <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1.5">
+        {{ field.label }}
+        {% if field.field.required %}<span class="text-red-400">*</span>{% endif %}
+      </label>
+      {{ field }}
+      {% if field.help_text %}
+      <p class="text-xs text-gray-400 mt-1">{{ field.help_text }}</p>
+      {% endif %}
+      {% if field.errors %}
+      <p class="text-xs text-red-500 mt-1">{{ field.errors.0 }}</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+      <button type="button" @click="$store.sentinel.showModal = false"
+        class="rounded-xl px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
+        Annuler
+      </button>
+      <button type="submit"
+        class="rounded-xl bg-gradient-to-r from-sentinel-orange to-[#C9631A] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300">
+        {% if is_edit %}Enregistrer{% else %}Créer{% endif %}
+      </button>
+    </div>
+  </form>
+</div>

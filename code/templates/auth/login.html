@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static widget_tweaks %}
 
 {% block title %}Sentinel — Connexion{% endblock %}
 
@@ -95,7 +95,7 @@
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant/50">
                             <span class="material-symbols-outlined text-lg">account_circle</span>
                         </div>
-                        <input class="block w-full pl-10 pr-3 py-2.5 border border-outline-variant/50 rounded-lg bg-surface-container-lowest text-on-surface focus:ring-1 focus:ring-primary focus:border-primary transition-colors text-sm" id="id_username" name="username" placeholder="Saisissez votre identifiant" type="text" value="{{ form.username.value|default_if_none:'' }}" required autocomplete="username"/>
+                        {% render_field form.username class="block w-full pl-10 pr-3 py-2.5 border border-outline-variant/50 rounded-lg bg-surface-container-lowest text-on-surface focus:ring-1 focus:ring-primary focus:border-primary transition-colors text-sm" placeholder="Saisissez votre identifiant" autocomplete="username" %}
                     </div>
                 </div>
 
@@ -104,11 +104,11 @@
                         <label class="font-body text-sm font-medium text-on-surface" for="id_password">Mot de passe</label>
                         <a class="text-xs font-medium text-primary hover:text-primary-container transition-colors" href="#">Mot de passe oublié ?</a>
                     </div>
-                    <div class="relative" x-data="{ show: false }">
+                    <div class="relative" x-data="{ show: false }" x-effect="$el.querySelector('input').type = show ? 'text' : 'password'">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant/50">
                             <span class="material-symbols-outlined text-lg">lock</span>
                         </div>
-                        <input class="block w-full pl-10 pr-10 py-2.5 border border-outline-variant/50 rounded-lg bg-surface-container-lowest text-on-surface focus:ring-1 focus:ring-primary focus:border-primary transition-colors text-sm" id="id_password" name="password" placeholder="••••••••" :type="show ? 'text' : 'password'" required autocomplete="current-password"/>
+                        {% render_field form.password class="block w-full pl-10 pr-10 py-2.5 border border-outline-variant/50 rounded-lg bg-surface-container-lowest text-on-surface focus:ring-1 focus:ring-primary focus:border-primary transition-colors text-sm" placeholder="••••••••" autocomplete="current-password" %}
                         <button class="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant/50 hover:text-on-surface-variant transition-colors" type="button" @click="show = !show">
                             <span class="material-symbols-outlined text-lg" x-text="show ? 'visibility' : 'visibility_off'">visibility_off</span>
                         </button>

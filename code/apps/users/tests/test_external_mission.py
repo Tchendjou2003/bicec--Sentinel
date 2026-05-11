@@ -15,7 +15,6 @@ Le modèle doit représenter une mission d'audit externe avec :
 from datetime import date, timedelta
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
 from django.test import TestCase
 
 from apps.users.models import ExternalMission, User
@@ -63,7 +62,7 @@ class ExternalMissionModelTest(TestCase):
 
     def test_external_mission_str(self):
         """__str__ affiche l'organisation et l'auditeur."""
-        expected = f"COBAC — cobac_inspector"
+        expected = "COBAC — cobac_inspector"
         self.assertEqual(str(self.mission), expected)
 
     def test_external_mission_auditor_fk(self):

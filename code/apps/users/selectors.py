@@ -9,6 +9,7 @@ Spécifications couvertes :
     - FR28 : Filtrage par périmètre RBAC
 """
 from django.db.models import QuerySet, Count, Q
+from django.core.exceptions import ValidationError
 from uuid import UUID
 
 from .models import Department, User
@@ -55,7 +56,10 @@ def get_departments_for_level(parent_id: UUID | str | None = None) -> QuerySet[D
     """
     qs = Department.objects.filter(is_active=True)
     if parent_id:
-        qs = qs.filter(parent_id=parent_id)
+        try:
+            qs = qs.filter(parent_id=parent_id)
+        except (ValueError, ValidationError):
+            return Department.objects.none()
     else:
         qs = qs.filter(parent__isnull=True)
     
@@ -73,7 +77,7 @@ def get_department_breadcrumb(department_id: UUID | str) -> list[Department]:
     """
     try:
         dept = Department.objects.get(pk=department_id, is_active=True)
-    except Department.DoesNotExist:
+    except (Department.DoesNotExist, ValueError, ValidationError):
         return []
         
     breadcrumb = []

@@ -6,10 +6,9 @@ Vérifie :
     - IdleTimeoutMiddleware : déconnexion après 30 min d'inactivité (AC2 / NFR-SEC-02)
 """
 import time
-from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase, override_settings
+from django.test import Client, TestCase
 from django.urls import reverse
 
 User = get_user_model()

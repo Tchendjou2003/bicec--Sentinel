@@ -12,13 +12,14 @@ Spécifications couvertes :
     - ADR-10 : Séparation des comptes techniques et des habilitations
 """
 import json
+import uuid
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse, reverse_lazy
+from django.urls import reverse
 from django.views import View
 from django.views.generic import ListView, TemplateView
 
@@ -285,6 +286,11 @@ class OrganigrammeListView(AdminRequiredMixin, TemplateView):
 
     def get(self, request, *args, **kwargs):
         parent_id = request.GET.get("parent_id")
+        if parent_id:
+            try:
+                uuid.UUID(parent_id)
+            except ValueError:
+                parent_id = None
         departments = selectors.get_departments_for_level(parent_id)
         breadcrumb = selectors.get_department_breadcrumb(parent_id) if parent_id else []
 

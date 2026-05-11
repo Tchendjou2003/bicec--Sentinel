@@ -9,7 +9,7 @@ Vérifie que :
     - La déconnexion (POST /auth/logout/) reste autorisée pour les EXT.
 """
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase, override_settings
+from django.test import Client, TestCase
 from django.urls import reverse
 
 User = get_user_model()

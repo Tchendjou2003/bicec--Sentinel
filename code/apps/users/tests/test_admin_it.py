@@ -105,7 +105,7 @@ class OrganigrammeTest(TestCase):
 
     def test_create_department_post(self):
         """AC2 — Créer un département via POST."""
-        response = self.client.post(reverse("auth:department-create"), {
+        self.client.post(reverse("auth:department-create"), {
             "name": "Direction Générale",
             "code": "DG",
             "type": Department.Type.DG,
@@ -158,7 +158,7 @@ class OrganigrammeTest(TestCase):
         dept = Department.objects.create(
             name="Test", code="TST", type=Department.Type.SERVICE,
         )
-        response = self.client.post(
+        self.client.post(
             reverse("auth:department-edit", kwargs={"pk": dept.pk}),
             {
                 "name": "Test Modifié",
@@ -338,7 +338,7 @@ class DepartmentDeleteTest(TestCase):
             name="À supprimer", code="DEL", type=Department.Type.SERVICE,
         )
         url = reverse("auth:department-delete", kwargs={"pk": dept.pk})
-        response = self.client.post(url)
+        self.client.post(url)
         dept.refresh_from_db()
         self.assertFalse(dept.is_active)
 

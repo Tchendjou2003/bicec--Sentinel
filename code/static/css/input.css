@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,11 +9,86 @@
    Design System Sentinel (Orange/Brun)
    ============================================ */
 
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 15 30% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 15 30% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 15 30% 15%;
+    --primary: 25 80% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 15 30% 22%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 20% 96%;
+    --accent-foreground: 15 30% 22%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 25 80% 53%;
+    --radius: 0.5rem;
+    --sidebar-background: 15 30% 22%;
+    --sidebar-foreground: 30 20% 85%;
+    --sidebar-primary: 25 80% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 15 25% 28%;
+    --sidebar-accent-foreground: 30 20% 90%;
+    --sidebar-border: 15 20% 30%;
+    --surface: 210 20% 98%;
+    --gradient-primary: linear-gradient(135deg, hsl(25 85% 58%) 0%, hsl(20 80% 48%) 100%);
+    --gradient-hero: radial-gradient(ellipse at top, hsl(25 80% 53% / 0.08), transparent 60%);
+    --shadow-xs: 0 1px 2px 0 hsl(15 30% 15% / 0.04);
+    --shadow-sm: 0 1px 3px 0 hsl(15 30% 15% / 0.06), 0 1px 2px -1px hsl(15 30% 15% / 0.04);
+    --shadow-md: 0 4px 12px -2px hsl(15 30% 15% / 0.08), 0 2px 4px -2px hsl(15 30% 15% / 0.04);
+    --shadow-lg: 0 12px 32px -8px hsl(15 30% 15% / 0.12), 0 4px 12px -4px hsl(15 30% 15% / 0.06);
+    --shadow-glow: 0 0 24px -4px hsl(25 80% 53% / 0.35);
+  }
+  .dark {
+    --background: 15 30% 8%;
+    --foreground: 30 20% 90%;
+    --card: 15 25% 12%;
+    --card-foreground: 30 20% 90%;
+    --muted: 15 15% 18%;
+    --muted-foreground: 215 16% 60%;
+    --border: 15 15% 22%;
+    --input: 15 15% 22%;
+    --sidebar-background: 15 30% 6%;
+  }
+  * { border-color: hsl(var(--border)); }
+  body { background: hsl(var(--background)); color: hsl(var(--foreground)); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3, h4, h5, h6 { font-family: 'Manrope', sans-serif; letter-spacing: -0.02em; }
+  ::selection { background: hsl(var(--primary) / 0.2); color: hsl(var(--primary)); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.2); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); background-clip: content-box; }
+}
+
 @layer utilities {
     /* Hide Alpine.js elements before initialization */
     [x-cloak] {
         display: none !important;
     }
+
+    .bg-gradient-primary { background: var(--gradient-primary); }
+    .bg-gradient-hero { background: var(--gradient-hero); }
+    .shadow-xs { box-shadow: var(--shadow-xs); }
+    .shadow-premium-sm { box-shadow: var(--shadow-sm); }
+    .shadow-premium-md { box-shadow: var(--shadow-md); }
+    .shadow-premium-lg { box-shadow: var(--shadow-lg); }
+    .shadow-glow { box-shadow: var(--shadow-glow); }
+    .transition-smooth { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+    .glass { background: hsl(var(--card) / 0.7); backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%); }
+    .text-gradient-primary { background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 }
 
 @layer components {

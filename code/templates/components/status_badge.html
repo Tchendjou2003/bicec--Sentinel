@@ -1,0 +1,27 @@
+{# Variables: status (ASSIGNED|IN_PROGRESS|PENDING|OVERDUE|CLOSED|ACTIVE|INACTIVE|ERROR|OK), extra_class (optionnel) #}
+{% spaceless %}
+<span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold
+  {% if status == 'ASSIGNED' %}bg-info/15 text-info border-info/30
+  {% elif status == 'IN_PROGRESS' %}bg-primary/15 text-primary border-primary/30
+  {% elif status == 'PENDING' %}bg-warning/15 text-warning border-warning/30
+  {% elif status == 'OVERDUE' %}bg-destructive/15 text-destructive border-destructive/30
+  {% elif status == 'CLOSED' or status == 'OK' or status == 'ACTIVE' %}bg-success/15 text-success border-success/30
+  {% elif status == 'INACTIVE' %}bg-muted text-muted-foreground border-border
+  {% elif status == 'ERROR' %}bg-destructive/15 text-destructive border-destructive/30
+  {% endif %} {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full
+    {% if status == 'OVERDUE' or status == 'ERROR' %}bg-destructive
+    {% elif status == 'OK' or status == 'ACTIVE' or status == 'CLOSED' %}bg-success
+    {% else %}bg-current{% endif %}"></span>
+  {% if status == 'ASSIGNED' %}Assignée
+  {% elif status == 'IN_PROGRESS' %}En cours
+  {% elif status == 'PENDING' %}En attente
+  {% elif status == 'OVERDUE' %}En retard
+  {% elif status == 'CLOSED' %}Clôturée
+  {% elif status == 'ACTIVE' %}Actif
+  {% elif status == 'INACTIVE' %}Inactif
+  {% elif status == 'ERROR' %}Erreur
+  {% elif status == 'OK' %}OK
+  {% else %}{{ status }}{% endif %}
+</span>
+{% endspaceless %}

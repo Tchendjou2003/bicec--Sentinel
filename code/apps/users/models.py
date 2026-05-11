@@ -16,6 +16,7 @@ Les requêtes complexes sont dans selectors.py, la logique d'écriture dans serv
 import uuid
 
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -27,10 +28,11 @@ from django.utils.translation import gettext_lazy as _
 
 class Department(models.Model):
     """
-    Entité organisationnelle de la BICEC (Direction, Agence, Filiale).
+    Entité organisationnelle de la BICEC.
 
-    Structure hiérarchique auto-référencée permettant de modéliser
-    l'arborescence complète de l'institution. Condition sine qua non
+    Structure hiérarchique auto-référencée modélisant l'arborescence
+    complète de l'institution (DG → Direction → Sous-Direction →
+    Département → Service / Région → Agence). Condition sine qua non
     du RBAC : chaque utilisateur est rattaché à un département,
     et ne voit que les données de son périmètre (FR28).
 
@@ -38,9 +40,13 @@ class Department(models.Model):
     """
 
     class Type(models.TextChoices):
+        DG = "DG", _("Direction Générale")
         DIRECTION = "DIRECTION", _("Direction")
+        SOUS_DIRECTION = "SOUS_DIRECTION", _("Sous-Direction")
+        DEPARTEMENT = "DEPARTEMENT", _("Département")
+        SERVICE = "SERVICE", _("Service")
+        REGION = "REGION", _("Direction Régionale")
         AGENCE = "AGENCE", _("Agence")
-        FILIALE = "FILIALE", _("Filiale")
 
     id = models.UUIDField(
         primary_key=True,
@@ -107,7 +113,7 @@ class Department(models.Model):
 
     def get_children(self):
         """Retourne les départements enfants directs (actifs uniquement)."""
-        return self.children.filter(is_active=True)
+        return type(self).objects.filter(parent=self, is_active=True)
 
 
 # =============================================================================
@@ -137,9 +143,9 @@ class User(AbstractUser):
         ETP = "ETP", _("Employé Traitant")
         DG = "DG", _("Direction Générale")
         EXT = "EXT", _("Auditeur Externe")
-        RSSI = "RSSI", _("RSSI / Support IT")
+        ADMIN = "ADMIN", _("Admin")
 
-    id = models.UUIDField(
+    id = models.UUIDField(  
         primary_key=True,
         default=uuid.uuid4,
         editable=False,
@@ -228,3 +234,104 @@ class User(AbstractUser):
         rediriger vers la page d'attente d'activation (FR37).
         """
         return not self.has_role
+
+
+# =============================================================================
+# Mission Externe (Story 1.3 — AC4)
+# =============================================================================
+
+
+class ExternalMission(models.Model):
+    """
+    Mission d'audit externe rattachée à un auditeur (COBAC, BEAC, CAC…).
+
+    Définit l'organisation d'origine, le périmètre d'intervention et
+    les dates de la mission. Permet de tracer quel auditeur externe
+    intervient, quand, et sur quel scope.
+
+    Note : La relation M2M avec les recommandations (``external_mission_recommendations``)
+    sera implémentée dans l'Epic 2 lorsque l'application ``workflow`` sera créée.
+
+    Ref. Architecture : §7.2 ERD — table ``users_external_mission``
+    Ref. PRD : FR2 (Opening Scene COBAC)
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    auditor = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        limit_choices_to={"is_external": True, "role": User.Role.EXT},
+        related_name="external_missions",
+        verbose_name=_("Auditeur externe"),
+        help_text=_(
+            "Utilisateur externe (is_external=True) rattaché à cette mission."
+        ),
+    )
+    organization = models.CharField(
+        _("Organisation"),
+        max_length=100,
+        help_text=_(
+            "Institution d'origine de l'auditeur (ex: COBAC, BEAC, CAC)."
+        ),
+    )
+    scope_description = models.TextField(
+        _("Périmètre de la mission"),
+        blank=True,
+        default="",
+        help_text=_(
+            "Description libre du périmètre d'intervention "
+            "(ex: Audit des procédures de crédit)."
+        ),
+    )
+    start_date = models.DateField(
+        _("Date de début"),
+        help_text=_("Date de début de la mission d'audit externe."),
+    )
+    end_date = models.DateField(
+        _("Date de fin"),
+        null=True,
+        blank=True,
+        help_text=_(
+            "Date de fin prévue. Peut être NULL si la durée n'est pas "
+            "encore définie."
+        ),
+    )
+    is_active = models.BooleanField(
+        _("Active"),
+        default=True,
+        help_text=_(
+            "Indique si la mission est en cours. Désactiver en fin "
+            "de mission plutôt que supprimer."
+        ),
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Modifié le"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Mission externe")
+        verbose_name_plural = _("Missions externes")
+        ordering = ["-start_date"]
+        indexes = [
+            models.Index(fields=["auditor"], name="idx_extmission_auditor"),
+            models.Index(fields=["organization"], name="idx_extmission_org"),
+            models.Index(fields=["is_active"], name="idx_extmission_active"),
+        ]
+
+    def __str__(self):
+        auditor_name = self.auditor.username if hasattr(self, "auditor") and self.auditor else "N/A"
+        return f"{self.organization} — {auditor_name}"
+
+    def clean(self):
+        super().clean()
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValidationError(
+                {"end_date": _("La date de fin ne peut pas être antérieure à la date de début.")}
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

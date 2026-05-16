@@ -61,7 +61,8 @@ class SentinelLoginView(LoginView):
             return reverse("auth:admin-dashboard")
             
         #TODO: Redirections spécifiques par rôle (Dashboards - Epic 6)
-        # if user.role == User.Role.AUDIT: return reverse_lazy("dashboards:audit")
+        if user.role == User.Role.AUDIT:
+            return reverse("workflow:recommendation-list")
         # if user.role == User.Role.DM: return reverse_lazy("dashboards:dm")
             
         return super().get_success_url()

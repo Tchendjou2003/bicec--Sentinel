@@ -182,7 +182,7 @@ Un diagramme de cas d'utilisation montre **toutes les actions possibles d'un pro
 | **Gestion Utilisateurs & Auth** | FR1–FR4 | Authentification locale Django (`django.contrib.auth`) MVP. SSO Active Directory (LDAP Read-Only) différé en V2. RBAC multi-rôle contextuel. |
 | **Initialisation & Import** | FR5–FR9 | Import transactionnel atomique (tout-ou-rien). Soft delete. Bulk create. Tag `IMPORTED` inaltérable dans l'audit trail. |
 | **Workflow & Triage** | FR10–FR14 | FSM strict 5 états + flag `OVERDUE` + demande de report formalisée (DM → Audit). `django-fsm` garantit les transitions au niveau ORM. |
-| **Soumission & Validation Preuves** | FR15–FR20 | Upload 15 Mo max. Validation adaptative (magic bytes médias, whitelist stricte XLSX/CSV/TXT/MSG/EML). Macros `.xlsm` interdites. Versioning des preuves. PV de recette signé. |
+| **Soumission & Validation Preuves** | FR15–FR20 | Upload 6 Mo max (20 Mo total/reco). Validation adaptative (magic bytes médias, whitelist stricte XLSX/CSV/TXT/MSG/EML). Macros `.xlsm` interdites. Versioning des preuves. PV de recette signé. |
 | **Notifications & Rappels** | FR21–FR23 | Scheduler asynchrone Django-Q2 (CRON nocturne). Emails consolidés par utilisateur. Alertes proactives J-7. |
 | **Audit Cryptographique & Export** | FR24–FR27 | Sceau HMAC-SHA256 à la clôture. Archive ZIP synchrone < 5s/reco. Timeline audit trail. Append-only strict. |
 | **Dashboards** | FR28–FR31 | Accès filtré par périmètre organisationnel (RBAC). Filtres multi-critères. Code couleur urgence (Rouge/Orange/Vert). CSS `@media print` pour export DG. |
@@ -193,7 +193,7 @@ Un diagramme de cas d'utilisation montre **toutes les actions possibles d'un pro
 |---|---|---|
 | **Sécurité** | TLS 1.2+ (NFR-SEC-01), session 30min (NFR-SEC-02), HMAC-SHA256 (NFR-SEC-03), Magic Bytes (NFR-SEC-04), logs 12 mois (NFR-SEC-05) | Middleware sécurité robuste, Nginx TLS, stockage structuré des logs |
 | **Performance** | Périmètre < 10ms (NFR-PERF-01), UI < 200ms P95 (NFR-PERF-02), HMAC < 500ms (NFR-PERF-03), ZIP < 5s (NFR-PERF-04) | Pré-calcul du périmètre dans la session Django, SSR natif |
-| **Scalabilité** | 15 Mo/fichier × 5 max (NFR-SCA-01), ~5000 recos + ~20000 fichiers (NFR-SCA-02), ~200 users concurrents (NFR-SCA-03) | Dimensionnement mono-serveur, volume de stockage de 400 Go minimum |
+| **Scalabilité** | 6 Mo/fichier, max 20 Mo/reco (NFR-SCA-01), ~5000 recos + ~20000 fichiers (NFR-SCA-02), ~200 users concurrents (NFR-SCA-03) | Dimensionnement mono-serveur, volume de stockage de 400 Go minimum |
 | **Fiabilité** | Fail-safe / 0 ligne si contexte absent (NFR-REL-01), RPO 24h (NFR-REL-02), RTO 4h (NFR-REL-03), Uptime 99,5% (NFR-REL-04) | Backup nocturne chiffré, RBAC strict et requêtes filtrées |
 
 ### 1.4 Contraintes Non-Négociables
@@ -288,7 +288,7 @@ Ces 5 préoccupations traversent **tous les composants** de l'architecture :
 **Statut :** DÉCIDÉ
 **Date :** 2026-04-04 (mise à jour v2.1)
 
-**Contexte :** Le PRD exige le TLS 1.2+ obligatoire (NFR-SEC-01), le support d'uploads 15 Mo (NFR-SCA-01) et le service de fichiers statiques performant. Afin d'aligner l'architecture de Sentinel sur les standards déjà en place et maîtrisés par l'IT BICEC, le choix du reverse proxy a été réévalué.
+**Contexte :** Le PRD exige le TLS 1.2+ obligatoire (NFR-SEC-01), le support d'uploads 6 Mo (NFR-SCA-01) et le service de fichiers statiques performant. Afin d'aligner l'architecture de Sentinel sur les standards déjà en place et maîtrisés par l'IT BICEC, le choix du reverse proxy a été réévalué.
 
 **Options évaluées :**
 
@@ -411,7 +411,7 @@ Ces 5 préoccupations traversent **tous les composants** de l'architecture :
 - **Zéro dépendance externe** : utilise l'ORM Django comme broker (pas de Redis/RabbitMQ à installer ni maintenir).
 - **Résilience aux redémarrages :** `timeout=60s` + `retry=120s` sur chaque tâche. Toute tâche interrompue par un redémarrage serveur nocturne est automatiquement relancée.
 - **Polling optimisé :** Intervalle de `10 secondes` (vs 5s par défaut). Le besoin est un batch nocturne — un polling agressif surchargerait PostgreSQL inutilement.
-- **Monitoring intégré** dans l'admin Django — le RSSI voit l'état des tâches immédiatement.
+- **Monitoring intégré** dans l'admin Django — l'Admin voit l'état des tâches immédiatement.
 - **Table `scheduler_heartbeat`** pour détecter si le scheduler a cessé de fonctionner (vérification par script CRON OS indépendant toutes les 2h).
 - Celery serait surdimensionné pour le volume de tâches de Sentinel (~10 tâches/nuit).
 
@@ -564,7 +564,7 @@ Ces 5 préoccupations traversent **tous les composants** de l'architecture :
 **Statut :** DÉCIDÉ
 **Date :** 2026-04-24
 
-**Contexte :** La gestion des comptes utilisateurs dans Sentinel implique deux actions distinctes : (1) la création de l'identité technique (login, mot de passe) et (2) l'attribution des habilitations métiers (rôle, périmètre direction). La question est de savoir qui — le Support IT ou l'Audit Interne — doit être responsable de chaque action. Un risque de **conflit d'intérêts** a été identifié : si le Support IT/RSSI pouvait à la fois créer des comptes ET attribuer des rôles, il pourrait potentiellement se créer un accès métier non autorisé, contournant la ségrégation des fonctions (SoD) exigée par la COBAC.
+**Contexte :** La gestion des comptes utilisateurs dans Sentinel implique deux actions distinctes : (1) la création de l'identité technique (login, mot de passe) et (2) l'attribution des habilitations métiers (rôle, périmètre direction). La question est de savoir qui — le Support IT ou l'Audit Interne — doit être responsable de chaque action. Un risque de **conflit d'intérêts** a été identifié : si le Support IT/Admin pouvait à la fois créer des comptes ET attribuer des rôles, il pourrait potentiellement se créer un accès métier non autorisé, contournant la ségrégation des fonctions (SoD) exigée par la COBAC.
 
 **Options évaluées :**
 
@@ -583,7 +583,7 @@ Ces 5 préoccupations traversent **tous les composants** de l'architecture :
 
 1. **Séparation des Fonctions optimale (SoD) :** Cette architecture reflète les bonnes pratiques bancaires où l'IT gère l'identité technique (login/mot de passe, comparable à la création d'un compte Active Directory) et le métier gère les habilitations applicatives. Aucun acteur isolé ne peut créer un accès métier fonctionnel.
 
-2. **Mitigation du risque de corruption :** Un compte créé par l'IT sans rôle assigné par l'Audit est **strictement inerte** — l'utilisateur voit une page « Votre compte est en attente d'activation par l'Audit Interne » et ne peut accéder à aucune donnée métier (recommandations, preuves, dashboards). Le RSSI peut créer 100 comptes : sans activation Audit, ils sont inutilisables.
+2. **Mitigation du risque de corruption :** Un compte créé par l'IT sans rôle assigné par l'Audit est **strictement inerte** — l'utilisateur voit une page « Votre compte est en attente d'activation par l'Audit Interne » et ne peut accéder à aucune donnée métier (recommandations, preuves, dashboards). L'Admin peut créer 100 comptes : sans activation Audit, ils sont inutilisables.
 
 3. **Évite la concentration de pouvoir :** Contrairement à l'Option B où l'Audit contrôlerait intégralement la chaîne (création + habilitation), l'Option C garantit que deux acteurs distincts doivent coopérer pour créer un accès fonctionnel. Un auditeur malveillant seul ne pourrait pas créer un faux profil.
 
@@ -609,7 +609,7 @@ La délégation est **explicitement tracée** dans l'Audit Log : `"Délégation 
 - Le modèle de données `User` est enrichi d'un champ `is_audit_admin: BooleanField(default=False)`.
 - Une **interface dédiée** (distincte du Django Admin) est développée pour l'Audit : tableau des comptes en attente d'habilitation, formulaire d'assignation rôle/direction, gestion des délégations.
 - Le middleware RBAC est renforcé pour garantir qu'un utilisateur dont le champ `role` est `NULL` ou vide est redirigé vers une page « en attente d'activation » — jamais vers un dashboard.
-- Le RSSI conserve l'accès au Django Admin pour la gestion de l'organigramme (Directions, Services, Agences) et le monitoring technique (Django-Q2, Audit Logs système), mais les formulaires de modification de rôle métier lui sont masqués.
+- L'Admin conserve l'accès au Django Admin pour la gestion de l'organigramme (DG, Directions, Sous-Directions, Départements, Services, Régions, Agences) et le monitoring technique (Django-Q2, Audit Logs système), mais les formulaires de modification de rôle métier lui sont masqués.
 - Le risque résiduel (accès direct BDD par le DBA) est couvert par les Triggers d'Audit PostgreSQL (append-only) qui détecteront toute modification non-applicative des rôles.
 
 **Références :** PRD FR3, FR35, FR36, FR37, NFR-SEC-05 (Audit Logs), COBAC R-2016/04 (Séparation des Fonctions)
@@ -622,7 +622,7 @@ La délégation est **explicitement tracée** dans l'Audit Log : `"Délégation 
 
 ## §3. Vue C4 — Architecture Système
 
-Le modèle C4 (Context, Containers, Components) permet de visualiser l'architecture logicielle de Sentinel à différents niveaux de zoom, facilitant la compréhension pour diverses audiences (Direction IT, développeurs, RSSI). Ce projet inclut les syntaxes C4 Mermaid rendues nativement.
+Le modèle C4 (Context, Containers, Components) permet de visualiser l'architecture logicielle de Sentinel à différents niveaux de zoom, facilitant la compréhension pour diverses audiences (Direction IT, développeurs, Admin). Ce projet inclut les syntaxes C4 Mermaid rendues nativement.
 
 ### 3.1 C4 Level 1 — Contexte Système
 
@@ -632,7 +632,7 @@ Ce diagramme illustre le système Sentinel dans son environnement global, ses in
 C4Context
     title Diagramme de Contexte (Level 1) - Sentinel
 
-    Person(users, "Utilisateurs", "Auditeurs, Directeurs Métier (DM), ETP, DG, RSSI")
+    Person(users, "Utilisateurs", "Auditeurs, Directeurs Métier (DM), ETP, DG, Admin")
     
     System(sentinel, "Sentinel", "Plateforme de suivi des recommandations d'audit (Workflow, Preuves, Traçabilité)")
 
@@ -879,12 +879,12 @@ flowchart LR
     EXT --- UC6
 ```
 
-### 4.6 RSSI / Administrateur Système (support IT)
+### 4.6 Admin (anciennement RSSI / Administrateur Système)
 
 ```mermaid
 flowchart LR
     subgraph "Système Sentinel (Espace Admin)"
-        UC1["Gérer l'organigramme\n(Directions, Départements)"]
+        UC1["Gérer l'organigramme\n(DG, Directions, Sous-Dir.,\nDépts, Services, Régions, Agences)"]
         UC2["Créer / Désactiver\ncomptes utilisateurs\n(coquille vide sans rôle — ADR-10)"]
         UC3["Monitorer les tâches asynchrones\n(Dashboard Django-Q2)"]
         UC4["Consulter l'Audit Log\nglobal (Sécurité)"]
@@ -897,13 +897,13 @@ flowchart LR
         R3["❌ Aucun accès aux\ndonnées métier (recos, preuves)"]
     end
 
-    RSSI(("⚫ IT Admin /\nSupport"))
+    ADMIN(("⚫ Admin"))
 
-    RSSI --- UC1
-    RSSI --- UC2
-    RSSI --- UC3
-    RSSI --- UC4
-    RSSI --- UC5
+    ADMIN --- UC1
+    ADMIN --- UC2
+    ADMIN --- UC3
+    ADMIN --- UC4
+    ADMIN --- UC5
 ```
 
 ---
@@ -1500,10 +1500,10 @@ erDiagram
         boolean is_active
     }
 
-    DIRECTION {
+    UNITE_ORGANISATIONNELLE {
         string nom
         string code
-        string type
+        string type "DG | DIRECTION | SOUS_DIRECTION | DEPARTEMENT | SERVICE | REGION | AGENCE"
     }
 
     RECOMMANDATION {
@@ -1575,8 +1575,8 @@ erDiagram
         date date_fin
     }
 
-    UTILISATEUR ||--o{ DIRECTION : "appartient a"
-    DIRECTION ||--o{ RECOMMANDATION : "concerne"
+    UTILISATEUR ||--o{ UNITE_ORGANISATIONNELLE : "appartient a"
+    UNITE_ORGANISATIONNELLE ||--o{ RECOMMANDATION : "concerne"
     UTILISATEUR ||--o{ RECOMMANDATION : "cree"
     UTILISATEUR ||--o{ RECOMMANDATION : "est assigne DM"
     UTILISATEUR ||--o{ RECOMMANDATION : "est assigne ETP"
@@ -1607,7 +1607,7 @@ erDiagram
         uuid id PK
         varchar(100) name
         varchar(10) code UK
-        varchar(20) type "DIRECTION | AGENCE | FILIALE"
+        varchar(20) type "DG | DIRECTION | SOUS_DIRECTION | DEPARTEMENT | SERVICE | REGION | AGENCE"
         uuid parent_id FK "Self-referencing"
         boolean is_active
         timestamp created_at
@@ -1621,7 +1621,7 @@ erDiagram
         varchar(128) password_hash
         varchar(50) first_name
         varchar(50) last_name
-        varchar(20) role "AUDIT | DM | ETP | DG | EXTERNE | RSSI"
+        varchar(20) role "AUDIT | DM | ETP | DG | EXTERNE | ADMIN"
         uuid department_id FK
         boolean is_active
         boolean is_staff
@@ -2352,7 +2352,7 @@ Le calibrage (Sizing) suivant est calculé pour supporter la contrainte NFR-SCA-
 | **CPU (vCores)**| **4 vCores** | Nginx (0.5), Gunicorn `gthread` avec 4 workers (2.0), PostgreSQL (1.0), OS + background (0.5). |
 | **Mémoire (RAM)** | **8 Go** | OS (1 Go), Docker Engine (0.5 Go), PostgreSQL `shared_buffers` au quart (2 Go), Gunicorn 4 workers (2 Go), Django-Q2 (0.5 Go), Nginx + cache (1.5 Go). |
 | **Stockage (App)**| **40 Go SSD** | OS Ubuntu/RHEL (~10 Go), Python + lib (~1 Go), Base PostgreSQL volumétrie métier textuelle (~5 Go), Logs système + audit (~4 Go), Marge d'exploitation (20 Go). |
-| **Files (Preuves)**| **200 Go HDD/SSD** | Uploads limités à 15 Mo (NFR-SCA-01). 9000 fichiers × ~10 Mo en moyenne = ~90 Go. Provisionnement sur 3 ans (200 Go). Ce disque peut être monté en iSCSI ou NFS. |
+| **Files (Preuves)**| **200 Go HDD/SSD** | Uploads limités à 6 Mo (NFR-SCA-01). 9000 fichiers × ~3 Mo en moyenne = ~27 Go. Provisionnement sur 3 ans (200 Go). Ce disque peut être monté en iSCSI ou NFS. |
 | **Réseau** | **Gigabit LAN**| Flux internes massifs (ZIP synchrones). Interfaces réseaux à haut débit nécessaires pour les connexions simultanées vers le NAS. |
 
 > **Stratégie de Backup (NFR-REL-02: RPO 24h)**  
@@ -2387,14 +2387,14 @@ server {
     # 2. Sécurité : En-têtes obligatoires
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
 
-    # Limite drastique pour les uploads (15MB imposés par NFR-SCA-01)
-    client_max_body_size 16M;
+    # Limite drastique pour les uploads (6MB imposés par NFR-SCA-01)
+    client_max_body_size 6M;
 
     # 3. Fichiers statiques (JS, CSS Tailwind, Fonts)
     location /static/ {
-        alias /usr/share/nginx/html/static/;
+        alias /app/staticfiles/;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -2550,7 +2550,7 @@ Ce projet de digitalisation croise des enjeux réglementaires stricts (COBAC) et
 | ID | Catégorie | Risque Identifié | Probabilité | Impact | Mitigation Architecturale (by-design) |
 |---|---|---|---|---|---|
 | **R01** | **Adoption** | Les utilisateurs (DM/ETP) refusent d'utiliser l'outil et continuent d'envoyer des preuves par email. | Élevée | Élevé | **SSR + HTMX** : Navigation ultra-rapide (UI < 200ms). Les relances asynchrones (Django-Q2) forcent l'adoption en impliquant la DG si le statut `OVERDUE` s'active. |
-| **R02** | **Technique** | Saturation du disque dur (`fs`) local de la VM due à l'upload incontrôlé de fichiers volumineux. | Moyenne | Bloquant | Quotas stricts de 15 Mo/fichier dans les vues Django. Télémétrie et alertes automatiques si seuil > 80% (RSSI). Export asynchrone / Montage NAS en backup (NFR-SCA-01). |
+| **R02** | **Technique** | Saturation du disque dur (`fs`) local de la VM due à l'upload incontrôlé de fichiers volumineux. | Moyenne | Bloquant | Quotas stricts de 6 Mo/fichier (20 Mo/reco) dans les vues Django. Télémétrie et alertes automatiques si seuil > 80% (RSSI). Export asynchrone / Montage NAS en backup (NFR-SCA-01). |
 | **R03** | **Securité** | Falsification / Altération d'une recommandation archivée par un compte Audit corrompu. | Faible | Très élevé | Architecture Append-Only : suppression impossible. **Sceau HMAC-SHA256** lié au record. L'AuditLog rendra impossible le camouflage de l'effraction. |
 | **R04** | **Securité** | Infection Ransomware via l'upload d'un faux fichier Word/Excel piégé par un macro virus. | Moyenne | Critique | **Validation adaptative (Magic bytes)** + Rejet catégorique (hard-ban) des formats avec macros (`.xlsm`, `.docm`). Les UUIDv4 limitent l'exécution shell. |
 | **R05** | **Architecture** | Le Single Point of Failure (SPOF) Monolithe VM plante soudainement (Kernel panic). | Faible | Bloquant | Architecture auto-contenue, temps de restauration système (RTO < 4h, NFR-REL-03) via Snapshot VM / Backup Pg_dump quotidien. |
@@ -2634,7 +2634,7 @@ Une architecture d'entreprise ne se juge pas uniquement sur les fonctionnalités
 
 | ID | Exigence (NFR) | Composant de Validation (by-design) | Statut |
 |---|---|---|:---:|
-| **SCA-01**| Max 5 fichiers par preuve (limite de 15 Mo unitaire). | Limites intégrées en durs dans les `Forms Django` (Validation Size) et `client_max_body_size` dans Nginx. | ✅ |
+| **SCA-01**| Max 20 Mo cumulé par recommandation (limite de 6 Mo unitaire). | Limites intégrées en durs dans les `Forms Django` (Validation Size) et `client_max_body_size` dans Nginx. | ✅ |
 | **SCA-02**| Tenue de DB de 2000 Recos, 9000 fichiers. | Table SQL partitionnées et indexées nativement. Volumétrie considérée comme *"Minuscule"* pour PostgreSQL 16. | ✅ |
 | **SCA-03**| Support 200 utilisateurs concurrents. | Le stack `Nginx + Gunicorn 4 Workers (gthread 10)` gère sans surcharge les locks concurrentiels (estimé 1200 req/sec possibles). | ✅ |
 

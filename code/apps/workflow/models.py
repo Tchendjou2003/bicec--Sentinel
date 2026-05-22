@@ -17,7 +17,7 @@ Les requêtes complexes sont dans selectors.py, la logique d'écriture dans serv
 import uuid
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -42,6 +42,31 @@ class ActiveRecommendationManager(models.Manager):
 
     def get_queryset(self):
         return super().get_queryset().filter(is_deleted=False)
+
+
+class ImmutableQuerySet(models.QuerySet):
+    """QuerySet qui bloque la suppression en masse des preuves soumises (AC4 story 3.3).
+
+    Les fichiers rattachés à un brouillon DRAFT peuvent être supprimés.
+    Les fichiers rattachés à une soumission PENDING/ACCEPTED sont immuables.
+    """
+
+    def delete(self):
+        # Autoriser la suppression en masse uniquement pour les fichiers en brouillon DRAFT
+        non_draft = self.exclude(submission__status="DRAFT")
+        if non_draft.exists():
+            raise PermissionDenied(
+                "La suppression en masse de pièces justificatives soumises est interdite. "
+                "Les preuves sont immuables (append-only)."
+            )
+        return super().delete()
+
+
+class ImmutableManager(models.Manager):
+    """Manager associé à ImmutableQuerySet pour les modèles append-only."""
+
+    def get_queryset(self):
+        return ImmutableQuerySet(self.model, using=self._db)
 
 
 # =============================================================================
@@ -305,6 +330,41 @@ class Recommendation(models.Model):
         completed = self.deliverables.filter(is_completed=True).count()
         return round((completed / total) * 100)
 
+    @property
+    def active_draft(self):
+        """
+        Retourne le brouillon DRAFT actif de soumission de preuves, s'il existe.
+
+        Utilisé par l'Audit pour afficher un indicateur d'activité discret
+        sans révéler le contenu sensible du brouillon (PRD v2 §8).
+
+        Returns:
+            EvidenceSubmission | None: Le brouillon actif ou None.
+        """
+        return self.evidence_submissions.filter(
+            status=EvidenceSubmission.SubmissionStatus.DRAFT
+        ).first()
+
+    @property
+    def draft_progress_info(self) -> dict:
+        """
+        Dictionnaire d'activité du brouillon visible par l'Audit.
+
+        Contient uniquement des métadonnées (présence, date, compteur)
+        sans le contenu du commentaire ou les noms de fichiers.
+
+        Returns:
+            dict: {"has_draft": bool, "updated_at": datetime | None, "files_count": int}
+        """
+        draft = self.active_draft
+        if not draft:
+            return {"has_draft": False, "updated_at": None, "files_count": 0}
+        return {
+            "has_draft": True,
+            "updated_at": draft.updated_at,
+            "files_count": draft.files.count(),
+        }
+
     # ── Transitions FSM ──────────────────────────────────────────────
 
     @transition(field=status, source=Status.DRAFT, target=Status.ASSIGNED)
@@ -336,6 +396,30 @@ class Recommendation(models.Model):
                 _("Le DM sélectionné n'appartient pas à la Direction concernée.")
             )
         self.assigned_dm = dm
+
+    @transition(field=status, source=Status.ASSIGNED, target=Status.IN_PROGRESS)
+    def start_processing(self):
+        """
+        Transition vers IN_PROGRESS (FR12 — Story 3.2).
+
+        Déclenchée lorsque le DM délègue à un ETP ou
+        s'auto-assigne en tant que DM Porteur.
+
+        Cette transition est protégée par django-fsm :
+        elle ne peut être appelée que depuis l'état ASSIGNED.
+        """
+        pass
+
+    @transition(field=status, source=Status.IN_PROGRESS, target=Status.PENDING_DM_REVIEW)
+    def submit_evidence(self):
+        """
+        Transition vers PENDING_DM_REVIEW (Story 3.3).
+
+        Déclenchée lorsque l'ETP (ou DM Porteur) soumet ses preuves.
+        La logique de validation et la création des EvidenceFile
+        sont orchestrées par le service layer avant cet appel.
+        """
+        pass
 
 
 # =============================================================================
@@ -406,3 +490,206 @@ class Deliverable(models.Model):
     def __str__(self):
         status = "✓" if self.is_completed else "○"
         return f"{status} {self.label}"
+
+
+# =============================================================================
+# Preuves de soumission (Story 3.3 — Immutabilité)
+# =============================================================================
+
+
+class EvidenceSubmission(models.Model):
+    """
+    Groupe d'une soumission de preuves par un ETP ou DM Porteur.
+
+    Chaque soumission contient un commentaire de résolution global
+    et N fichiers probatoires. Une recommandation peut avoir plusieurs
+    soumissions en cas de rejet DM suivi d'une resoumission.
+
+    Le cycle de vie est : DRAFT → PENDING → ACCEPTED / REJECTED.
+    - **DRAFT** : Brouillon de l'ETP, visible uniquement par lui (PRD v2 FR15).
+      Les fichiers peuvent être ajoutés/supprimés librement.
+    - **PENDING** : Soumis au DM pour validation. Les fichiers deviennent immuables.
+    - **ACCEPTED / REJECTED** : Piloté par le DM (Story 3.4).
+
+    Les soumissions REJECTED ne comptent plus dans le quota de 20 Mo actifs
+    de la recommandation (NFR-SCA-01).
+
+    Ref. Architecture : Story 3.3 — FR13, AC3, AC7 ; Story 3.4 — AC2.
+    """
+
+    class SubmissionStatus(models.TextChoices):
+        DRAFT    = "DRAFT",    _("Brouillon")
+        PENDING  = "PENDING",  _("En attente de validation")
+        ACCEPTED = "ACCEPTED", _("Acceptée")
+        REJECTED = "REJECTED", _("Rejetée")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    recommendation = models.ForeignKey(
+        Recommendation,
+        on_delete=models.CASCADE,
+        related_name="evidence_submissions",
+        verbose_name=_("Recommandation"),
+    )
+    comment = models.TextField(
+        _("Commentaire de résolution"),
+        blank=True,
+        default="",
+        help_text=_(
+            "Explication de l'ETP sur les actions menées pour résoudre la recommandation. "
+            "Vide en brouillon, obligatoire à la soumission."
+        ),
+    )
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="evidence_submissions",
+        verbose_name=_("Soumis par"),
+    )
+    status = models.CharField(
+        _("Statut"),
+        max_length=20,
+        choices=SubmissionStatus.choices,
+        default=SubmissionStatus.DRAFT,
+        help_text=_(
+            "DRAFT à la création du brouillon. PENDING à la soumission. "
+            "ACCEPTED/REJECTED piloté par le DM (Story 3.4)."
+        ),
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(
+        _("Modifié le"),
+        auto_now=True,
+        help_text=_(
+            "Dernière activité sur le brouillon (ajout/suppression fichier, "
+            "modification commentaire). Visible par l'Audit sans contenu sensible."
+        ),
+    )
+
+    class Meta:
+        verbose_name = _("Soumission de preuves")
+        verbose_name_plural = _("Soumissions de preuves")
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recommendation", "submitted_by"],
+                condition=models.Q(status="DRAFT"),
+                name="unique_draft_per_reco_user",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["recommendation", "status"]),
+            models.Index(fields=["submitted_by", "status"]),
+        ]
+
+    def __str__(self):
+        return f"Soumission {self.recommendation.reference} — {self.get_status_display()} — {self.created_at:%Y-%m-%d}"
+
+
+def _evidence_upload_path(instance, filename):
+    """Calcule le chemin de stockage avec UUID comme nom de fichier (évite les collisions)."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    return f"evidence/{instance.submission.recommendation_id}/{timezone.now():%Y/%m}/{uuid.uuid4()}.{ext}"
+
+
+class EvidenceFile(models.Model):
+    """
+    Fichier probatoire individuel.
+
+    L'immutabilité est **conditionnelle** au statut de la soumission parente :
+    - DRAFT : le fichier peut être supprimé librement par son auteur.
+    - PENDING / ACCEPTED / REJECTED : le fichier est immuable (append-only, AC4).
+
+    Le nom physique sur disque est un UUID pour éviter les collisions et
+    les attaques par path traversal. Le nom original est conservé en DB.
+
+    Ref. Architecture : Story 3.3 — FR13, AC1, AC2, AC4, NFR-SEC-04.
+    """
+
+    class Tag(models.TextChoices):
+        JUSTIFICATIF = "JUSTIFICATIF", _("Justificatif")
+        PV_RECETTE = "PV_RECETTE", _("PV de recette")
+        RAPPORT = "RAPPORT", _("Rapport")
+        AUTRE = "AUTRE", _("Autre")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    submission = models.ForeignKey(
+        EvidenceSubmission,
+        on_delete=models.CASCADE,
+        related_name="files",
+        verbose_name=_("Soumission"),
+    )
+    file = models.FileField(
+        _("Fichier"),
+        upload_to=_evidence_upload_path,
+    )
+    original_filename = models.CharField(
+        _("Nom original"),
+        max_length=255,
+        help_text=_("Nom du fichier tel que fourni par l'utilisateur."),
+    )
+    file_size = models.PositiveIntegerField(
+        _("Taille (octets)"),
+        help_text=_("Taille du fichier en octets au moment du dépôt."),
+    )
+    mime_type = models.CharField(
+        _("Type MIME"),
+        max_length=100,
+        help_text=_("Type MIME détecté depuis les magic bytes, pas l'extension."),
+    )
+    sha256_hash = models.CharField(
+        _("Hash SHA-256"),
+        max_length=64,
+        help_text=_("Empreinte intègre du fichier pour vérification d'intégrité."),
+    )
+    tag = models.CharField(
+        _("Catégorie"),
+        max_length=20,
+        choices=Tag.choices,
+        default=Tag.JUSTIFICATIF,
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="uploaded_evidence_files",
+        verbose_name=_("Déposé par"),
+    )
+    created_at = models.DateTimeField(_("Déposé le"), auto_now_add=True)
+
+    objects = ImmutableManager()
+
+    class Meta:
+        verbose_name = _("Fichier probatoire")
+        verbose_name_plural = _("Fichiers probatoires")
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["submission", "tag"]),
+        ]
+
+    @property
+    def file_size_display(self) -> str:
+        if self.file_size < 1_048_576:
+            return f"{self.file_size / 1024:.0f} Ko"
+        return f"{self.file_size / 1_048_576:.1f} Mo"
+
+    def __str__(self):
+        return f"{self.original_filename} ({self.get_tag_display()})"
+
+    def delete(self, *args, **kwargs):
+        """
+        Suppression conditionnelle au statut de la soumission parente.
+
+        - DRAFT : suppression autorisée (fichier physique + enregistrement DB).
+        - PENDING / ACCEPTED / REJECTED : interdit (AC4 — immutabilité).
+
+        Raises:
+            PermissionDenied: Si la soumission n'est pas en DRAFT.
+        """
+        if self.submission.status != EvidenceSubmission.SubmissionStatus.DRAFT:
+            raise PermissionDenied(
+                "Les fichiers probatoires soumis sont immuables "
+                "et ne peuvent pas être supprimés."
+            )
+        # Suppression physique du fichier sur disque
+        if self.file:
+            self.file.delete(save=False)
+        super(EvidenceFile, self).delete(*args, **kwargs)

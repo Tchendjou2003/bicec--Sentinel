@@ -50,19 +50,17 @@ development_status:
   epic-1-retrospective: optional
 
   # ── Epic 2: Création & Import des Recommandations ──
-  epic-2: backlog
-  2-1-creation-unitaire-formulaire-standard: backlog
-  2-2-soft-delete-recommandations-brouillons: backlog
-  2-3-importation-atomique-historique: backlog
-  2-4-triage-auto-assignation: backlog
-  2-5-assignation-definitive-dm: backlog
+  epic-2: in-progress
+  2-1-creation-unitaire-formulaire-standard: done
+  2-2-soft-delete-recommandations-brouillons: done
+  2-5-assignation-definitive-dm: done
   epic-2-retrospective: optional
 
   # ── Epic 3: Evidence Submission & Collaborative Workflow ──
-  epic-3: backlog
-  3-1-todo-list-filter-historique-recent: backlog
-  3-2-delegation-operationnelle-dm-etp: backlog
-  3-3-soumission-preuves-etp-immutabilite: backlog
+  epic-3: in-progress
+  3-1-todo-list-filter-historique-recent: done
+  3-2-delegation-operationnelle-dm-etp: done
+  3-3-soumission-preuves-etp-immutabilite: done
   3-4-rejet-interne-dm-boucle-amelioration: backlog
   3-5-validation-dm-envoi-audit-exemption-pv: backlog
   3-6-demande-report-echeance: backlog
@@ -76,6 +74,8 @@ development_status:
   epic-4: backlog
   4-1-alertes-journalieres-critiques: backlog
   4-2-digest-hebdomadaire-anticipation-j7: backlog
+  4-3-importation-atomique-historique: backlog
+  4-4-triage-auto-assignation: backlog
   epic-4-retrospective: optional
 
   # ── Epic 5: Confiance Réglementaire & Audit Trail ──

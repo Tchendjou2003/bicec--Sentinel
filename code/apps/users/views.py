@@ -60,10 +60,11 @@ class SentinelLoginView(LoginView):
         if user.role == User.Role.ADMIN or user.is_staff:
             return reverse("auth:admin-dashboard")
             
-        #TODO: Redirections spécifiques par rôle (Dashboards - Epic 6)
-        if user.role == User.Role.AUDIT:
+        # En attendant les tableaux de bord spécifiques de l'Epic 6,
+        # tous les acteurs du workflow collab (Audit, DM, ETP, DG) sont redirigés
+        # directement vers le suivi des recommandations (Story 3.1).
+        if user.role in [User.Role.AUDIT, User.Role.DM, User.Role.ETP, User.Role.DG]:
             return reverse("workflow:recommendation-list")
-        # if user.role == User.Role.DM: return reverse_lazy("dashboards:dm")
             
         return super().get_success_url()
 
@@ -202,7 +203,7 @@ class HabilitationEditView(AuditAdminRequiredMixin, View):
         except ValueError as e:
             messages.error(request, str(e))
 
-        return redirect("auth:habilitation-list")
+        return redirect("workflow:habilitation-list")
 
 
 class HabilitationToggleAdminView(AuditAdminRequiredMixin, View):
@@ -245,7 +246,7 @@ class HabilitationToggleAdminView(AuditAdminRequiredMixin, View):
             
             messages.error(request, str(e))
 
-        return redirect("auth:habilitation-list")
+        return redirect("workflow:habilitation-list")
 
 
 # =============================================================================

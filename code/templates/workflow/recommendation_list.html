@@ -12,6 +12,7 @@
       <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Recommandations</h1>
       <p class="text-sm text-gray-500 mt-1">Suivi et gestion des recommandations d'audit</p>
     </div>
+    {% if user.role == 'AUDIT' or user.is_superuser %}
     <button
       @click="slideOverOpen = true"
       hx-get="{% url 'workflow:recommendation-create' %}"
@@ -23,65 +24,105 @@
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Nouvelle recommandation
     </button>
+    {% endif %}
   </div>
 
-  {# ── Filtres horizontaux compacts (HTMX) ── #}
-  <div class="flex flex-wrap items-center gap-3 bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
-    <select name="source"
-      hx-get="{% url 'workflow:recommendation-list' %}"
-      hx-target="#recommendation-table"
-      hx-swap="innerHTML"
-      hx-include="[name='source'],[name='status'],[name='priority'],[name='q']"
-      class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all min-w-[140px]"
-      id="filter-source"
-    >
-      <option value="">Toutes les sources</option>
-      {% for value, label in sources %}
-      <option value="{{ value }}" {% if value == current_source %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-
-    <select name="status"
-      hx-get="{% url 'workflow:recommendation-list' %}"
-      hx-target="#recommendation-table"
-      hx-swap="innerHTML"
-      hx-include="[name='source'],[name='status'],[name='priority'],[name='q']"
-      class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all min-w-[140px]"
-      id="filter-status"
-    >
-      <option value="">Tous les statuts</option>
-      {% for value, label in statuses %}
-      <option value="{{ value }}" {% if value == current_status %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-
-    <select name="priority"
-      hx-get="{% url 'workflow:recommendation-list' %}"
-      hx-target="#recommendation-table"
-      hx-swap="innerHTML"
-      hx-include="[name='source'],[name='status'],[name='priority'],[name='q']"
-      class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all min-w-[140px]"
-      id="filter-priority"
-    >
-      <option value="">Toutes criticités</option>
-      {% for value, label in priorities %}
-      <option value="{{ value }}" {% if value == current_priority %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-
-    <div class="relative flex-1 min-w-[200px]">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" name="q" value="{{ current_search }}" placeholder="Rechercher par référence ou mission..."
+  {# ── Filtres et Toolbar (HTMX) ── #}
+  <form id="filter-form" class="bg-white rounded-xl border border-gray-100 shadow-sm mb-4">
+    
+    {# ── Ligne 1 : Onglets Historique / Récent (Alpine.js) ── #}
+    <div class="px-4 pt-3 border-b border-gray-100/80 bg-gray-50/50 rounded-t-xl" x-data="{ importStatus: '{{ current_import_status|default:'recent' }}' }">
+      <input type="hidden" name="import_status" x-model="importStatus" id="id_import_status"
         hx-get="{% url 'workflow:recommendation-list' %}"
         hx-target="#recommendation-table"
         hx-swap="innerHTML"
-        hx-trigger="keyup changed delay:400ms"
-        hx-include="[name='source'],[name='status'],[name='priority'],[name='q']"
-        class="w-full rounded-lg border border-gray-200 bg-white pl-9 pr-4 py-2 text-xs text-gray-700 placeholder-gray-400 focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all"
-        id="filter-search"
-      >
+        hx-include="[name='source'],[name='status'],[name='priority'],[name='q'],[name='import_status']">
+      
+      <div class="flex gap-6">
+        <button type="button" @click="importStatus = 'recent'; $nextTick(() => htmx.trigger('#id_import_status', 'change'))" 
+          :class="{'border-sentinel-orange text-sentinel-orange': importStatus === 'recent', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': importStatus !== 'recent'}" 
+          class="pb-3 text-sm font-semibold border-b-2 transition-colors relative top-[1px]">
+          Nouvelles Recos
+        </button>
+
+        <button type="button" @click="importStatus = 'historical'; $nextTick(() => htmx.trigger('#id_import_status', 'change'))" 
+          :class="{'border-sentinel-orange text-sentinel-orange': importStatus === 'historical', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': importStatus !== 'historical'}" 
+          class="pb-3 text-sm font-semibold border-b-2 transition-colors relative top-[1px]">
+          Backlog Historique
+        </button>
+        
+        <button type="button" @click="importStatus = 'all'; $nextTick(() => htmx.trigger('#id_import_status', 'change'))" 
+          :class="{'border-sentinel-orange text-sentinel-orange': importStatus === 'all', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': importStatus !== 'all'}" 
+          class="pb-3 text-sm font-semibold border-b-2 transition-colors relative top-[1px]">
+          Toutes
+        </button>
+      </div>
     </div>
-  </div>
+
+    {# ── Ligne 2 : Sélecteurs et Recherche ── #}
+    <div class="px-4 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+      
+      {# Selects #}
+      <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <select name="source"
+          hx-get="{% url 'workflow:recommendation-list' %}"
+          hx-target="#recommendation-table"
+          hx-swap="innerHTML"
+          hx-include="[name='source'],[name='status'],[name='priority'],[name='q'],[name='import_status']"
+          class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all min-w-[140px]"
+          id="filter-source"
+        >
+          <option value="">Toutes les sources</option>
+          {% for value, label in sources %}
+          <option value="{{ value }}" {% if value == current_source %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+
+        <select name="status"
+          hx-get="{% url 'workflow:recommendation-list' %}"
+          hx-target="#recommendation-table"
+          hx-swap="innerHTML"
+          hx-include="[name='source'],[name='status'],[name='priority'],[name='q'],[name='import_status']"
+          class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all min-w-[140px]"
+          id="filter-status"
+        >
+          <option value="">Tous les statuts</option>
+          {% for value, label in statuses %}
+          <option value="{{ value }}" {% if value == current_status %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+
+        <select name="priority"
+          hx-get="{% url 'workflow:recommendation-list' %}"
+          hx-target="#recommendation-table"
+          hx-swap="innerHTML"
+          hx-include="[name='source'],[name='status'],[name='priority'],[name='q'],[name='import_status']"
+          class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all min-w-[140px]"
+          id="filter-priority"
+        >
+          <option value="">Toutes criticités</option>
+          {% for value, label in priorities %}
+          <option value="{{ value }}" {% if value == current_priority %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {# Barre de recherche #}
+      <div class="relative w-full md:max-w-xs">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" name="q" value="{{ current_search }}" placeholder="Rechercher par référence ou mission..."
+          hx-get="{% url 'workflow:recommendation-list' %}"
+          hx-target="#recommendation-table"
+          hx-swap="innerHTML"
+          hx-trigger="keyup changed delay:400ms"
+          hx-include="[name='source'],[name='status'],[name='priority'],[name='q'],[name='import_status']"
+          class="w-full rounded-lg border border-gray-200 bg-white pl-9 pr-4 py-2 text-xs text-gray-700 placeholder-gray-400 focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all"
+          id="filter-search"
+        >
+      </div>
+      
+    </div>
+  </form>
 
   {# ── Tableau ── #}
   <div id="recommendation-table">

@@ -1,0 +1,49 @@
+{# Fragment HTMX — Checklist des livrables avec toggle (Story 3.3 v2) #}
+
+<div id="deliverable-checklist">
+  <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">
+    Livrables attendus
+    <span class="text-gray-400 normal-case font-normal ml-1">({{ progress }}%)</span>
+  </p>
+  <div class="rounded-xl bg-gray-50 border border-gray-200 p-4 space-y-2.5">
+    {% for del in deliverables %}
+    <div class="flex items-center gap-3">
+      <button type="button"
+              hx-post="{% url 'workflow:draft-toggle-deliverable' recommendation.pk del.pk %}"
+              hx-target="#deliverable-checklist"
+              hx-swap="outerHTML"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              class="flex items-center justify-center h-5 w-5 rounded border-2 shrink-0 transition-all
+                     {% if del.is_completed %}
+                       bg-green-500 border-green-500 text-white
+                     {% else %}
+                       border-gray-300 hover:border-green-400 text-transparent hover:text-green-300
+                     {% endif %}"
+              title="{% if del.is_completed %}Décocher{% else %}Marquer complété{% endif %}">
+        {% if del.is_completed %}
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        {% endif %}
+      </button>
+      <span class="text-sm {% if del.is_completed %}text-green-700 line-through opacity-70{% else %}text-gray-700{% endif %}">
+        {{ del.label }}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# Barre de progression #}
+  <div class="flex items-center gap-2 mt-2.5">
+    <div class="flex-1 h-1.5 rounded-full bg-gray-200 overflow-hidden">
+      <div class="h-1.5 rounded-full transition-all duration-500 ease-out
+                  {% if progress >= 100 %}bg-green-500
+                  {% elif progress >= 50 %}bg-sentinel-orange
+                  {% else %}bg-gray-400{% endif %}"
+           style="width: {{ progress }}%"></div>
+    </div>
+    <span class="text-xs font-medium {% if progress >= 100 %}text-green-600{% else %}text-gray-400{% endif %} shrink-0">
+      {{ progress }}%
+    </span>
+  </div>
+</div>

@@ -14,16 +14,24 @@ Spécifications couvertes :
 """
 import json
 
-from django.http import HttpResponse, HttpResponseForbidden
+from django.core.exceptions import PermissionDenied
+from django.http import FileResponse, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404
 from django.views import View
 from django.views.generic import DetailView, ListView
 
-from apps.users.mixins import AuditRequiredMixin
+from apps.users.mixins import AuditRequiredMixin, WorkflowAccessMixin
+from apps.users.models import User
 
 from . import selectors, services
-from .forms import AssignDMForm, DeliverableFormSet, RecommendationForm
-from .models import Recommendation
+from .forms import (
+    AssignDMForm,
+    DelegateETPForm,
+    DeliverableFormSet,
+    EvidenceDraftCommentForm,
+    RecommendationForm,
+)
+from .models import EvidenceFile, EvidenceSubmission, Recommendation
 
 
 def _get_client_ip(request) -> str | None:
@@ -39,7 +47,7 @@ def _get_client_ip(request) -> str | None:
 # =============================================================================
 
 
-class RecommendationListView(AuditRequiredMixin, ListView):
+class RecommendationListView(WorkflowAccessMixin, ListView):
     """
     Vue liste — Tableau épuré avec filtres HTMX.
 
@@ -58,8 +66,9 @@ class RecommendationListView(AuditRequiredMixin, ListView):
             "status": self.request.GET.get("status"),
             "priority": self.request.GET.get("priority"),
             "q": self.request.GET.get("q"),
+            "import_status": self.request.GET.get("import_status", "recent"),
         }
-        return selectors.get_recommendations_for_audit(user=self.request.user, filters=filters)
+        return selectors.get_recommendations_for_user(user=self.request.user, filters=filters)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -75,6 +84,7 @@ class RecommendationListView(AuditRequiredMixin, ListView):
         context["current_status"] = self.request.GET.get("status", "")
         context["current_priority"] = self.request.GET.get("priority", "")
         context["current_search"] = self.request.GET.get("q", "")
+        context["current_import_status"] = self.request.GET.get("import_status", "recent")
         return context
 
     def get_template_names(self):
@@ -212,7 +222,7 @@ def _render_stepper(request, form, formset):
 # =============================================================================
 
 
-class RecommendationDetailView(AuditRequiredMixin, DetailView):
+class RecommendationDetailView(WorkflowAccessMixin, DetailView):
     """
     Vue détail — Centre de Contrôle split 60/40.
 
@@ -243,6 +253,27 @@ class RecommendationDetailView(AuditRequiredMixin, DetailView):
             AuditLog.objects
             .filter(content_type="Recommendation", object_id=rec.pk)
             .order_by("-created_at")[:20]
+        )
+
+        # Preuves soumises (Story 3.3)
+        context["evidence_submissions"] = selectors.get_evidence_for_recommendation(
+            recommendation=rec,
+            user=self.request.user,
+        )
+
+        # Visibilité du bouton "Soumettre Preuves"
+        user = self.request.user
+        is_assigned_etp = (
+            rec.assigned_etp is not None and rec.assigned_etp_id == user.pk
+        )
+        is_dm_porteur = (
+            rec.assigned_etp is None
+            and rec.assigned_dm is not None
+            and rec.assigned_dm_id == user.pk
+        )
+        context["can_submit_evidence"] = (
+            rec.status == Recommendation.Status.IN_PROGRESS
+            and (is_assigned_etp or is_dm_porteur)
         )
 
         return context
@@ -411,4 +442,537 @@ def _render_assign_modal(request, recommendation, form, has_dms):
         },
         request=request,
     )
+
+
+# =============================================================================
+# Délégation ETP / DM Porteur (Story 3.2)
+# =============================================================================
+
+
+class RecommendationDelegateView(WorkflowAccessMixin, View):
+    """
+    Vue de délégation — Modale HTMX pour déléguer à un ETP ou devenir DM Porteur.
+
+    GET  : Retourne le partial de la modale de délégation.
+    POST : Exécute la délégation ou l'auto-assignation DM Porteur.
+
+    Sécurité :
+        - WorkflowAccessMixin : accès restreint aux rôles workflow.
+        - Garde Backend : vérifie request.user == recommendation.assigned_dm.
+        - Race condition : catch TransitionNotAllowed pour éviter les 500.
+    """
+
+    def get(self, request, pk):
+        recommendation = selectors.get_recommendation_by_id(
+            pk=pk, user=request.user
+        )
+
+        # Garde RBAC : seul le DM assigné peut déléguer
+        if recommendation.assigned_dm != request.user:
+            return HttpResponseForbidden(
+                "Seul le DM assigné peut déléguer cette recommandation."
+            )
+
+        # Garde de statut : uniquement ASSIGNED
+        if recommendation.status != Recommendation.Status.ASSIGNED:
+            return HttpResponseForbidden(
+                "La délégation n'est possible qu'en état ASSIGNED."
+            )
+
+        if not recommendation.department:
+            return HttpResponseForbidden(
+                "La Direction concernée doit être renseignée."
+            )
+
+        form = DelegateETPForm(department=recommendation.department)
+        has_etps = form.fields["etp"].queryset.exists()
+
+        return HttpResponse(
+            _render_delegate_modal(request, recommendation, form, has_etps),
+        )
+
+    def post(self, request, pk):
+        recommendation = selectors.get_recommendation_by_id(
+            pk=pk, user=request.user
+        )
+
+        # Garde RBAC : seul le DM assigné peut déléguer
+        if recommendation.assigned_dm != request.user:
+            return HttpResponseForbidden(
+                "Seul le DM assigné peut déléguer cette recommandation."
+            )
+
+        # Garde de statut : uniquement ASSIGNED
+        if recommendation.status != Recommendation.Status.ASSIGNED:
+            return HttpResponseForbidden(
+                "La délégation n'est possible qu'en état ASSIGNED."
+            )
+
+        from django_fsm import TransitionNotAllowed
+        from django.core.exceptions import ValidationError
+
+        form = DelegateETPForm(
+            request.POST, department=recommendation.department
+        )
+
+        if form.is_valid():
+            action = form.cleaned_data["action"]
+
+            try:
+                if action == DelegateETPForm.ACTION_DELEGATE_ETP:
+                    etp = form.cleaned_data["etp"]
+                    recommendation = services.delegate_recommendation_to_etp(
+                        recommendation=recommendation,
+                        etp=etp,
+                        performed_by=request.user,
+                        ip_address=_get_client_ip(request),
+                    )
+                    etp_name = etp.get_full_name() or etp.username
+                    msg = (
+                        f"{recommendation.reference} déléguée à {etp_name}"
+                    )
+                else:
+                    recommendation = services.become_dm_porteur(
+                        recommendation=recommendation,
+                        performed_by=request.user,
+                        ip_address=_get_client_ip(request),
+                    )
+                    msg = (
+                        f"Vous êtes maintenant DM Porteur de "
+                        f"{recommendation.reference}"
+                    )
+
+            except (TransitionNotAllowed, ValidationError, ValueError) as e:
+                response = HttpResponse(status=422)
+                response["HX-Trigger"] = json.dumps({
+                    "notify": {
+                        "msg": str(e) if str(e) else "Cette recommandation a déjà été traitée.",
+                        "type": "error",
+                    },
+                    "closeModal": True,
+                    "refreshTable": True,
+                })
+                return response
+
+            response = HttpResponse(status=204)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {
+                    "msg": msg,
+                    "type": "success",
+                },
+            })
+            response["HX-Refresh"] = "true"
+            return response
+
+        # Formulaire invalide
+        has_etps = form.fields["etp"].queryset.exists()
+        return HttpResponse(
+            _render_delegate_modal(request, recommendation, form, has_etps),
+            status=422,
+        )
+
+
+def _render_delegate_modal(request, recommendation, form, has_etps):
+    """Render le partial de la modale de délégation."""
+    from django.template.loader import render_to_string
+
+    return render_to_string(
+        "workflow/partials/delegate_etp_modal.html",
+        {
+            "recommendation": recommendation,
+            "form": form,
+            "has_etps": has_etps,
+        },
+        request=request,
+    )
+
+
+# =============================================================================
+# Soumission de Preuves (Story 3.3)
+# =============================================================================
+
+
+class RecommendationSubmitEvidenceView(WorkflowAccessMixin, View):
+    """
+    Vue de soumission de preuves — Slide-over HTMX avec brouillons persistants.
+
+    GET  : Charge le slide-over avec le brouillon DRAFT (créé si nécessaire).
+    POST : Finalise la soumission : DRAFT → PENDING + FSM IN_PROGRESS → PENDING_DM_REVIEW.
+
+    Sécurité (AC6) :
+        - Garde RBAC : ETP assigné OU DM Porteur.
+        - Garde de statut : status == IN_PROGRESS.
+        - Validation fichiers : déléguée au service (magic bytes, taille, SHA-256).
+    """
+
+    def _check_permission(self, request, recommendation):
+        """Retourne True si l'utilisateur peut soumettre des preuves."""
+        user = request.user
+        is_assigned_etp = (
+            recommendation.assigned_etp is not None
+            and recommendation.assigned_etp_id == user.pk
+        )
+        is_dm_porteur = (
+            recommendation.assigned_etp is None
+            and recommendation.assigned_dm is not None
+            and recommendation.assigned_dm_id == user.pk
+        )
+        return is_assigned_etp or is_dm_porteur
+
+    def get(self, request, pk):
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+
+        if recommendation.status != Recommendation.Status.IN_PROGRESS:
+            return HttpResponseForbidden(
+                "La soumission de preuves n'est possible qu'en état IN_PROGRESS."
+            )
+
+        if not self._check_permission(request, recommendation):
+            return HttpResponseForbidden(
+                "Seul l'ETP assigné ou le DM Porteur peut soumettre des preuves."
+            )
+
+        # Créer ou récupérer le brouillon DRAFT
+        draft, _created = services.get_or_create_draft_submission(
+            recommendation=recommendation,
+            user=request.user,
+        )
+
+        return HttpResponse(
+            _render_submit_evidence_modal(
+                request, recommendation, draft,
+            ),
+        )
+
+    def post(self, request, pk):
+        from django_fsm import TransitionNotAllowed
+
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+
+        if recommendation.status != Recommendation.Status.IN_PROGRESS:
+            return HttpResponseForbidden(
+                "La soumission de preuves n'est possible qu'en état IN_PROGRESS."
+            )
+
+        if not self._check_permission(request, recommendation):
+            return HttpResponseForbidden(
+                "Seul l'ETP assigné ou le DM Porteur peut soumettre des preuves."
+            )
+
+        try:
+            services.submit_evidence_for_recommendation(
+                recommendation=recommendation,
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except (TransitionNotAllowed, ValueError) as e:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {
+                    "msg": str(e) or "Une erreur est survenue lors de la soumission.",
+                    "type": "error",
+                },
+            })
+            return response
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {
+                "msg": (
+                    "Vos preuves ont été soumises avec succès. "
+                    "En attente de validation par votre Directeur Métier."
+                ),
+                "type": "success",
+            },
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+def _render_submit_evidence_modal(request, recommendation, draft):
+    """Render le partial du slide-over de soumission de preuves."""
+    from django.template.loader import render_to_string
+    from django.db.models import Sum
+
+    # Calcul du quota utilisé
+    quota_used = services._get_active_evidence_quota_used(recommendation)
+    quota_max = 20 * 1024 * 1024  # 20 Mo
+
+    return render_to_string(
+        "workflow/partials/submit_evidence_modal.html",
+        {
+            "recommendation": recommendation,
+            "draft": draft,
+            "draft_files": draft.files.all(),
+            "deliverables": recommendation.deliverables.all(),
+            "quota_used": quota_used,
+            "quota_max": quota_max,
+            "quota_used_mb": quota_used / (1024 * 1024),
+            "quota_max_mb": quota_max / (1024 * 1024),
+            "quota_percentage": min(round((quota_used / quota_max) * 100), 100) if quota_max else 0,
+        },
+        request=request,
+    )
+
+
+# =============================================================================
+# Endpoints HTMX pour brouillons (Story 3.3 v2)
+# =============================================================================
+
+
+def _require_evidence_permission(recommendation, user):
+    """Lève PermissionDenied si l'utilisateur n'est ni ETP assigné ni DM Porteur."""
+    is_assigned_etp = (
+        recommendation.assigned_etp is not None
+        and recommendation.assigned_etp_id == user.pk
+    )
+    is_dm_porteur = (
+        recommendation.assigned_etp is None
+        and recommendation.assigned_dm is not None
+        and recommendation.assigned_dm_id == user.pk
+    )
+    if not (is_assigned_etp or is_dm_porteur):
+        raise PermissionDenied("Accès réservé à l'ETP assigné ou au DM Porteur.")
+
+
+class DraftUploadFileView(WorkflowAccessMixin, View):
+    """
+    Upload individuel d'un fichier vers le brouillon DRAFT.
+
+    POST : Reçoit un fichier unique en multipart, le valide et le rattache au brouillon.
+    Retourne le fragment HTML de la carte fichier (hx-swap="beforeend").
+    """
+
+    def post(self, request, pk):
+        from django.core.exceptions import ValidationError
+
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        _require_evidence_permission(recommendation, request.user)
+
+        draft = selectors.get_draft_submission_for_recommendation(
+            recommendation=recommendation, user=request.user,
+        )
+        if not draft:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": "Aucun brouillon trouvé.", "type": "error"},
+            })
+            return response
+
+        file = request.FILES.get("file")
+        if not file:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": "Aucun fichier reçu.", "type": "error"},
+            })
+            return response
+
+        try:
+            evidence_file = services.add_file_to_draft(
+                submission=draft,
+                file=file,
+                user=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except (ValidationError, ValueError, PermissionError) as e:
+            error_msg = str(e) if isinstance(e, (ValueError, PermissionError)) else str(e.message)
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": error_msg, "type": "error"},
+            })
+            return response
+
+        from django.template.loader import render_to_string
+        html = render_to_string(
+            "workflow/partials/_draft_file_card.html",
+            {
+                "file": evidence_file,
+                "recommendation": recommendation,
+            },
+            request=request,
+        )
+
+        response = HttpResponse(html)
+        # Déclencher la mise à jour du compteur de quota
+        quota_used = services._get_active_evidence_quota_used(recommendation)
+        response["HX-Trigger"] = json.dumps({
+            "quota-updated": {
+                "used": quota_used,
+                "max": 20 * 1024 * 1024,
+            },
+        })
+        return response
+
+
+class DraftDeleteFileView(WorkflowAccessMixin, View):
+    """
+    Suppression d'un fichier brouillon DRAFT.
+
+    DELETE : Supprime le fichier physique et l'enregistrement DB.
+    Retourne un swap HTMX vide (hx-swap="delete").
+    """
+
+    def delete(self, request, pk, file_id):
+        from django.core.exceptions import PermissionDenied
+
+        evidence_file = get_object_or_404(
+            EvidenceFile,
+            pk=file_id,
+            submission__recommendation_id=pk,
+        )
+
+        try:
+            services.delete_draft_file(
+                file=evidence_file,
+                user=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except PermissionDenied as e:
+            return HttpResponseForbidden(str(e))
+        except ValueError as e:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(e), "type": "error"},
+            })
+            return response
+
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        quota_used = services._get_active_evidence_quota_used(recommendation)
+
+        response = HttpResponse(status=200)
+        response["HX-Trigger"] = json.dumps({
+            "quota-updated": {
+                "used": quota_used,
+                "max": 20 * 1024 * 1024,
+            },
+        })
+        return response
+
+
+class DraftSaveCommentView(WorkflowAccessMixin, View):
+    """
+    Autosave du commentaire de résolution via HTMX debounce.
+
+    POST : Met à jour le commentaire du brouillon DRAFT.
+    Retourne un indicateur "Sauvegardé" (fragment HTML).
+    """
+
+    def post(self, request, pk):
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        _require_evidence_permission(recommendation, request.user)
+
+        draft = selectors.get_draft_submission_for_recommendation(
+            recommendation=recommendation, user=request.user,
+        )
+        if not draft:
+            return HttpResponse(status=404)
+
+        comment = request.POST.get("comment", "")
+
+        try:
+            services.save_draft_comment(
+                submission=draft,
+                comment=comment,
+                user=request.user,
+            )
+        except (ValueError, PermissionError) as e:
+            return HttpResponse(status=422)
+
+        from django.template.loader import render_to_string
+        return HttpResponse(
+            render_to_string("workflow/partials/_saved_indicator.html", {}, request=request)
+        )
+
+
+class DraftToggleDeliverableView(WorkflowAccessMixin, View):
+    """
+    Toggle de complétion d'un livrable via HTMX.
+
+    POST : Bascule is_completed et retourne la checklist mise à jour.
+    """
+
+    def post(self, request, pk, del_id):
+        from .models import Deliverable
+
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        _require_evidence_permission(recommendation, request.user)
+        deliverable = get_object_or_404(
+            Deliverable,
+            pk=del_id,
+            recommendation=recommendation,
+        )
+
+        services.toggle_deliverable_completion(
+            deliverable=deliverable,
+            user=request.user,
+            ip_address=_get_client_ip(request),
+        )
+
+        from django.template.loader import render_to_string
+        html = render_to_string(
+            "workflow/partials/_deliverable_checklist.html",
+            {
+                "deliverables": recommendation.deliverables.all(),
+                "recommendation": recommendation,
+                "progress": recommendation.progress_percentage,
+            },
+            request=request,
+        )
+        return HttpResponse(html)
+
+
+# =============================================================================
+# Téléchargement sécurisé de preuves (Story 3.3)
+# =============================================================================
+
+
+class EvidenceFileDownloadView(WorkflowAccessMixin, View):
+    """
+    Vue de téléchargement sécurisé des fichiers probatoires.
+
+    RBAC via get_recommendations_for_user() pour cohérence automatique
+    avec la hiérarchie DM/DG (Story 3.2). Seuls les utilisateurs ayant
+    accès à la recommandation parente peuvent télécharger ses preuves.
+
+    Les fichiers DRAFT ne sont accessibles qu'à leur auteur (PRD v2 FR15).
+    Les fichiers ne sont pas servis directement par Nginx (/media/ bloqué).
+    """
+
+    def get(self, request, pk, file_id):
+        evidence_file = get_object_or_404(
+            EvidenceFile,
+            pk=file_id,
+            submission__recommendation_id=pk,
+        )
+
+        # RBAC fichiers DRAFT : seul l'auteur peut télécharger
+        if evidence_file.submission.status == EvidenceSubmission.SubmissionStatus.DRAFT:
+            if evidence_file.submission.submitted_by_id != request.user.pk:
+                return HttpResponseForbidden(
+                    "Les fichiers en brouillon ne sont accessibles qu'à leur auteur."
+                )
+        else:
+            # RBAC via le sélecteur global — cohérent avec les permissions de la liste
+            visible_qs = selectors.get_recommendations_for_user(user=request.user)
+            if not visible_qs.filter(pk=pk).exists():
+                return HttpResponseForbidden(
+                    "Vous n'avez pas accès à ces pièces justificatives."
+                )
+
+            # Vision B : AUDIT/EXT ne peuvent télécharger que des fichiers de soumissions ACCEPTED
+            from apps.users.models import User
+            if request.user.role in (User.Role.AUDIT, User.Role.EXT) and not request.user.is_superuser:
+                if evidence_file.submission.status != EvidenceSubmission.SubmissionStatus.ACCEPTED:
+                    return HttpResponseForbidden(
+                        "Les preuves ne sont accessibles à l'Audit qu'après validation interne."
+                    )
+
+        response = FileResponse(
+            open(evidence_file.file.path, "rb"),
+            content_type=evidence_file.mime_type or "application/octet-stream",
+        )
+        response["Content-Disposition"] = (
+            f'attachment; filename="{evidence_file.original_filename}"'
+        )
+        return response
 

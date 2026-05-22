@@ -46,10 +46,10 @@ erDiagram
         boolean is_active
     }
 
-    DIRECTION {
+    UNITE_ORGANISATIONNELLE {
         string nom
         string code
-        string type
+        string type "DG | DIRECTION | SOUS_DIRECTION | DEPARTEMENT | SERVICE | REGION | AGENCE"
     }
 
     RECOMMANDATION {
@@ -115,8 +115,8 @@ erDiagram
         date date_fin
     }
 
-    UTILISATEUR ||--o{ DIRECTION : "appartient a"
-    DIRECTION ||--o{ RECOMMANDATION : "concerne"
+    UTILISATEUR ||--o{ UNITE_ORGANISATIONNELLE : "appartient a"
+    UNITE_ORGANISATIONNELLE ||--o{ RECOMMANDATION : "concerne"
     UTILISATEUR ||--o{ RECOMMANDATION : "cree"
     UTILISATEUR ||--o{ RECOMMANDATION : "est assigne DM"
     UTILISATEUR ||--o{ RECOMMANDATION : "est assigne ETP"
@@ -147,7 +147,7 @@ erDiagram
         uuid id PK
         varchar(100) name
         varchar(10) code UK
-        varchar(20) type "DIRECTION | AGENCE | FILIALE"
+        varchar(20) type "DG | DIRECTION | SOUS_DIRECTION | DEPARTEMENT | SERVICE | REGION | AGENCE"
         uuid parent_id FK "Self-referencing"
         boolean is_active
         timestamp created_at
@@ -161,7 +161,7 @@ erDiagram
         varchar(128) password_hash
         varchar(50) first_name
         varchar(50) last_name
-        varchar(20) role "AUDIT | DM | ETP | DG | EXTERNE | RSSI"
+        varchar(20) role "AUDIT | DM | ETP | DG | EXTERNE | ADMIN"
         uuid department_id FK
         boolean is_active
         boolean is_staff
@@ -1032,12 +1032,12 @@ flowchart LR
     EXT --- UC6
 ```
 
-### 5.6 RSSI / Administrateur Système
+### 5.6 Admin (anciennement RSSI / Administrateur Système)
 
 ```mermaid
 flowchart LR
     subgraph "Système Sentinel"
-        UC1["Gérer organigramme\n(Directions, Agences)"]
+        UC1["Gérer organigramme\n(DG, Directions, Sous-Dir.,\nDépts, Services, Régions, Agences)"]
         UC2["Créer / Désactiver\ncomptes utilisateurs\n(coquille vide sans rôle — ADR-10)"]
         UC3["Consulter logs\nsystème (12 mois)"]
         UC4["Monitorer Django-Q2\n(Admin Django)"]
@@ -1053,16 +1053,16 @@ flowchart LR
         R3["❌ Aucun accès aux\ndonnées métier (recos, preuves)"]
     end
 
-    RSSI(("⚫ RSSI /\nAdmin"))
+    ADMIN(("⚫ Admin"))
 
-    RSSI --- UC1
-    RSSI --- UC2
-    RSSI --- UC3
-    RSSI --- UC4
-    RSSI --- UC5
-    RSSI --- UC6
-    RSSI --- UC7
-    RSSI --- UC8
+    ADMIN --- UC1
+    ADMIN --- UC2
+    ADMIN --- UC3
+    ADMIN --- UC4
+    ADMIN --- UC5
+    ADMIN --- UC6
+    ADMIN --- UC7
+    ADMIN --- UC8
 ```
 
 ---

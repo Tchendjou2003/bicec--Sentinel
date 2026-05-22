@@ -8,12 +8,22 @@ Spécifications couvertes :
     - FR5  : Création manuelle unitaire
     - FR6  : Soft Delete en état DRAFT
     - FR6b : État DRAFT pré-assignation
+    - FR15 : Upload en brouillon DRAFT (soumission de preuves)
+    - FR16 : Soumission verrouille les brouillons en PENDING
 """
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.db.models import Sum
 from django.utils import timezone
 
 from ..audit.models import AuditLog
-from .models import Deliverable, Recommendation
+from .models import Deliverable, EvidenceFile, EvidenceSubmission, Recommendation
+from .validators import (
+    compute_sha256,
+    detect_mime_type,
+    validate_file_size,
+    validate_magic_bytes,
+)
 
 
 def create_recommendation(
@@ -288,3 +298,642 @@ def assign_recommendation_to_dm(
         )
 
     return recommendation
+
+
+def delegate_recommendation_to_etp(
+    *,
+    recommendation: Recommendation,
+    etp,
+    performed_by,
+    ip_address: str | None = None,
+) -> Recommendation:
+    """
+    Délègue une recommandation ASSIGNED à un Employé Traitant (FR12 — Story 3.2).
+
+    Orchestre le verrouillage pessimiste, la mise à jour du champ
+    ``assigned_etp``, la transition FSM ASSIGNED → IN_PROGRESS,
+    et la traçabilité dans l'Audit Log.
+
+    Args:
+        recommendation: L'instance en état ASSIGNED.
+        etp: L'utilisateur cible (role=ETP, même département).
+        performed_by: Le DM effectuant la délégation.
+        ip_address: Adresse IP du client.
+
+    Returns:
+        Recommendation: L'instance avec status=IN_PROGRESS et assigned_etp renseigné.
+
+    Raises:
+        ValueError: Si la recommandation n'est pas ASSIGNED ou l'ETP invalide.
+    """
+    from apps.users.models import User
+
+    with transaction.atomic():
+        # Verrouiller pour concurrence (ADR-07 §5.4)
+        recommendation = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        if recommendation.is_deleted:
+            raise ValueError("Impossible de déléguer une recommandation supprimée.")
+
+        if recommendation.status != Recommendation.Status.ASSIGNED:
+            raise ValueError(
+                f"La délégation n'est possible qu'en état ASSIGNED. "
+                f"Statut actuel : {recommendation.get_status_display()}"
+            )
+
+        # Vérifier le rôle ETP
+        if not etp or etp.role != User.Role.ETP:
+            raise ValueError("L'utilisateur sélectionné n'a pas le rôle ETP.")
+
+        # Vérifier l'appartenance au même département (ou ses enfants)
+        from apps.workflow.selectors import get_department_and_descendants_ids
+        valid_dept_ids = get_department_and_descendants_ids(recommendation.department)
+        
+        if etp.department_id not in valid_dept_ids:
+            raise ValueError(
+                "L'ETP sélectionné n'appartient pas à la Direction concernée."
+            )
+
+        # Mise à jour du champ ETP
+        recommendation.assigned_etp = etp
+
+        # Transition FSM : ASSIGNED → IN_PROGRESS
+        recommendation.start_processing()
+        recommendation.save(
+            update_fields=["status", "assigned_etp", "updated_at"]
+        )
+
+        # Nom lisible pour l'audit trail (pérennité réglementaire)
+        etp_display = etp.get_full_name() or etp.username
+        dm_display = performed_by.get_full_name() or performed_by.username
+
+        # Audit Log
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=recommendation.pk,
+            changes={
+                "status": ["ASSIGNED", "IN_PROGRESS"],
+                "assigned_etp": [None, str(etp.pk)],
+            },
+            description=(
+                f"Délégation de {recommendation.reference} "
+                f"à l'ETP {etp_display} par le DM {dm_display}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return recommendation
+
+
+def submit_evidence_for_recommendation(
+    *,
+    recommendation: Recommendation,
+    performed_by,
+    ip_address: str | None = None,
+) -> Recommendation:
+    """
+    Soumet un brouillon DRAFT existant et déclenche la transition FSM
+    IN_PROGRESS → PENDING_DM_REVIEW (Story 3.3 — FR16).
+
+    Le brouillon DRAFT de l'utilisateur doit déjà contenir au moins un
+    fichier et un commentaire non vide. La soumission passe le brouillon
+    de DRAFT → PENDING et verrouille les fichiers (immutabilité AC4).
+
+    Les livrables sont désormais togglés indépendamment via
+    ``toggle_deliverable_completion()``.
+
+    Args:
+        recommendation: L'instance en état IN_PROGRESS.
+        performed_by: L'ETP assigné ou le DM Porteur effectuant la soumission.
+        ip_address: Adresse IP du client.
+
+    Returns:
+        Recommendation: L'instance avec status=PENDING_DM_REVIEW.
+
+    Raises:
+        ValueError: Si la recommandation n'est pas IN_PROGRESS,
+            l'utilisateur non autorisé, ou le brouillon invalide.
+        django_fsm.TransitionNotAllowed: Si la transition FSM échoue.
+    """
+    with transaction.atomic():
+        recommendation = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        if recommendation.status != Recommendation.Status.IN_PROGRESS:
+            raise ValueError(
+                f"La soumission de preuves n'est possible qu'en état IN_PROGRESS. "
+                f"Statut actuel : {recommendation.get_status_display()}"
+            )
+
+        # RBAC : ETP assigné OU DM Porteur (assigned_etp=None et DM=performed_by)
+        is_assigned_etp = (
+            recommendation.assigned_etp is not None
+            and recommendation.assigned_etp_id == performed_by.pk
+        )
+        is_dm_porteur = (
+            recommendation.assigned_etp is None
+            and recommendation.assigned_dm_id == performed_by.pk
+        )
+        if not (is_assigned_etp or is_dm_porteur):
+            raise ValueError(
+                "Seul l'ETP assigné ou le DM Porteur peut soumettre des preuves."
+            )
+
+        # Récupérer le brouillon DRAFT actif
+        draft = (
+            EvidenceSubmission.objects
+            .select_for_update()
+            .filter(
+                recommendation=recommendation,
+                submitted_by=performed_by,
+                status=EvidenceSubmission.SubmissionStatus.DRAFT,
+            )
+            .first()
+        )
+
+        if not draft:
+            raise ValueError(
+                "Aucun brouillon de soumission trouvé. "
+                "Veuillez d'abord uploader au moins un fichier."
+            )
+
+        # Validation : au moins un fichier
+        files_count = draft.files.count()
+        if files_count == 0:
+            raise ValueError(
+                "Le brouillon ne contient aucun fichier. "
+                "Veuillez uploader au moins une preuve avant de soumettre."
+            )
+
+        # Validation : commentaire non vide (FR16)
+        if not draft.comment.strip():
+            raise ValueError(
+                "Le commentaire de résolution est obligatoire pour soumettre."
+            )
+
+        # Transition du brouillon : DRAFT → PENDING (verrouille les fichiers)
+        draft.status = EvidenceSubmission.SubmissionStatus.PENDING
+        draft.save(update_fields=["status", "updated_at"])
+
+        # Transition FSM recommandation : IN_PROGRESS → PENDING_DM_REVIEW
+        recommendation.submit_evidence()
+        recommendation.save(update_fields=["status", "updated_at"])
+
+        submitter_display = performed_by.get_full_name() or performed_by.username
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=recommendation.pk,
+            changes={
+                "status": ["IN_PROGRESS", "PENDING_DM_REVIEW"],
+                "evidence_files_count": [0, files_count],
+                "comment": draft.comment,
+            },
+            description=(
+                f"Soumission de {files_count} preuve(s) pour "
+                f"{recommendation.reference} par {submitter_display}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return recommendation
+
+
+def become_dm_porteur(
+    *,
+    recommendation: Recommendation,
+    performed_by,
+    ip_address: str | None = None,
+) -> Recommendation:
+    """
+    Le DM s'auto-assigne comme porteur de la recommandation (FR12 — Story 3.2).
+
+    Le champ ``assigned_etp`` reste à null. La transition FSM
+    ASSIGNED → IN_PROGRESS est effectuée, et l'action est tracée.
+
+    Args:
+        recommendation: L'instance en état ASSIGNED.
+        performed_by: Le DM qui prend en charge personnellement.
+        ip_address: Adresse IP du client.
+
+    Returns:
+        Recommendation: L'instance avec status=IN_PROGRESS, assigned_etp=null.
+
+    Raises:
+        ValueError: Si la recommandation n'est pas ASSIGNED.
+    """
+    with transaction.atomic():
+        # Verrouiller pour concurrence (ADR-07 §5.4)
+        recommendation = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        if recommendation.is_deleted:
+            raise ValueError("Impossible de traiter une recommandation supprimée.")
+
+        if recommendation.status != Recommendation.Status.ASSIGNED:
+            raise ValueError(
+                f"La prise en charge n'est possible qu'en état ASSIGNED. "
+                f"Statut actuel : {recommendation.get_status_display()}"
+            )
+
+        # S'assurer que assigned_etp reste null
+        recommendation.assigned_etp = None
+
+        # Transition FSM : ASSIGNED → IN_PROGRESS
+        recommendation.start_processing()
+        recommendation.save(
+            update_fields=["status", "assigned_etp", "updated_at"]
+        )
+
+        dm_display = performed_by.get_full_name() or performed_by.username
+
+        # Audit Log
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=recommendation.pk,
+            changes={
+                "status": ["ASSIGNED", "IN_PROGRESS"],
+                "dm_porteur": [None, str(performed_by.pk)],
+            },
+            description=(
+                f"DM Porteur : {dm_display} prend en charge "
+                f"{recommendation.reference} personnellement"
+            ),
+            ip_address=ip_address,
+        )
+
+    return recommendation
+
+
+# =============================================================================
+# Draft Evidence Services (Story 3.3 v2 — Brouillons Persistants)
+# =============================================================================
+
+
+def get_or_create_draft_submission(
+    *,
+    recommendation: Recommendation,
+    user,
+) -> tuple[EvidenceSubmission, bool]:
+    """
+    Retourne le brouillon DRAFT actif ou en crée un.
+
+    Utilise ``select_for_update()`` pour éviter les race conditions
+    avec la ``UniqueConstraint`` conditionnelle en dernier rempart.
+
+    Args:
+        recommendation: La recommandation cible.
+        user: L'ETP ou DM Porteur.
+
+    Returns:
+        tuple[EvidenceSubmission, bool]: (brouillon, created).
+    """
+    with transaction.atomic():
+        draft = (
+            EvidenceSubmission.objects
+            .select_for_update()
+            .filter(
+                recommendation=recommendation,
+                submitted_by=user,
+                status=EvidenceSubmission.SubmissionStatus.DRAFT,
+            )
+            .first()
+        )
+        if draft:
+            return draft, False
+
+        draft = EvidenceSubmission.objects.create(
+            recommendation=recommendation,
+            submitted_by=user,
+            status=EvidenceSubmission.SubmissionStatus.DRAFT,
+            comment="",
+        )
+        return draft, True
+
+
+def _get_active_evidence_quota_used(recommendation: Recommendation) -> int:
+    """
+    Calcule le quota utilisé (en octets) par les preuves actives d'une recommandation.
+
+    Inclut les fichiers DRAFT, PENDING et ACCEPTED.
+    Exclut les REJECTED (NFR-SCA-01).
+
+    Returns:
+        int: Nombre d'octets utilisés.
+    """
+    return (
+        EvidenceFile.objects
+        .filter(
+            submission__recommendation=recommendation,
+            submission__status__in=[
+                EvidenceSubmission.SubmissionStatus.DRAFT,
+                EvidenceSubmission.SubmissionStatus.PENDING,
+                EvidenceSubmission.SubmissionStatus.ACCEPTED,
+            ],
+        )
+        .aggregate(total=Sum("file_size"))["total"] or 0
+    )
+
+
+def add_file_to_draft(
+    *,
+    submission: EvidenceSubmission,
+    file,
+    user,
+    ip_address: str | None = None,
+) -> EvidenceFile:
+    """
+    Ajoute un fichier au brouillon DRAFT.
+
+    Exécute les validations : magic bytes, taille 6 Mo, quota 20 Mo global.
+    Calcule le SHA-256 et détecte le MIME type réel.
+
+    Args:
+        submission: Le brouillon DRAFT.
+        file: Fichier Django uploadé.
+        user: L'utilisateur effectuant l'upload.
+        ip_address: Adresse IP du client.
+
+    Returns:
+        EvidenceFile: Le fichier probatoire créé.
+
+    Raises:
+        ValueError: Si la soumission n'est pas en DRAFT.
+        PermissionDenied: Si l'utilisateur n'est pas l'auteur du brouillon.
+        ValidationError: Si le fichier est invalide (format, taille, quota).
+    """
+    if submission.status != EvidenceSubmission.SubmissionStatus.DRAFT:
+        raise ValueError("L'ajout de fichier n'est possible que sur un brouillon DRAFT.")
+
+    if submission.submitted_by_id != user.pk:
+        raise PermissionDenied("Seul l'auteur du brouillon peut y ajouter des fichiers.")
+
+    # Validations de sécurité (NFR-SEC-04)
+    original_filename = file.name
+    validate_magic_bytes(file, original_filename=original_filename)
+    validate_file_size(file)
+
+    # Calcul intégrité + détection MIME (hors transaction — opérations en lecture seule)
+    sha256 = compute_sha256(file)
+    mime = detect_mime_type(file, original_filename=original_filename)
+
+    with transaction.atomic():
+        # Verrou pessimiste pour sérialiser les uploads concurrents (NFR-SCA-01)
+        submission = EvidenceSubmission.objects.select_for_update().get(pk=submission.pk)
+
+        # Vérification quota global dans la transaction (évite la race condition)
+        from django.core.exceptions import ValidationError
+        existing_bytes = _get_active_evidence_quota_used(submission.recommendation)
+        if existing_bytes + file.size > 20 * 1024 * 1024:
+            raise ValidationError(
+                f"Quota dépassé (NFR-SCA-01) : {existing_bytes / (1024 * 1024):.1f} Mo "
+                f"utilisés + {file.size / (1024 * 1024):.1f} Mo > limite de 20 Mo."
+            )
+
+        evidence_file = EvidenceFile(
+            submission=submission,
+            original_filename=original_filename,
+            file_size=file.size,
+            mime_type=mime,
+            sha256_hash=sha256,
+            tag=EvidenceFile.Tag.JUSTIFICATIF,
+            uploaded_by=user,
+        )
+        evidence_file.file = file
+        evidence_file.save()
+
+        # Touch le brouillon pour mettre à jour updated_at
+        submission.save(update_fields=["updated_at"])
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.UPDATE,
+            user=user,
+            content_type="EvidenceFile",
+            object_id=evidence_file.pk,
+            changes={
+                "action": "draft_file_added",
+                "file_size": file.size,
+                "mime_type": mime,
+            },
+            description=(
+                f"Ajout du fichier « {original_filename} » ({file.size / 1024:.0f} Ko) "
+                f"au brouillon de {submission.recommendation.reference}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return evidence_file
+
+
+def delete_draft_file(
+    *,
+    file: EvidenceFile,
+    user,
+    ip_address: str | None = None,
+) -> None:
+    """
+    Supprime un fichier du brouillon DRAFT.
+
+    La méthode ``EvidenceFile.delete()`` conditionnelle autorise
+    la suppression uniquement si la soumission est en DRAFT.
+
+    Args:
+        file: Le fichier probatoire à supprimer.
+        user: L'utilisateur effectuant la suppression.
+        ip_address: Adresse IP du client.
+
+    Raises:
+        PermissionDenied: Si l'utilisateur n'est pas l'auteur du brouillon
+            ou si la soumission n'est pas en DRAFT.
+    """
+    submission = file.submission
+
+    if submission.submitted_by_id != user.pk:
+        raise PermissionDenied("Seul l'auteur du brouillon peut supprimer ses fichiers.")
+
+    # Stocker les infos avant suppression pour l'audit log
+    filename = file.original_filename
+    file_pk = file.pk
+    reco_ref = submission.recommendation.reference
+
+    with transaction.atomic():
+        # EvidenceFile.delete() vérifie le statut DRAFT de la soumission
+        file.delete()
+
+        # Touch le brouillon pour mettre à jour updated_at
+        submission.save(update_fields=["updated_at"])
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.DELETE,
+            user=user,
+            content_type="EvidenceFile",
+            object_id=file_pk,
+            changes={
+                "action": "draft_file_deleted",
+                "original_filename": filename,
+            },
+            description=(
+                f"Suppression du fichier « {filename} » du brouillon de {reco_ref}"
+            ),
+            ip_address=ip_address,
+        )
+
+
+def save_draft_comment(
+    *,
+    submission: EvidenceSubmission,
+    comment: str,
+    user,
+) -> EvidenceSubmission:
+    """
+    Met à jour le commentaire du brouillon DRAFT (autosave).
+
+    Args:
+        submission: Le brouillon DRAFT.
+        comment: Le nouveau texte du commentaire.
+        user: L'utilisateur effectuant la modification.
+
+    Returns:
+        EvidenceSubmission: Le brouillon mis à jour.
+
+    Raises:
+        ValueError: Si la soumission n'est pas en DRAFT.
+        PermissionDenied: Si l'utilisateur n'est pas l'auteur du brouillon.
+    """
+    if submission.status != EvidenceSubmission.SubmissionStatus.DRAFT:
+        raise ValueError("La modification du commentaire n'est possible que sur un brouillon DRAFT.")
+
+    if submission.submitted_by_id != user.pk:
+        raise PermissionDenied("Seul l'auteur du brouillon peut modifier le commentaire.")
+
+    submission.comment = comment
+    submission.save(update_fields=["comment", "updated_at"])
+
+    return submission
+
+
+def toggle_deliverable_completion(
+    *,
+    deliverable: Deliverable,
+    user,
+    ip_address: str | None = None,
+) -> Deliverable:
+    """
+    Bascule l'état de complétion d'un livrable (toggle on/off).
+
+    Args:
+        deliverable: Le livrable à toggler.
+        user: L'utilisateur effectuant le toggle.
+        ip_address: Adresse IP du client.
+
+    Returns:
+        Deliverable: Le livrable mis à jour.
+    """
+    with transaction.atomic():
+        if deliverable.is_completed:
+            # Décochage
+            deliverable.is_completed = False
+            deliverable.completed_at = None
+            deliverable.completed_by = None
+        else:
+            # Cochage
+            deliverable.is_completed = True
+            deliverable.completed_at = timezone.now()
+            deliverable.completed_by = user
+
+        deliverable.save(
+            update_fields=["is_completed", "completed_at", "completed_by"]
+        )
+
+        user_display = user.get_full_name() or user.username
+        action_label = "coché" if deliverable.is_completed else "décoché"
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.UPDATE,
+            user=user,
+            content_type="Deliverable",
+            object_id=deliverable.pk,
+            changes={
+                "is_completed": [not deliverable.is_completed, deliverable.is_completed],
+                "label": deliverable.label,
+            },
+            description=(
+                f"Livrable « {deliverable.label} » {action_label} "
+                f"par {user_display}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return deliverable
+
+
+def cleanup_abandoned_drafts(
+    *,
+    max_age_days: int = 90,
+) -> int:
+    """
+    Supprime les brouillons DRAFT abandonnés (non modifiés depuis max_age_days).
+
+    Supprime les fichiers physiques associés et les enregistrements DB.
+    Destiné à être appelé par un CRON quotidien (Django-Q2).
+
+    Args:
+        max_age_days: Nombre de jours d'inactivité avant nettoyage (défaut: 90).
+
+    Returns:
+        int: Nombre de brouillons supprimés.
+    """
+    cutoff = timezone.now() - timezone.timedelta(days=max_age_days)
+
+    abandoned = EvidenceSubmission.objects.filter(
+        status=EvidenceSubmission.SubmissionStatus.DRAFT,
+        updated_at__lt=cutoff,
+    )
+
+    count = abandoned.count()
+    if count == 0:
+        return 0
+
+    with transaction.atomic():
+        # Supprimer les fichiers physiques des brouillons abandonnés
+        for draft in abandoned.prefetch_related("files"):
+            for evidence_file in draft.files.all():
+                if evidence_file.file:
+                    evidence_file.file.delete(save=False)
+
+        # Supprimer les enregistrements DB (CASCADE supprime les EvidenceFile)
+        abandoned.delete()
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.DELETE,
+            user=None,
+            content_type="EvidenceSubmission",
+            object_id=None,
+            changes={
+                "action": "cleanup_abandoned_drafts",
+                "count": count,
+                "max_age_days": max_age_days,
+            },
+            description=(
+                f"Nettoyage CRON : {count} brouillon(s) abandonné(s) "
+                f"supprimé(s) (inactifs depuis > {max_age_days} jours)"
+            ),
+        )
+
+    return count

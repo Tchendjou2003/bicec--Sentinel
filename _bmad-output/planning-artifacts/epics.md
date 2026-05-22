@@ -87,7 +87,7 @@ This document provides the complete epic and story breakdown for bicec--Sentinel
 - FR1: Epic 1 - Identifiants locaux sécurisés MVP
 - FR2: Epic 1 - Identifiants locaux externes
 - FR3: Epic 1 - Habilitation des comptes via interface dédiée Audit (ADR-10)
-- FR4: Epic 1 - Gestion des intérims et audit logs avec impersonnalisation
+- FR4: Epic 6 - Gestion des intérims et audit logs avec impersonnalisation
 - FR28: Epic 1 - Restrictions de visibilité via RBAC applicatif MVP (RLS V2)
 - FR35: Epic 1 - Pilotage de la structure de l'organigramme (RSSI) + création comptes coquilles vides (ADR-10)
 - FR36: Epic 1 - Délégation admin Directeur Audit → Auditeurs (ADR-10)
@@ -97,8 +97,8 @@ This document provides the complete epic and story breakdown for bicec--Sentinel
 - FR6: Epic 2 - Soft-delete en état DRAFT
 - FR6b: Epic 2 - État transitoire DRAFT pré-assignation
 - FR7: Différé en V2 (Bulk create)
-- FR8: Epic 2 - Droits d'import pour l'Audit uniquement
-- FR9: Epic 2 - File import transactionnel atomique + date originale Excel
+- FR8: Epic 4 - Droits d'import pour l'Audit uniquement
+- FR9: Epic 4 - File import transactionnel atomique + date originale Excel
 - FR10: Epic 2 - Auto-assignation pour triage
 - FR11: Epic 2 - Assigner à un DM cible
 
@@ -132,8 +132,8 @@ This document provides the complete epic and story breakdown for bicec--Sentinel
 
 ### Epic 1: Connexion Sécurisée & Gestion des Périmètres
 **User Goal:** The Audit Internal team can manage the precise organizational hierarchy and user access, allowing the entire institution to authenticate securely and ensuring each user is isolated in their proper domain.
-**FRs covered:** FR1, FR2, FR3, FR4, FR28, FR35, FR36, FR37
-**Implementation Notes:** Establishes the foundational setup of the Starter Template (Django + PostgreSQL). Focuses heavily on the RBAC architecture to prevent access bleed and configuring custom login sequences. **[ADR-10] : Le Support IT crée les comptes « coquilles vides » (identité technique sans rôle). Le Directeur de l'Audit Interne (ou ses délégués `is_audit_admin=True`) est le seul habilité à attribuer les rôles métiers et périmètres via une interface dédiée.** Le modèle de données de trace (Audit Log) doit explicitement séparer `action_by` (l'utilisateur exécutant l'action) et `acting_for` (le titulaire du rôle) pour garantir la sécurité et la traçabilité parfaite des intérims.
+**FRs covered:** FR1, FR2, FR3, FR28, FR35, FR36, FR37
+**Implementation Notes:** Establishes the foundational setup of the Starter Template (Django + PostgreSQL). Focuses heavily on the RBAC architecture to prevent access bleed and configuring custom login sequences. **[ADR-10] : Le Support IT crée les comptes « coquilles vides » (identité technique sans rôle). Le Directeur de l'Audit Interne (ou ses délégués `is_audit_admin=True`) est le seul habilité à attribuer les rôles métiers et périmètres via une interface dédiée.** Le modèle de données de trace (Audit Log) doit être prêt à recevoir ultérieurement les extensions pour la traçabilité des intérims.
 
 #### Story 1.1: Setup du Projet depuis le Starter Template
 
@@ -187,20 +187,22 @@ So that **je puisse vérifier les données en totale isolation de l'environnemen
 **When** il se connecte,
 **Then** son profil est strictement limité à `is_external=True` et ne peut effectuer aucune action d'écriture.
 
-#### Story 1.4: Gestion de l'Organigramme et Création des Comptes (Support IT)
+#### Story 1.4: Gestion de l'Organigramme et Création des Comptes (Admin)
 
-As a **RSSI/Support IT**,
-I want **créer et structurer l'organigramme (Directions, Services, Agences) et créer les comptes utilisateurs comme des « coquilles vides » (identité technique sans rôle métier)**,
-So that **le système reflète fidèlement la structure de la banque et que le Directeur de l'Audit Interne puisse attribuer les rôles métiers aux comptes créés (ADR-10).**
+As a **Admin (anciennement RSSI/Support IT)**,
+I want **créer et structurer l'organigramme (DG, Directions, Sous-Directions, Départements, Services, Directions Régionales, Agences) et créer les comptes utilisateurs comme des « coquilles vides » (identité technique sans rôle métier)**,
+So that **le système reflète fidèlement la structure hiérarchique de la banque et que le Directeur de l'Audit Interne puisse attribuer les rôles métiers aux comptes créés (ADR-10).**
 
 **Acceptance Criteria:**
 
-**Given** le menu d'administration,
-**When** je crée une nouvelle Direction et ses Services enfants,
+**Given** le tableau de bord Admin,
+**When** je crée une arborescence multi-niveaux (DG → DIRECTION → SOUS_DIRECTION → DEPARTEMENT → SERVICE),
 **Then** l'arborescence est sauvegardée et disponible pour l'assignation des utilisateurs (FR35).
+**And** les types `DG`, `DIRECTION`, `SOUS_DIRECTION`, `DEPARTEMENT`, `SERVICE`, `REGION`, `AGENCE` sont disponibles.
+**And** je peux créer une Direction Régionale (type `REGION`) avec des Agences rattachées.
 **And** je peux créer un compte utilisateur avec nom, prénom, email et mot de passe temporaire.
-**And** le compte créé n'a **aucun rôle métier** (`role=NULL`) et ne peut accéder à aucune fonctionnalité métier (FR37).
-**And** le formulaire d'administration ne me permet **pas** d'attribuer ou modifier un rôle métier (champ masqué/désactivé pour le RSSI).
+**And** le compte créé n'a **aucun rôle métier** (`role=''`) et ne peut accéder à aucune fonctionnalité métier (FR37).
+**And** le formulaire d'administration ne me permet **pas** d'attribuer ou modifier un rôle métier (champ masqué/désactivé pour l'Admin).
 
 #### Story 1.5: Assignation des Profils Métiers et Périmètres (Interface Dédiée Audit — ADR-10)
 
@@ -216,19 +218,6 @@ So that **le périmètre de visibilité des données (RBAC) s'applique instantan
 **And** le RSSI/Support IT ne peut pas attribuer ou modifier les rôles métiers.
 **And** un auditeur interne standard (sans `is_audit_admin`) ne peut pas non plus attribuer de rôles.
 **And** l'assignation est tracée dans l'Audit Log avec l'identité du Directeur Audit (ou du délégué).
-
-#### Story 1.6: Configuration de l'Intérim et Délégation (Impersonnalisation)
-
-As a **Directeur Métier (DM) ou Audit**,
-I want **paramétrer un utilisateur "Intérimaire" pour remplacer un titulaire absent sur une période donnée**,
-So that **l'intérimaire puisse agir au nom de l'absent avec une traçabilité totale.**
-
-**Acceptance Criteria:**
-
-**Given** qu'un ETP remplace son DM en congés,
-**When** l'ETP effectue une action métier (ex: validation preuve),
-**Then** le système permet l'action
-**And** l'Audit Log enregistre explicitement que l'action a été effectuée par l'ETP agissant pour le DM (FR4).
 
 #### Story 1.7: Délégation des Permissions d'Administration des Comptes (ADR-10)
 
@@ -286,31 +275,6 @@ So that **je puisse corriger des erreurs de création sans générer de sauts d'
 **Given** une reco en `DRAFT`,
 **When** l'Audit clique sur supprimer,
 **Then** la ligne est marquée `is_deleted=True` au lieu d'une suppression SQL `DELETE` (FR6).
-
-#### Story 2.3: Importation Atomique Historique (Substitut de Masse MVP)
-
-As an **Audit Interne (Seulement)**,
-I want **uploader le template Excel officiel contenant l'historique massif (2000 lignes)**,
-So that **tout l'historique soit intégré de manière fiable dans la base de données.**
-
-**Acceptance Criteria:**
-
-**Given** l'upload d'un Excel par l'Audit,
-**When** déclenché,
-**Then** l'import exécute une transaction atomique stricte (tout ou rien).
-**And** les recos importées avec succès ont le statut `ASSIGNED`, le tag `IMPORTED`, et conservent leur date de création Excel originale (FR8, FR9).
-
-#### Story 2.4: Triage et Auto-Assignation
-
-As an **Audit Interne**,
-I want **m'auto-assigner des recommandations à trier (notamment les imports historiques)**,
-So that **mon équipe puisse finaliser la complétion des données avant l'envoi légal aux métiers.**
-
-**Acceptance Criteria:**
-
-**Given** une reco importée ou en brouillon,
-**When** l'audit se l'auto-assigne,
-**Then** elle n'est visible que par le pool Audit et ne déclenche aucune alerte (FR10).
 
 #### Story 2.5: Assignation Définitive au DM (Lancement du Chrono)
 
@@ -477,6 +441,33 @@ So that **les DMs et ETPs puissent anticiper les retards potentiels sans être s
 **When** le job hebdomadaire ou anticipatif s'exécute,
 **Then** un email d'anticipation ou de résumé est envoyé aux assignés concernés (Le format de l'email sera du pur texte formaté pour éviter la dette HTML).
 
+#### Story 4.3: Importation Atomique Historique (Substitut de Masse MVP)
+
+As an **Audit Interne (Seulement)**,
+I want **uploader le template Excel officiel contenant l'historique massif (2000 lignes)**,
+So that **tout l'historique soit intégré de manière fiable dans la base de données.**
+
+**Acceptance Criteria:**
+
+**Given** l'upload d'un Excel par l'Audit,
+**When** déclenché,
+**Then** l'import exécute une transaction atomique stricte (tout ou rien).
+**And** les recos importées avec succès ont le statut `ASSIGNED`, le tag `IMPORTED`, et conservent leur date de création Excel originale (FR8, FR9).
+
+
+#### Story 4.4: Triage et Auto-Assignation
+
+As an **Audit Interne**,
+I want **m'auto-assigner des recommandations à trier (notamment les imports historiques)**,
+So that **mon équipe puisse finaliser la complétion des données avant l'envoi légal aux métiers.**
+
+**Acceptance Criteria:**
+
+**Given** une reco importée ou en brouillon,
+**When** l'audit se l'auto-assigne,
+**Then** elle n'est visible que par le pool Audit et ne déclenche aucune alerte (FR10).
+
+
 #### Story 3.10: Génération du Sceau HMAC-SHA256 à la Clôture
 
 As a **Système**,
@@ -524,7 +515,7 @@ So that **je puisse l'archiver et réaliser mes contrôles via mon propre systè
 
 ### Epic 6: Executive Supervision Dashboards
 **User Goal:** The Executive Board (DG) and Managers can visualize global compliance risks, identify operational bottlenecks via aging metrics and color-coding, and instantly print reports for steering committees.
-**FRs covered:** FR29, FR30, FR31, FR32
+**FRs covered:** FR4, FR29, FR30, FR31, FR32
 **Implementation Notes:** Avoid heavy frontend. Focus on precise PostgreSQL QuerySets coupled to robust HTMX/Vanilla Tailwind filters. Minimal server overhead. **[Mitigation Performance] L'indicateur de vieillissement (Aging) doit être pré-calculé (Dénormalisé) par le Cron de la Story 3.9 plutôt que calculé à la volée via des JOIN complexes, pour garantir un P95 de rendu UI < 200ms.**
 
 #### Story 6.1: Dashboard de Supervision avec Indicateurs d'Urgence
@@ -563,3 +554,16 @@ So that **je puisse les présenter ou les archiver en comité sans nécessiter d
 **Given** le tableau de bord ou la vue liste,
 **When** j'utilise la fonctionnalité d'impression native de mon navigateur (`Ctrl+P`),
 **Then** des balises CSS `@media print` masquent la navigation globale et adaptent proprement le format pour le format papier standard.
+
+#### Story 6.4: Configuration de l'Intérim et Délégation (Impersonnalisation)
+
+As a **Directeur Métier (DM) ou Audit**,
+I want **paramétrer un utilisateur "Intérimaire" pour remplacer un titulaire absent sur une période donnée**,
+So that **l'intérimaire puisse agir au nom de l'absent avec une traçabilité totale.**
+
+**Acceptance Criteria:**
+
+**Given** qu'un ETP remplace son DM en congés,
+**When** l'ETP effectue une action métier (ex: validation preuve),
+**Then** le système permet l'action
+**And** l'Audit Log enregistre explicitement que l'action a été effectuée par l'ETP agissant pour le DM (FR4).

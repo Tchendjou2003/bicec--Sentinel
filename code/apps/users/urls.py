@@ -30,22 +30,7 @@ urlpatterns = [
         views.ExternalDashboardView.as_view(),
         name="external-dashboard",
     ),
-    # ── Habilitation Audit (Story 1.5 + 1.7) ──
-    path(
-        "habilitation/",
-        views.HabilitationListView.as_view(),
-        name="habilitation-list",
-    ),
-    path(
-        "habilitation/<uuid:pk>/edit/",
-        views.HabilitationEditView.as_view(),
-        name="habilitation-edit",
-    ),
-    path(
-        "habilitation/<uuid:pk>/toggle-admin/",
-        views.HabilitationToggleAdminView.as_view(),
-        name="habilitation-toggle-admin",
-    ),
+
     # ── Administration IT (Story 1.4) ──
     path(
         "admin/dashboard/",

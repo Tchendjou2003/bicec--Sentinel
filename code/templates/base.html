@@ -25,7 +25,7 @@
     {% endblock %}
 
     {# Toasts globaux (Alpine.js) #}
-    <div x-data class="fixed bottom-4 right-4 z-[100] space-y-2 pointer-events-none">
+    <div x-data class="fixed bottom-4 right-4 space-y-2 pointer-events-none" style="z-index: 9999;">
         <template x-for="n in $store.sentinel.notifications" :key="n.id">
             <div x-transition class="rounded-lg border bg-card shadow-premium-lg px-4 py-3 text-sm font-medium pointer-events-auto" :class="{
                 'border-success/30 text-success': n.type === 'success',

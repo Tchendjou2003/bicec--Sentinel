@@ -1,0 +1,40 @@
+{# Fragment HTMX — Carte d'un fichier brouillon dans le slide-over (Story 3.3 v2) #}
+
+<div id="file-card-{{ file.pk }}"
+     class="group flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 transition-all hover:border-gray-300">
+
+  {# Icône type MIME #}
+  <div class="flex h-9 w-9 items-center justify-center rounded-lg shrink-0
+              {% if 'pdf' in file.mime_type %}bg-red-100 text-red-600
+              {% elif 'image' in file.mime_type %}bg-blue-100 text-blue-600
+              {% elif 'word' in file.mime_type or 'document' in file.mime_type %}bg-indigo-100 text-indigo-600
+              {% elif 'spreadsheet' in file.mime_type or 'excel' in file.mime_type %}bg-green-100 text-green-600
+              {% elif 'csv' in file.mime_type %}bg-teal-100 text-teal-600
+              {% elif 'outlook' in file.mime_type or 'rfc822' in file.mime_type %}bg-purple-100 text-purple-600
+              {% else %}bg-gray-100 text-gray-500{% endif %}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+    </svg>
+  </div>
+
+  {# Info fichier #}
+  <div class="min-w-0 flex-1">
+    <p class="text-sm font-medium text-gray-800 truncate">{{ file.original_filename }}</p>
+    <p class="text-xs text-gray-400">{{ file.file_size_display }} · {{ file.get_tag_display }}</p>
+  </div>
+
+  {# Bouton supprimer #}
+  <button type="button"
+          hx-delete="{% url 'workflow:draft-delete-file' recommendation.pk file.pk %}"
+          hx-target="#file-card-{{ file.pk }}"
+          hx-swap="outerHTML"
+          class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+          title="Supprimer">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+    </svg>
+  </button>
+
+</div>

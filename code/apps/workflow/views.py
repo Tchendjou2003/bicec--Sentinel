@@ -235,7 +235,9 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
     context_object_name = "recommendation"
 
     def get_object(self, queryset=None):
-        return selectors.get_recommendation_detail(pk=self.kwargs["pk"])
+        return selectors.get_recommendation_detail_for_user(
+            pk=self.kwargs["pk"], user=self.request.user
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

@@ -88,54 +88,54 @@ def get_recommendations_for_user(*, user, filters: dict | None = None) -> QueryS
 
 def get_recommendation_by_id(*, pk, user) -> Recommendation:
     """
-    Retourne une recommandation par son PK avec contrôle RBAC basique.
+    Retourne une recommandation par son PK avec contrôle RBAC strict (FR28).
 
-    Le mixin AuditRequiredMixin a déjà vérifié le rôle.
-    On utilise le manager par défaut (exclut les soft-deleted).
-
-    Args:
-        pk: UUID de la recommandation.
-        user: L'utilisateur connecté.
-
-    Returns:
-        Recommendation: L'instance trouvée.
-
-    Raises:
-        Http404: Si la recommandation n'existe pas ou est soft-deleted.
-    """
-    return get_object_or_404(
-        Recommendation.objects.select_related(
-            "created_by", "department", "controlled_department",
-            "assigned_dm", "assigned_etp",
-        ),
-        pk=pk,
-    )
-
-
-def get_recommendation_detail(*, pk) -> Recommendation:
-    """
-    Retourne une recommandation avec ses livrables pour la page de détail.
-
-    Utilise prefetch_related pour optimiser le chargement des livrables.
+    Utilise get_recommendations_for_user() comme base pour garantir
+    que l'utilisateur ne peut accéder qu'aux recommandations de son périmètre.
 
     Args:
         pk: UUID de la recommandation.
+        user: L'utilisateur connecté — appliqué au filtre RBAC.
 
     Returns:
-        Recommendation: L'instance avec livrables préchargés.
+        Recommendation: L'instance trouvée et autorisée.
 
     Raises:
-        Http404: Si la recommandation n'existe pas.
+        Http404: Si la recommandation n'existe pas, est soft-deleted,
+                 ou est hors périmètre RBAC de l'utilisateur.
     """
-    return get_object_or_404(
-        Recommendation.objects
-        .select_related(
-            "created_by", "department", "controlled_department",
-            "assigned_dm", "assigned_etp",
-        )
-        .prefetch_related("deliverables"),
-        pk=pk,
+    qs = get_recommendations_for_user(user=user).select_related(
+        "created_by", "department", "controlled_department",
+        "assigned_dm", "assigned_etp",
     )
+    return get_object_or_404(qs, pk=pk)
+
+
+def get_recommendation_detail_for_user(*, pk, user) -> Recommendation:
+    """
+    Retourne une recommandation avec ses livrables pour la page de détail,
+    avec contrôle RBAC strict (FR28).
+
+    Utilise get_recommendations_for_user() comme base pour garantir
+    que l'utilisateur ne peut voir que les recommandations de son périmètre.
+    Précharge les livrables pour optimiser le rendu de la page de détail.
+
+    Args:
+        pk: UUID de la recommandation.
+        user: L'utilisateur connecté — appliqué au filtre RBAC.
+
+    Returns:
+        Recommendation: L'instance avec livrables préchargés et autorisée.
+
+    Raises:
+        Http404: Si la recommandation n'existe pas, est soft-deleted,
+                 ou est hors périmètre RBAC de l'utilisateur.
+    """
+    qs = get_recommendations_for_user(user=user).select_related(
+        "created_by", "department", "controlled_department",
+        "assigned_dm", "assigned_etp",
+    ).prefetch_related("deliverables")
+    return get_object_or_404(qs, pk=pk)
 
 
 def get_department_and_descendants_ids(department) -> list:

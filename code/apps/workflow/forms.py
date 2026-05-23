@@ -14,7 +14,8 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.users.models import User
-from .models import Deliverable, Recommendation
+from .models import Deliverable, EvidenceFile, Recommendation
+from .validators import validate_file_size, validate_magic_bytes
 
 
 # ── Style Tailwind partagé ────────────────────────────────────────────
@@ -230,4 +231,124 @@ class AssignDMForm(forms.Form):
             )
         else:
             self.fields["dm"].queryset = User.objects.none()
+
+
+# ── Formulaire de Délégation (Story 3.2) ─────────────────────────────
+
+
+class DelegateETPForm(forms.Form):
+    """
+    Formulaire pour la délégation d'une recommandation à un ETP
+    ou la prise en charge DM Porteur (Story 3.2 / AC1, AC2).
+
+    Utilise forms.Form (pas ModelForm) car la logique métier
+    est orchestrée par le service layer.
+
+    Le queryset ETP est filtré dynamiquement par département dans __init__.
+    """
+
+    ACTION_DELEGATE_ETP = "delegate_etp"
+    ACTION_DM_PORTEUR = "dm_porteur"
+
+    ACTION_CHOICES = [
+        (ACTION_DELEGATE_ETP, _("Déléguer à un ETP")),
+        (ACTION_DM_PORTEUR, _("Devenir DM Porteur")),
+    ]
+
+    action = forms.ChoiceField(
+        choices=ACTION_CHOICES,
+        widget=forms.RadioSelect(attrs={"class": "sr-only peer"}),
+        initial=ACTION_DELEGATE_ETP,
+        label=_("Action"),
+    )
+
+    etp = forms.ModelChoiceField(
+        queryset=User.objects.none(),  # Surchargé dans __init__
+        label=_("Employé Traitant"),
+        widget=forms.Select(attrs={"class": _SELECT_CLASS}),
+        empty_label=_("— Sélectionner un ETP —"),
+        required=False,  # Non requis si action = dm_porteur
+    )
+
+    def __init__(self, *args, department=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if department:
+            from . import selectors
+
+            self.fields["etp"].queryset = (
+                selectors.get_available_etps_for_department(department=department)
+            )
+        else:
+            self.fields["etp"].queryset = User.objects.none()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        action = cleaned_data.get("action")
+        etp = cleaned_data.get("etp")
+
+        if action == self.ACTION_DELEGATE_ETP and not etp:
+            self.add_error(
+                "etp",
+                _("Veuillez sélectionner un ETP pour la délégation."),
+            )
+
+        return cleaned_data
+
+
+# ── Formulaires de Soumission de Preuves (Story 3.3) ─────────────────
+
+
+class EvidenceDraftCommentForm(forms.Form):
+    """
+    Validation du commentaire de résolution lors de la soumission finale.
+
+    Le commentaire est sauvegardé en continu par autosave (HTMX debounce)
+    via DraftSaveCommentView. Ce formulaire n'est utilisé que pour valider
+    la présence du commentaire avant la transition FSM.
+
+    Note : Les fichiers sont uploadés individuellement via DraftUploadFileView
+    (Story 3.3 v2 — brouillons persistants) — pas de champ fichier ici.
+    """
+
+    comment = forms.CharField(
+        label=_("Commentaire de résolution"),
+        widget=forms.Textarea(attrs={
+            "class": _TEXTAREA_CLASS,
+            "rows": 4,
+            "placeholder": _(
+                "Décrivez les actions menées pour résoudre cette recommandation..."
+            ),
+        }),
+        help_text=_("Expliquez les mesures prises pour remédier aux observations."),
+    )
+
+
+class EvidenceRejectForm(forms.Form):
+    """
+    Formulaire de rejet de preuves par le DM — Story 3.4 (AC2).
+
+    Champ unique : le motif de rejet, obligatoire, affiché dans la modale HTMX.
+    """
+
+    reason = forms.CharField(
+        label=_("Motif de rejet"),
+        max_length=1000,
+        widget=forms.Textarea(attrs={
+            "class": _TEXTAREA_CLASS,
+            "rows": 4,
+            "maxlength": 1000,
+            "placeholder": _(
+                "Expliquez pourquoi cette soumission est insuffisante "
+                "(ex. : signature absente, document illisible, pièce incorrecte)..."
+            ),
+        }),
+        help_text=_(
+            "Ce motif sera visible par l'ETP afin qu'il puisse corriger sa soumission. "
+            "(1000 caractères maximum)"
+        ),
+        error_messages={
+            "required": _("Le motif de rejet est obligatoire."),
+            "max_length": _("Le motif ne doit pas dépasser 1000 caractères."),
+        },
+    )
 

@@ -13,6 +13,7 @@ Spécifications couvertes :
 """
 from django.urls import path
 
+from apps.users import views as user_views
 from . import views
 
 app_name = "workflow"
@@ -47,5 +48,69 @@ urlpatterns = [
         "recommandations/<uuid:pk>/assign/",
         views.RecommendationAssignView.as_view(),
         name="recommendation-assign",
+    ),
+    path(
+        "recommandations/<uuid:pk>/delegate/",
+        views.RecommendationDelegateView.as_view(),
+        name="recommendation-delegate",
+    ),
+    path(
+        "recommandations/<uuid:pk>/submit-evidence/",
+        views.RecommendationSubmitEvidenceView.as_view(),
+        name="recommendation-submit-evidence",
+    ),
+    # ── Historique complet — slide-over HTMX ──
+    path(
+        "recommandations/<uuid:pk>/audit-log/",
+        views.RecommendationAuditLogView.as_view(),
+        name="recommendation-audit-log",
+    ),
+    # ── Rejet de preuves par le DM (Story 3.4) ──
+    path(
+        "recommandations/<uuid:pk>/submissions/<uuid:submission_id>/reject/",
+        views.EvidenceRejectView.as_view(),
+        name="evidence-reject",
+    ),
+    # ── Endpoints HTMX pour brouillons (Story 3.3 v2) ──
+    path(
+        "recommandations/<uuid:pk>/draft/upload/",
+        views.DraftUploadFileView.as_view(),
+        name="draft-upload",
+    ),
+    path(
+        "recommandations/<uuid:pk>/draft/file/<uuid:file_id>/delete/",
+        views.DraftDeleteFileView.as_view(),
+        name="draft-delete-file",
+    ),
+    path(
+        "recommandations/<uuid:pk>/draft/comment/",
+        views.DraftSaveCommentView.as_view(),
+        name="draft-save-comment",
+    ),
+    path(
+        "recommandations/<uuid:pk>/draft/deliverable/<uuid:del_id>/toggle/",
+        views.DraftToggleDeliverableView.as_view(),
+        name="draft-toggle-deliverable",
+    ),
+    path(
+        "recommandations/<uuid:pk>/evidence/<uuid:file_id>/download/",
+        views.EvidenceFileDownloadView.as_view(),
+        name="evidence-download",
+    ),
+    # ── Habilitation Audit (Story 1.5 + 1.7) ──
+    path(
+        "habilitation/",
+        user_views.HabilitationListView.as_view(),
+        name="habilitation-list",
+    ),
+    path(
+        "habilitation/<uuid:pk>/edit/",
+        user_views.HabilitationEditView.as_view(),
+        name="habilitation-edit",
+    ),
+    path(
+        "habilitation/<uuid:pk>/toggle-admin/",
+        user_views.HabilitationToggleAdminView.as_view(),
+        name="habilitation-toggle-admin",
     ),
 ]

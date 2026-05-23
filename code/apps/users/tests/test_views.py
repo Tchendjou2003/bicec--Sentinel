@@ -73,13 +73,12 @@ class SentinelLoginViewTest(TestCase):
         self.assertRedirects(response, reverse("auth:admin-dashboard"))
 
     def test_login_redirect_dm_to_home(self):
-        """Un compte avec rôle (ex: DM) est redirigé vers la home par défaut."""
+        """Un compte avec rôle (ex: DM) est redirigé vers le suivi des recommandations."""
         response = self.client.post(self.login_url, {
             "username": "dm",
             "password": "testpass123"
         })
-        # Par défaut, LOGIN_REDIRECT_URL est "/"
-        self.assertRedirects(response, "/")
+        self.assertRedirects(response, reverse("workflow:recommendation-list"))
 
 
 class PendingActivationViewTest(TestCase):

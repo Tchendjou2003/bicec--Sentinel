@@ -26,7 +26,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 2. **Simplifie la vie des DM/ETP** en remplaçant le chaos par un processus plus rapide et plus clair que l'existant
 3. **Garantit que chaque action est documentée**, vérifiable et restituable en cas de contrôle
 
-**6 rôles utilisateurs :** Auditeur Interne, Directeur Métier, Employé Traitant, Direction Générale, Auditeur Externe, RSSI.
+**6 rôles utilisateurs :** Auditeur Interne, Directeur Métier, Employé Traitant, Direction Générale, Auditeur Externe, Admin.
 
 **Contexte critique :** La BICEC a été sanctionnée par la COBAC en 2019 (700M FCFA répartis sur 6 banques). Sentinel fournit la preuve opérationnelle que l'institution a pris les mesures correctives structurelles.
 
@@ -151,7 +151,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 
 **Opening Scene :** Le Sprint 0 technique est lancé. Aboubakar configure l'environnement On-Premise : serveur web, base PostgreSQL, certificat HTTPS interne. Il configure l'authentification locale (l'AD est prévu pour la V2). Il crée le premier compte utilisateur via un script technique (`manage.py create_audit_director`) : le compte du Directeur de l'Audit Interne, Jean-Paul. Ce compte est une « coquille vide » technique, sans rôle métier.
 
-**Rising Action :** Aboubakar crée l'organigramme dans l'interface d'administration de Sentinel : 12 directions, 45 agences, structure hiérarchique. Il crée ensuite les 85 comptes utilisateurs comme des « coquilles vides » (identité technique : nom, prénom, email, mot de passe temporaire) — ces comptes n'ont **aucun rôle métier** et affichent une page « en attente d'activation » à la connexion (ADR-10). En parallèle, Jean-Paul (Directeur Audit) se connecte à l'interface dédiée d'habilitation. Il active son propre compte avec le rôle `AUDIT` + `is_audit_admin=True`, puis assigne les rôles métiers (DM, ETP, DG) et les périmètres de direction à chaque compte créé par Aboubakar. Jean-Paul délègue également les permissions d'administration des comptes à deux autres auditeurs de confiance. Du côté import, Jean-Paul télécharge le template d'import normalisé depuis son espace sécurisé, y transfère ses 450+ recommandations historiques et lance l'import. Lors de la première tentative, le système bloque tout à cause d'une date invalide à la ligne 42 (transaction atomique). Jean-Paul corrige son fichier et valide l'import global avec succès en statut `ASSIGNED` avec le tag `IMPORTED`.
+**Rising Action :** Aboubakar crée l'organigramme dans l'interface d'administration de Sentinel : la Direction Générale, 15+ Directions (fonctionnelles et opérationnelles), leurs Sous-Directions, Départements, Services, 3 Directions Régionales et 45+ Agences, structure hiérarchique. Il crée ensuite les 85 comptes utilisateurs comme des « coquilles vides » (identité technique : nom, prénom, email, mot de passe temporaire) — ces comptes n'ont **aucun rôle métier** et affichent une page « en attente d'activation » à la connexion (ADR-10). En parallèle, Jean-Paul (Directeur Audit) se connecte à l'interface dédiée d'habilitation. Il active son propre compte avec le rôle `AUDIT` + `is_audit_admin=True`, puis assigne les rôles métiers (Audit, DM, ETP, DG, Externe) et les périmètres de direction à chaque compte créé par Aboubakar. Jean-Paul délègue également les permissions d'administration des comptes à deux autres auditeurs de confiance. Du côté import, Jean-Paul télécharge le template d'import normalisé depuis son espace sécurisé, y transfère ses 450+ recommandations historiques et lance l'import. Lors de la première tentative, le système bloque tout à cause d'une date invalide à la ligne 42 (transaction atomique). Jean-Paul corrige son fichier et valide l'import global avec succès en statut `ASSIGNED` avec le tag `IMPORTED`.
 
 **Climax :** La première connexion réelle des utilisateurs. Aboubakar surveille les logs système : connexions, erreurs, performances. Un DM signale un problème d'accès — son périmètre RLS n'inclut pas sa nouvelle agence. Aboubakar met à jour l'organigramme, le RLS se réapplique instantanément. Problème résolu en 5 minutes. Un nouvel employé arrive : Aboubakar crée son compte « coquille vide », puis Jean-Paul (ou un auditeur délégué) lui attribue son rôle et son périmètre via l'interface dédiée.
 
@@ -181,7 +181,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 | **Edge Case & Report** | Ré-assignation manuelle par Audit (en cas d'absence DM), flag OVERDUE, rappels quotidiens (Critique) / digest hebdo, rejet motivé, **demande de report par DM avec justification / validation Audit** |
 | **Compliance** | Compte Auditeur Externe (credentials locaux), RLS, OVERDUE masqué, synthèse conformité (pas d'audit trail), **téléchargement autonome ZIP unitaire par recommandation** |
 | **Data Init (Audit)** | Téléchargement exclusif du template, import transactionnel strict (tout ou rien), rollback sur erreur, tag inaltérable IMPORTED, statut initial ASSIGNED |
-| **Admin/Ops** | Configuration Auth Locale (AD en V2), gestion globale de l'organigramme des directions, monitoring applicatif (Tâches asynchrones Q2, Audit Logs) |
+| **Admin/Ops** | Configuration Auth Locale (AD en V2), gestion globale de l'organigramme (DG, Directions, Sous-Directions, Départements, Services, Régions, Agences), monitoring applicatif (Tâches asynchrones Q2, Audit Logs) |
 | **DG** | Dashboard supervision macro, filtres, export PDF temps réel, rapport Comité de Direction |
 
 ## Domain-Specific Requirements
@@ -228,7 +228,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - Authentification locale Django (`django.contrib.auth`), SSO AD différé en V2
 - Isolation des données (RBAC Applicatif strict au MVP, RLS Partiel en V2 comme garde-fou additionnel)
 - Sceau cryptographique de clôture (HMAC-SHA256) et Audit Triggers natifs
-- **Sécurité Fichiers allégée :** Whitelist stricte d'extensions (PDF, JPG, PNG, XLSX, CSV, TXT, MSG/EML) + validation par magic bytes pour les médias + limite 15 Mo. Macros Excel (XLSM) formellement interdites. (Le scan ClamAV est repoussé en V2).
+- **Sécurité Fichiers allégée :** Whitelist stricte d'extensions (PDF, JPG, PNG, XLSX, CSV, TXT, MSG/EML) + validation par magic bytes pour les médias + limite 6 Mo (20 Mo max/reco). Macros Excel (XLSM) formellement interdites. (Le scan ClamAV est repoussé en V2).
 - Dashboards simplifiés : Vue liste filtrable pour Audit/ETP/DM. Pour le DG : Vue liste agrégée statique ou simple export PDF des retards (Pas de graphiques interactifs complexes en MVP).
 - Moteur de notification asynchrone (Digest vs Alertes temps réel)
 
@@ -259,7 +259,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - **FR2:** Les Auditeurs Externes peuvent s'authentifier via des identifiants locaux spécifiques au système.
 - **FR3 (Habilitation — ADR-10):** Le Directeur de l'Audit Interne (ou un auditeur délégué disposant du flag `is_audit_admin`) est le **seul habilité** à attribuer les rôles métiers (Audit, DM, ETP, DG, Externe), les habilitations et les périmètres de direction aux comptes utilisateurs créés par le Support IT, via une interface dédiée distincte du Django Admin. Le Support IT crée les comptes comme des « coquilles vides » (identité technique uniquement, sans rôle ni accès métier).
 - **FR4 (Gestion des Absences/Intérims):** Le système supporte deux niveaux d'intérim : (a) l'Audit Interne paramètre l'intérim des Directeurs Métiers ; (b) chaque Directeur Métier paramètre l'intérim de ses propres ETP. Lors des actions, l'intérimaire agit *au nom de* l'absent (impersonnalisation). Cette délégation est explicitement tracée dans l'Audit Log (ex: "Validé par Y agissant pour X") pour maintenir et auditer la chaîne de responsabilité.
-- **FR35 (Gestion de l'Organigramme):** Le Support IT / RSSI peut créer, modifier et gérer la structure hiérarchique de l'institution (Directions, Services, Agences) garantissant le fonctionnement précis du RBAC et de l'assignation. Le Support IT ne peut **pas** attribuer ou modifier les rôles métiers des comptes (ADR-10).
+- **FR35 (Gestion de l'Organigramme):** Le Support IT / Admin peut créer, modifier et gérer la structure hiérarchique de l'institution (DG, Directions, Sous-Directions, Départements, Services, Directions Régionales, Agences) garantissant le fonctionnement précis du RBAC et de l'assignation. L'Admin ne peut **pas** attribuer ou modifier les rôles métiers des comptes (ADR-10).
 - **FR36 (Délégation Admin — ADR-10):** Le Directeur de l'Audit Interne peut déléguer la permission d'administration des comptes (`is_audit_admin`) à d'autres auditeurs internes de son choix. Cette délégation est explicitement tracée dans l'Audit Log avec dates d'effet.
 - **FR37 (Compte en attente — ADR-10):** Un compte utilisateur créé par le Support IT dont le rôle métier n'a pas encore été attribué par l'Audit Interne affiche une page « Votre compte est en attente d'activation par l'Audit Interne » et ne peut accéder à aucune fonctionnalité métier (zéro accès garanti).
 
@@ -279,7 +279,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - **FR14:** L'Audit Interne peut approuver (en validant la nouvelle date) ou rejeter (maintien de l'échéance initiale) la demande de report.
 
 ### 4. Evidence Submission & Validation
-- **FR15:** L'ETP (ou le DM Porteur) peut uploader des fichiers comme preuves (max 15 Mo) limités strictement aux formats autorisés (PDF, Images, Excel XLSX sans macro, CSV, Mails MSG/EML, Logs TXT) avec validation sécurisée adaptative. L'upload initial crée la preuve en statut **Brouillon (`DRAFT`)**, visible et supprimable uniquement par son auteur.
+- **FR15:** L'ETP (ou le DM Porteur) peut uploader des fichiers comme preuves (max 6 Mo) limités strictement aux formats autorisés (PDF, Images, Excel XLSX sans macro, CSV, Mails MSG/EML, Logs TXT) avec validation sécurisée adaptative. L'upload initial crée la preuve en statut **Brouillon (`DRAFT`)**, visible et supprimable uniquement par son auteur.
 - **FR16:** L'ETP peut soumettre ses brouillons au DM en y incluant un commentaire justificatif exhaustif. La soumission verrouille les brouillons en statut `PENDING` et fait transiter la recommandation vers `PENDING_DM_REVIEW`.
 - **FR17:** Le Directeur Métier peut valider les preuves de l'ETP, ou les rejeter en fournissant un motif obligatoire de correction à l'ETP.
 - **FR18:** L'ETP peut uploader de nouveaux fichiers et re-soumettre un dossier suite au rejet du DM ou d'un rejet consécutif de l'Audit.
@@ -324,7 +324,7 @@ Sentinel transforme le suivi des recommandations d'audit en un système de pilot
 - **NFR-PERF-04 :** La génération et le téléchargement synchrone d'une archive ZIP unitaire (pour une seule recommandation) pour les Auditeurs Externes doit prendre **< 5 secondes**.
 
 ### Scalability & Capacity
-- **NFR-SCA-01 :** Le système autorise un upload unitaire maximal de **15 Mo par fichier**, limité à un lot de **5 fichiers simultanés maximum par requête** pour empêcher la saturation mémoire du serveur (Déni de Service).
+- **NFR-SCA-01 :** Le système autorise un upload unitaire maximal de **6 Mo par fichier**, avec une limite stricte de **20 Mo cumulés par recommandation** pour empêcher la saturation mémoire du serveur lors de la génération ZIP.
 - **NFR-SCA-02 :** L'architecture MVP doit pouvoir ingérer le lancement (Import) de **2 000 recommandations** et **9 000 fichiers de preuves** historiques initiaux.
 - **NFR-SCA-02b :** Le temps de rendu des templates (TTFB) de l'application frontend doit rester décorrelé du volume de l'import historique en toile de fond (l'import ne doit pas verrouiller la base de données pour les opérations synchrones de lecture des utilisateurs connectés).
 - **NFR-SCA-03 :** Le système doit garantir des temps de réponse nominaux avec **jusqu'à 200 utilisateurs concurrents** actifs (Périodes de rush : audits trimestriels, fins de mois).

@@ -95,7 +95,7 @@ class ExternalAccessInternalBlockTest(TestCase):
     def test_ext_user_cannot_access_habilitation(self):
         """Un utilisateur externe ne peut pas accéder à la page d'habilitation."""
         self.client.force_login(self.ext_user)
-        response = self.client.get(reverse("auth:habilitation-list"))
+        response = self.client.get(reverse("workflow:habilitation-list"))
         self.assertEqual(response.status_code, 403)
 
     def test_ext_user_cannot_access_home(self):

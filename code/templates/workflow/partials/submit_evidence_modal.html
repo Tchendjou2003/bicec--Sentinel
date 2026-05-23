@@ -1,0 +1,319 @@
+{# Panneau de soumission de preuves — Story 3.3 v2 (Brouillons Persistants) #}
+{# Header sticky / Body scrollable / Footer sticky #}
+{% load static %}
+
+<div x-data="evidenceDraft()"
+     @quota-updated.window="updateQuota($event.detail); updateFilesCount()"
+     class="flex flex-col flex-1 min-h-0 h-full max-h-full overflow-hidden">
+
+  {# ── Header Sticky ── #}
+  <div class="shrink-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <div class="min-w-0">
+        <h3 class="text-base font-semibold text-gray-900">Soumettre des preuves</h3>
+        <p class="text-xs text-gray-500">Réf. : <span class="font-medium text-gray-700">{{ recommendation.reference }}</span></p>
+        {# Barre de progression #}
+        {% if deliverables %}
+        <div class="flex items-center gap-2 mt-1">
+          <div class="flex-1 h-1.5 rounded-full bg-gray-200">
+            <div class="h-1.5 rounded-full bg-green-500 transition-all"
+                 x-init="$el.style.width = '{{ recommendation.progress_percentage }}%'"></div>
+          </div>
+          <span class="text-xs text-gray-400 shrink-0">{{ recommendation.progress_percentage }}&nbsp;%</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <button type="button"
+            @click="submitEvidenceModalOpen = false"
+            class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
+            title="Fermer">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  {# ── Body Scrollable ── #}
+  <div class="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+
+    {# ── Info légale + Quota ── #}
+    <div class="rounded-xl bg-amber-50 border border-amber-200 p-3.5">
+      <p class="text-xs text-amber-800 leading-relaxed">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline mr-1 shrink-0 -mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Vos fichiers sont enregistrés en <strong>brouillon</strong> jusqu'à la soumission finale.
+        Une fois soumises, les preuves sont <strong>immuables</strong>.
+        <br>
+        Formats : PDF, DOCX, XLSX, CSV, MSG, EML, JPEG, PNG —
+        <strong>6 Mo par fichier · 20 Mo cumulés max.</strong>
+      </p>
+      {# Jauge de quota #}
+      <div class="flex items-center gap-2 mt-2.5">
+        <div class="flex-1 h-2 rounded-full bg-amber-200/60 overflow-hidden">
+          <div id="quota-bar"
+               class="h-2 rounded-full transition-all duration-300
+                      {% if quota_percentage >= 90 %}bg-red-500
+                      {% elif quota_percentage >= 70 %}bg-amber-500
+                      {% else %}bg-green-500{% endif %}"
+               x-init="$el.style.width = '{{ quota_percentage }}%'"></div>
+        </div>
+        <span id="quota-text" class="text-xs font-medium text-amber-700 shrink-0">
+          {{ quota_used_mb|floatformat:"1" }} / {{ quota_max_mb|floatformat:"0" }} Mo
+        </span>
+      </div>
+    </div>
+
+    {# ── Livrables attendus (toggle HTMX) ── #}
+    {% if deliverables %}
+    {% include "workflow/partials/_deliverable_checklist.html" with deliverables=deliverables recommendation=recommendation progress=recommendation.progress_percentage %}
+    {% endif %}
+
+    {# ── Zone de drop & upload ── #}
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Fichiers probatoires <span class="text-red-500 normal-case font-normal">*</span>
+        </p>
+        <span class="text-xs text-gray-400" id="files-count">{{ draft_files|length }} fichier(s)</span>
+      </div>
+
+      {# Drop Zone #}
+      <div x-ref="dropZone"
+           @dragover.prevent="isDragging = true"
+           @dragleave.prevent="isDragging = false"
+           @drop.prevent="handleDrop($event)"
+           :class="isDragging ? 'border-sentinel-orange bg-orange-50' : 'border-gray-300 bg-white'"
+           class="rounded-xl border-2 border-dashed p-6 text-center transition-all cursor-pointer hover:border-sentinel-orange/50"
+           @click="$refs.fileInput.click()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-2 text-gray-300"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <p class="text-sm text-gray-500">
+          <span class="font-medium text-sentinel-orange">Cliquez ici</span>
+          ou glissez-déposez vos fichiers
+        </p>
+        <p class="text-xs text-gray-400 mt-1">PDF, DOCX, XLSX, CSV, MSG, EML, JPEG, PNG · Max 6 Mo / fichier</p>
+        <input type="file" x-ref="fileInput" @change="handleFiles($event)" multiple
+               accept=".pdf,.docx,.xlsx,.csv,.msg,.eml,.jpg,.jpeg,.png"
+               class="hidden">
+      </div>
+
+      {# Upload en cours #}
+      <div x-show="uploading" x-cloak class="mt-3 flex items-center gap-2 text-sm text-sentinel-orange">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        <span x-text="'Upload en cours (' + uploadProgress + '/' + uploadTotal + ')...'"></span>
+      </div>
+
+      {# Liste des fichiers déjà uploadés #}
+      <div id="draft-files-list" class="mt-3 space-y-2">
+        {% for file in draft_files %}
+        {% include "workflow/partials/_draft_file_card.html" with file=file recommendation=recommendation %}
+        {% endfor %}
+      </div>
+    </div>
+
+    {# ── Commentaire de résolution (autosave) ── #}
+    <div>
+      <div class="flex items-center justify-between mb-2">
+        <label for="draft-comment"
+               class="block text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Commentaire de résolution <span class="text-red-500 normal-case font-normal">*</span>
+        </label>
+        <div id="autosave-indicator"></div>
+      </div>
+      <textarea
+        id="draft-comment"
+        name="comment"
+        rows="4"
+        placeholder="Décrivez les actions menées pour résoudre cette recommandation..."
+        hx-post="{% url 'workflow:draft-save-comment' recommendation.pk %}"
+        hx-trigger="keyup changed delay:800ms"
+        hx-target="#autosave-indicator"
+        hx-swap="innerHTML"
+        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+        class="block w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900
+               placeholder:text-gray-400 shadow-sm
+               focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 focus:outline-none
+               transition-all resize-none"
+      >{{ draft.comment }}</textarea>
+      <p class="text-xs text-gray-400 mt-1.5">
+        Expliquez les mesures prises pour remédier aux observations.
+        Le commentaire est <strong>sauvegardé automatiquement</strong>.
+      </p>
+    </div>
+
+  </div>{# /body #}
+
+  {# ── Footer Sticky ── #}
+  <div class="shrink-0 bg-white border-t border-gray-100 px-6 py-4 flex justify-end gap-3">
+    <button
+      type="button"
+      @click="submitEvidenceModalOpen = false"
+      class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+    >
+      Annuler
+    </button>
+    <button
+      type="button"
+      @click="submitDraft()"
+      :disabled="submitting"
+      class="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white
+             bg-gradient-to-r from-green-600 to-green-700 shadow-md shadow-green-500/20
+             hover:shadow-lg transition-all duration-200
+             disabled:opacity-60 disabled:cursor-not-allowed"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" x-show="!submitting"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" x-show="submitting" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      <span x-text="submitting ? 'Soumission en cours...' : 'Soumettre les preuves'">Soumettre les preuves</span>
+    </button>
+  </div>
+
+</div>{# /x-data #}
+
+<script>
+function evidenceDraft() {
+  return {
+    submitting: false,
+    isDragging: false,
+    uploading: false,
+    uploadProgress: 0,
+    uploadTotal: 0,
+
+    handleDrop(event) {
+      this.isDragging = false;
+      const files = event.dataTransfer.files;
+      if (files.length > 0) this.uploadFiles(files);
+    },
+
+    handleFiles(event) {
+      const files = event.target.files;
+      if (files.length > 0) this.uploadFiles(files);
+      event.target.value = '';
+    },
+
+    async uploadFiles(files) {
+      this.uploading = true;
+      this.uploadTotal = files.length;
+      this.uploadProgress = 0;
+
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+        || '{{ csrf_token }}';
+
+      for (const file of files) {
+        this.uploadProgress++;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+          const response = await fetch(
+            '{% url "workflow:draft-upload" recommendation.pk %}',
+            {
+              method: 'POST',
+              headers: { 'X-CSRFToken': csrfToken },
+              body: formData,
+            }
+          );
+
+          if (response.ok) {
+            const html = await response.text();
+            const list = document.getElementById('draft-files-list');
+            list.insertAdjacentHTML('beforeend', html);
+            htmx.process(list.lastElementChild);
+
+            this.updateFilesCount();
+
+            // Traiter les headers HX-Trigger pour la mise à jour quota
+            const trigger = response.headers.get('HX-Trigger');
+            if (trigger) {
+              try {
+                const data = JSON.parse(trigger);
+                if (data['quota-updated']) {
+                  this.updateQuota(data['quota-updated']);
+                }
+              } catch(e) {}
+            }
+          } else {
+            const trigger = response.headers.get('HX-Trigger');
+            if (trigger) {
+              try {
+                const data = JSON.parse(trigger);
+                if (data.notify && typeof Alpine !== 'undefined') {
+                  Alpine.store('sentinel').notify(data.notify.msg, data.notify.type || 'error');
+                }
+              } catch(e) {}
+            }
+          }
+        } catch (err) {
+          console.error('Upload error:', err);
+        }
+      }
+      this.uploading = false;
+    },
+
+    updateQuota(data) {
+      const pct = Math.min(Math.round((data.used / data.max) * 100), 100);
+      const bar = document.getElementById('quota-bar');
+      const text = document.getElementById('quota-text');
+      if (bar) {
+        bar.style.width = pct + '%';
+        bar.className = bar.className.replace(/bg-(red|amber|green)-500/g, '');
+        if (pct >= 90) bar.classList.add('bg-red-500');
+        else if (pct >= 70) bar.classList.add('bg-amber-500');
+        else bar.classList.add('bg-green-500');
+      }
+      if (text) {
+        text.textContent = (data.used / (1024 * 1024)).toFixed(1) + ' / ' +
+                           (data.max / (1024 * 1024)).toFixed(0) + ' Mo';
+      }
+    },
+
+    updateFilesCount() {
+      const list = document.getElementById('draft-files-list');
+      const count = list ? list.children.length : 0;
+      const countEl = document.getElementById('files-count');
+      if (countEl) countEl.textContent = count + ' fichier(s)';
+    },
+
+    async submitDraft() {
+      this.submitting = true;
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+        || '{{ csrf_token }}';
+
+      try {
+        const response = await fetch(
+          '{% url "workflow:recommendation-submit-evidence" recommendation.pk %}',
+          {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': csrfToken,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: '',
+          }
+        );
+
+        const trigger = response.headers.get('HX-Trigger');
+        if (trigger) {
+          try {
+            const data = JSON.parse(trigger);
+            if (data.notify && typeof Alpine !== 'undefined') {
+              Alpine.store('sentinel').notify(data.notify.msg, data.notify.type || 'info');
+            }
+          } catch(e) {}
+        }
+
+        if (response.ok) {
+          const refresh = response.headers.get('HX-Refresh');
+          if (refresh === 'true') {
+            window.location.reload();
+          }
+        }
+      } catch (err) {
+        console.error('Submit error:', err);
+      } finally {
+        this.submitting = false;
+      }
+    },
+  }
+}
+</script>

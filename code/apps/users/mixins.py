@@ -67,3 +67,21 @@ class AuditRequiredMixin(LoginRequiredMixin):
         ):
             raise PermissionDenied("Accès réservé aux Auditeurs Internes.")
         return super().dispatch(request, *args, **kwargs)
+
+
+class WorkflowAccessMixin(LoginRequiredMixin):
+    """
+    Mixin — Restreint l'accès aux acteurs du workflow (Story 3.1).
+
+    Autorise les rôles AUDIT, DM, ETP, DG et superuser.
+    Protège les vues de consultation (Liste et Détail).
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        from .models import User
+        if request.user.is_authenticated and not (
+            request.user.role in [User.Role.AUDIT, User.Role.DM, User.Role.ETP, User.Role.DG]
+            or request.user.is_superuser
+        ):
+            raise PermissionDenied("Accès réservé aux acteurs du workflow.")
+        return super().dispatch(request, *args, **kwargs)

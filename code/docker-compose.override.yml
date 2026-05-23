@@ -1,0 +1,32 @@
+# ============================================
+# Sentinel — Docker Compose DEV Override
+# ============================================
+# Ce fichier est automatiquement chargé en local par Docker Compose
+# pour surcharger `docker-compose.yml` avec les paramètres de dev.
+
+services:
+  web:
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+    volumes:
+      - .:/app  # Live-reload du code
+      # Les volumes static et media sont hérités de docker-compose.yml
+    command: python manage.py runserver 0.0.0.0:8000
+    deploy:
+      resources:
+        limits:
+          memory: 1024M  # Plus large en dev pour le debug
+
+  worker:
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+    volumes:
+      - .:/app  # Live-reload du code
+      # Le volume media est hérité de docker-compose.yml
+
+  nginx:
+    ports:
+      # En dev, on peut bypasser nginx et taper web sur 8000, 
+      # ou utiliser nginx sur un port alternatif si souhaité
+      - "8080:80"
+    # Ne pas exposer 443 en dev par défaut pour éviter les conflits

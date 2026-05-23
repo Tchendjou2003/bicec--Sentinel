@@ -211,7 +211,7 @@ STORAGES = {
 # ============================================
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
-FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 Mo (FR15/NFR-SCA-01)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024  # 6 Mo (FR15/NFR-SCA-01)
 
 # ============================================
 # Email — SMTP BICEC (ADR-03)

@@ -49,3 +49,21 @@ class AdminRequiredMixin(LoginRequiredMixin):
         ):
             raise PermissionDenied("Accès réservé aux administrateurs IT.")
         return super().dispatch(request, *args, **kwargs)
+
+
+class AuditRequiredMixin(LoginRequiredMixin):
+    """
+    Mixin — Restreint l'accès aux utilisateurs de rôle AUDIT ou superusers.
+
+    Protège les vues du workflow des recommandations (Story 2.1, AC7).
+    Les brouillons ne sont visibles que par le pool Audit.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        from .models import User
+        if request.user.is_authenticated and not (
+            request.user.role == User.Role.AUDIT
+            or request.user.is_superuser
+        ):
+            raise PermissionDenied("Accès réservé aux Auditeurs Internes.")
+        return super().dispatch(request, *args, **kwargs)

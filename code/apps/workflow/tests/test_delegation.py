@@ -500,7 +500,12 @@ class ETPAccessDeniedTest(HierarchyTestMixin, TestCase):
     """Scénario 3.1 : Un ETP ne peut pas accéder à la délégation."""
 
     def test_etp_cannot_access_delegate_view_get(self):
-        """Un ETP reçoit 403 sur GET de la vue de délégation."""
+        """Un ETP reçoit 404 sur GET de la vue de délégation (hors périmètre RBAC).
+
+        Un ETP ne voit que les recos qui lui sont explicitement assignées
+        (assigned_etp=user). Cette reco est en état ASSIGNED, pas encore
+        déléguée à un ETP → le selector la filtre → 404 (information hiding).
+        """
         self._login_as(self.etp_finance)
         rec = self._create_assigned_recommendation()
 
@@ -508,10 +513,10 @@ class ETPAccessDeniedTest(HierarchyTestMixin, TestCase):
             reverse("workflow:recommendation-delegate", args=[rec.pk]),
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
     def test_etp_cannot_access_delegate_view_post(self):
-        """Un ETP reçoit 403 sur POST de la vue de délégation."""
+        """Un ETP reçoit 404 sur POST de la vue de délégation (hors périmètre RBAC)."""
         self._login_as(self.etp_finance)
         rec = self._create_assigned_recommendation()
 
@@ -520,10 +525,10 @@ class ETPAccessDeniedTest(HierarchyTestMixin, TestCase):
             {"action": "delegate_etp", "etp": str(self.etp_finance.pk)},
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
     def test_delegate_button_not_visible_for_etp_on_delegate_view(self):
-        """Le bouton Déléguer n'est pas accessible pour un ETP (testé via vue GET 403)."""
+        """Le bouton Déléguer n'est pas accessible pour un ETP (testé via vue GET 404)."""
         self._login_as(self.etp_finance)
         rec = self._create_assigned_recommendation()
 
@@ -531,11 +536,11 @@ class ETPAccessDeniedTest(HierarchyTestMixin, TestCase):
             reverse("workflow:recommendation-delegate", args=[rec.pk]),
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
 
 # =============================================================================
-# Scénario 3.2 : DM d'une autre direction ne peut pas déléguer (403)
+# Scénario 3.2 : DM d'une autre direction ne peut pas déléguer (404)
 # =============================================================================
 
 
@@ -543,7 +548,10 @@ class CrossDepartmentDMDeniedTest(HierarchyTestMixin, TestCase):
     """Scénario 3.2 : Cloisonnement strict entre directions."""
 
     def test_dm_other_direction_cannot_delegate_get(self):
-        """Un DM d'une autre direction reçoit 403 sur GET."""
+        """Un DM d'une autre direction reçoit 404 sur GET (hors périmètre RBAC).
+
+        Le selector RBAC filtre les recos hors département → 404 (information hiding).
+        """
         self._login_as(self.dm_risques)
         rec = self._create_assigned_recommendation()
 
@@ -551,10 +559,10 @@ class CrossDepartmentDMDeniedTest(HierarchyTestMixin, TestCase):
             reverse("workflow:recommendation-delegate", args=[rec.pk]),
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
     def test_dm_other_direction_cannot_delegate_post(self):
-        """Un DM d'une autre direction reçoit 403 sur POST."""
+        """Un DM d'une autre direction reçoit 404 sur POST (hors périmètre RBAC)."""
         self._login_as(self.dm_risques)
         rec = self._create_assigned_recommendation()
 
@@ -563,7 +571,7 @@ class CrossDepartmentDMDeniedTest(HierarchyTestMixin, TestCase):
             {"action": "dm_porteur"},
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
     def test_dm_risques_cannot_access_finance_recommendation_via_selector(self):
         """Un DM Risques ne voit pas la reco Finance via le selector."""
@@ -606,7 +614,12 @@ class FSMStateBlockingTest(HierarchyTestMixin, TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_cannot_delegate_when_draft(self):
-        """Impossible de déléguer une recommandation en DRAFT."""
+        """Impossible de déléguer une recommandation en DRAFT.
+
+        Les DM ne voient pas les DRAFTs via get_recommendations_for_user()
+        (les DRAFTs sont exclus pour les rôles non-AUDIT). La vue retourne
+        donc 404 (information hiding) plutôt que 403.
+        """
         self._login_as(self.dm_finance)
         rec = create_recommendation(
             data={
@@ -630,7 +643,7 @@ class FSMStateBlockingTest(HierarchyTestMixin, TestCase):
             reverse("workflow:recommendation-delegate", args=[rec.pk]),
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
     def test_delegate_button_hidden_when_in_progress(self):
         """Le bouton Déléguer est absent si la reco est en IN_PROGRESS (testé via 403)."""

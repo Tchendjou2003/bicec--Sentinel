@@ -1498,3 +1498,151 @@ class EvidenceVisibilityRBACTest(EvidenceSubmissionTestMixin, TestCase):
         self.assertEqual(response.status_code, 200)
 
 
+# =============================================================================
+# Story 3.4 — Rejet Interne par le DM
+# =============================================================================
+
+
+class EvidenceRejectViewTest(EvidenceSubmissionTestMixin, TestCase):
+    """Tests pour EvidenceRejectView — Story 3.4 (AC1, AC2, AC3)."""
+
+    def _create_pending_submission_with_etp(self):
+        """Crée une reco PENDING_DM_REVIEW avec ETP assigné et soumission PENDING (service layer)."""
+        from apps.workflow import services
+        rec = self._create_in_progress_recommendation_etp()
+        draft, _ = self._create_draft_and_upload(rec, self.etp_user, "Actions correctives appliquées.")
+        services.submit_evidence_for_recommendation(recommendation=rec, performed_by=self.etp_user)
+        return Recommendation.all_objects.get(pk=rec.pk)
+
+    def test_dm_can_reject_evidence_submission(self):
+        """AC1 — Le DM rejette : statut passe à IN_PROGRESS, AuditLog créé."""
+        from apps.audit.models import AuditLog
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-reject", args=[rec.pk, submission.pk]),
+            {"reason": "Signature manquante sur le document."},
+        )
+
+        self.assertEqual(response.status_code, 204)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.IN_PROGRESS)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                content_type="Recommendation",
+                object_id=rec.pk,
+                action=AuditLog.Action.TRANSITION,
+            ).exists()
+        )
+
+    def test_evidence_submission_marked_as_rejected(self):
+        """AC2 — La soumission passe à REJECTED avec motif et reviewed_by renseignés."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        self.client.post(
+            reverse("workflow:evidence-reject", args=[rec.pk, submission.pk]),
+            {"reason": "Document illisible."},
+        )
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.status, EvidenceSubmission.SubmissionStatus.REJECTED)
+        self.assertEqual(submission.review_comment, "Document illisible.")
+        self.assertEqual(submission.reviewed_by, self.dm_user)
+        self.assertIsNotNone(submission.reviewed_at)
+
+    def test_etp_cannot_reject_evidence(self):
+        """AC3 — Un ETP (ou non-DM) obtient 403 sur l'endpoint de rejet."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.etp_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-reject", args=[rec.pk, submission.pk]),
+            {"reason": "Tentative non autorisée."},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)
+
+    def test_reject_evidence_requires_reason(self):
+        """Subtask 5.4 — Le motif est obligatoire (formulaire invalide → pas de transition)."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-reject", args=[rec.pk, submission.pk]),
+            {"reason": ""},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)
+
+    def test_dm_porteur_cannot_reject_own_submission(self):
+        """Subtask 5.5 — Un DM Porteur reçoit 422 s'il tente de rejeter sa propre soumission."""
+        from apps.workflow import services
+        rec = self._create_in_progress_recommendation_dm_porteur()
+        self._create_draft_and_upload(rec, self.dm_user, "DM Porteur auto-soumission.")
+        services.submit_evidence_for_recommendation(recommendation=rec, performed_by=self.dm_user)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-reject", args=[rec.pk, submission.pk]),
+            {"reason": "Auto-rejet impossible."},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)
+
+    def _reject_as_dm(self, rec):
+        """Helper : DM rejette la soumission PENDING (utilisé par les tests bannière)."""
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+        self.client.post(
+            reverse("workflow:evidence-reject", args=[rec.pk, submission.pk]),
+            {"reason": "Motif test."},
+        )
+        self.client.logout()
+
+    def test_audit_cannot_see_rejection_banner(self):
+        """Cuisine interne — show_rejection_banner == False pour AUDIT."""
+        rec = self._create_pending_submission_with_etp()
+        self._reject_as_dm(rec)
+
+        self._login_as(self.audit_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-detail", args=[rec.pk])
+        )
+        self.assertFalse(response.context["show_rejection_banner"])
+
+    def test_etp_sees_rejection_banner(self):
+        """Cuisine interne — show_rejection_banner == True pour l'ETP assigné."""
+        rec = self._create_pending_submission_with_etp()
+        self._reject_as_dm(rec)
+
+        self._login_as(self.etp_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-detail", args=[rec.pk])
+        )
+        self.assertTrue(response.context["show_rejection_banner"])

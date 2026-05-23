@@ -510,6 +510,105 @@ def submit_evidence_for_recommendation(
     return recommendation
 
 
+def reject_evidence_submission(
+    *,
+    recommendation: Recommendation,
+    submission_id,
+    reason: str,
+    performed_by,
+    ip_address: str | None = None,
+) -> Recommendation:
+    """
+    Rejet des preuves soumises par l'ETP — Story 3.4 (AC1, AC2).
+
+    Transitions :
+        EvidenceSubmission : PENDING → REJECTED
+        Recommendation FSM : PENDING_DM_REVIEW → IN_PROGRESS
+
+    Args:
+        recommendation: L'instance Recommendation en PENDING_DM_REVIEW.
+        submission_id: UUID de l'EvidenceSubmission à rejeter.
+        reason: Motif de rejet obligatoire (saisi par le DM).
+        performed_by: Utilisateur DM qui rejette.
+        ip_address: IP client pour l'AuditLog.
+
+    Returns:
+        Recommendation: L'instance avec status=IN_PROGRESS.
+
+    Raises:
+        ValueError: Si le DM est porteur (pas d'ETP), si le statut est incorrect,
+                    ou si la soumission n'appartient pas à la recommandation.
+        PermissionDenied: Si performed_by n'est pas le DM assigné.
+    """
+    # Guard DM Porteur — position #1 avant tout verrouillage
+    if recommendation.assigned_etp is None:
+        raise ValueError(
+            "Un DM Porteur ne peut pas rejeter sa propre soumission."
+        )
+
+    with transaction.atomic():
+        rec = (
+            Recommendation.objects.select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        if rec.assigned_dm_id != performed_by.pk:
+            raise PermissionDenied(
+                "Seul le DM assigné peut rejeter les preuves de cette recommandation."
+            )
+
+        if rec.status != Recommendation.Status.PENDING_DM_REVIEW:
+            raise ValueError(
+                f"Le rejet n'est possible qu'en état PENDING_DM_REVIEW "
+                f"(état actuel : {rec.get_status_display()})."
+            )
+
+        submission = (
+            EvidenceSubmission.objects.select_for_update()
+            .filter(recommendation=rec, pk=submission_id)
+            .first()
+        )
+        if submission is None:
+            raise ValueError("Soumission introuvable pour cette recommandation.")
+
+        if submission.status != EvidenceSubmission.SubmissionStatus.PENDING:
+            raise ValueError(
+                "Seule une soumission en attente (PENDING) peut être rejetée."
+            )
+
+        # Mettre à jour la soumission
+        submission.status = EvidenceSubmission.SubmissionStatus.REJECTED
+        submission.review_comment = reason
+        submission.reviewed_at = timezone.now()
+        submission.reviewed_by = performed_by
+        submission.save(update_fields=[
+            "status", "review_comment", "reviewed_at", "reviewed_by", "updated_at"
+        ])
+
+        # Transition FSM : PENDING_DM_REVIEW → IN_PROGRESS
+        rec.reject_evidence()
+        rec.save(update_fields=["status", "updated_at"])
+
+        dm_display = performed_by.get_full_name() or performed_by.username
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=rec.pk,
+            changes={
+                "status": ["PENDING_DM_REVIEW", "IN_PROGRESS"],
+                "review_comment": reason,
+            },
+            description=(
+                f"Rejet de preuves par {dm_display} pour {rec.reference}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return rec
+
+
 def become_dm_porteur(
     *,
     recommendation: Recommendation,

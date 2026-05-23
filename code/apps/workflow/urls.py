@@ -59,6 +59,18 @@ urlpatterns = [
         views.RecommendationSubmitEvidenceView.as_view(),
         name="recommendation-submit-evidence",
     ),
+    # ── Historique complet — slide-over HTMX ──
+    path(
+        "recommandations/<uuid:pk>/audit-log/",
+        views.RecommendationAuditLogView.as_view(),
+        name="recommendation-audit-log",
+    ),
+    # ── Rejet de preuves par le DM (Story 3.4) ──
+    path(
+        "recommandations/<uuid:pk>/submissions/<uuid:submission_id>/reject/",
+        views.EvidenceRejectView.as_view(),
+        name="evidence-reject",
+    ),
     # ── Endpoints HTMX pour brouillons (Story 3.3 v2) ──
     path(
         "recommandations/<uuid:pk>/draft/upload/",

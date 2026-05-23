@@ -421,6 +421,17 @@ class Recommendation(models.Model):
         """
         pass
 
+    @transition(field=status, source=Status.PENDING_DM_REVIEW, target=Status.IN_PROGRESS)
+    def reject_evidence(self):
+        """
+        Transition PENDING_DM_REVIEW → IN_PROGRESS (Story 3.4 — AC1).
+
+        Déclenchée lorsque le DM rejette les preuves soumises par l'ETP.
+        La mise à jour de l'EvidenceSubmission (REJECTED + motif) est
+        orchestrée par reject_evidence_submission() dans le service layer.
+        """
+        pass
+
 
 # =============================================================================
 # Livrable attendu
@@ -553,6 +564,30 @@ class EvidenceSubmission(models.Model):
         help_text=_(
             "DRAFT à la création du brouillon. PENDING à la soumission. "
             "ACCEPTED/REJECTED piloté par le DM (Story 3.4)."
+        ),
+    )
+    review_comment = models.TextField(
+        _("Motif de rejet"),
+        blank=True,
+        default="",
+        help_text=_("Motif saisi par le DM lors du rejet (Story 3.4 — AC2)."),
+    )
+    reviewed_at = models.DateTimeField(
+        _("Rejeté le"),
+        null=True,
+        blank=True,
+        help_text=_("Horodatage du rejet par le DM."),
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_submissions",
+        verbose_name=_("Rejeté par"),
+        help_text=_(
+            "DM qui a rejeté la soumission. Dénormalisé pour requêtes analytiques "
+            "rapides sans JOIN sur AuditLog (Story 3.4 — L2)."
         ),
     )
     created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)

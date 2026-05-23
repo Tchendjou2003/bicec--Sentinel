@@ -322,3 +322,33 @@ class EvidenceDraftCommentForm(forms.Form):
         help_text=_("Expliquez les mesures prises pour remédier aux observations."),
     )
 
+
+class EvidenceRejectForm(forms.Form):
+    """
+    Formulaire de rejet de preuves par le DM — Story 3.4 (AC2).
+
+    Champ unique : le motif de rejet, obligatoire, affiché dans la modale HTMX.
+    """
+
+    reason = forms.CharField(
+        label=_("Motif de rejet"),
+        max_length=1000,
+        widget=forms.Textarea(attrs={
+            "class": _TEXTAREA_CLASS,
+            "rows": 4,
+            "maxlength": 1000,
+            "placeholder": _(
+                "Expliquez pourquoi cette soumission est insuffisante "
+                "(ex. : signature absente, document illisible, pièce incorrecte)..."
+            ),
+        }),
+        help_text=_(
+            "Ce motif sera visible par l'ETP afin qu'il puisse corriger sa soumission. "
+            "(1000 caractères maximum)"
+        ),
+        error_messages={
+            "required": _("Le motif de rejet est obligatoire."),
+            "max_length": _("Le motif ne doit pas dépasser 1000 caractères."),
+        },
+    )
+

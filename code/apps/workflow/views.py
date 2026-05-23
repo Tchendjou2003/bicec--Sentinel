@@ -29,6 +29,7 @@ from .forms import (
     DelegateETPForm,
     DeliverableFormSet,
     EvidenceDraftCommentForm,
+    EvidenceRejectForm,
     RecommendationForm,
 )
 from .models import EvidenceFile, EvidenceSubmission, Recommendation
@@ -247,18 +248,27 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
         context["deliverables"] = rec.deliverables.all()
         context["progress"] = rec.progress_percentage
 
-        # AuditLog Timeline
+        # AuditLog Timeline — 5 entrées inline + total pour le slide-over
         from apps.audit.models import AuditLog
-        context["audit_logs"] = (
+        audit_log_qs = (
             AuditLog.objects
             .filter(content_type="Recommendation", object_id=rec.pk)
-            .order_by("-created_at")[:20]
+            .order_by("-created_at")
         )
+        context["audit_logs"] = audit_log_qs[:5]
+        context["audit_log_total_count"] = audit_log_qs.count()
 
-        # Preuves soumises (Story 3.3)
-        context["evidence_submissions"] = selectors.get_evidence_for_recommendation(
+        # Preuves soumises — QuerySet de base (compat. ascendante) + splits filtrés
+        submissions_qs = selectors.get_evidence_for_recommendation(
             recommendation=rec,
             user=self.request.user,
+        )
+        context["evidence_submissions"] = submissions_qs  # QuerySet — compat. tests
+        context["active_submissions"] = submissions_qs.exclude(
+            status=EvidenceSubmission.SubmissionStatus.REJECTED
+        )
+        context["rejected_submissions"] = submissions_qs.filter(
+            status=EvidenceSubmission.SubmissionStatus.REJECTED
         )
 
         # Visibilité du bouton "Soumettre Preuves"
@@ -276,7 +286,75 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
             and (is_assigned_etp or is_dm_porteur)
         )
 
+        # Soumissions rejetées — QuerySet partagé entre l'accordéon et la bannière
+        # (override de la version brute définie plus haut, avec select_related + order)
+        context["rejected_submissions"] = submissions_qs.filter(
+            status=EvidenceSubmission.SubmissionStatus.REJECTED
+        ).select_related("reviewed_by", "submitted_by").order_by("-reviewed_at")
+
+        rejected_submission = context["rejected_submissions"].first()
+        context["rejected_submission"] = rejected_submission
+
+        # Bannière de rejet — cuisine interne : visible uniquement ETP et DM
+        context["show_rejection_banner"] = (
+            rejected_submission is not None
+            and rec.status == Recommendation.Status.IN_PROGRESS
+            and user.role in (User.Role.DM, User.Role.ETP)
+        )
+
+        # Visibilité du bouton "Rejeter" (Story 3.4 — AC3)
+        context["can_reject_evidence"] = (
+            rec.status == Recommendation.Status.PENDING_DM_REVIEW
+            and rec.assigned_etp is not None
+            and rec.assigned_dm_id == user.pk
+        )
+
+        # Soumission PENDING pour le DM (Story 3.4)
+        context["pending_submission"] = (
+            EvidenceSubmission.objects
+            .filter(
+                recommendation=rec,
+                status=EvidenceSubmission.SubmissionStatus.PENDING,
+            )
+            .first()
+        )
+
         return context
+
+
+# =============================================================================
+# Historique complet (slide-over HTMX)
+# =============================================================================
+
+
+class RecommendationAuditLogView(WorkflowAccessMixin, View):
+    """
+    Retourne le partial HTML de l'intégralité des entrées AuditLog
+    pour une recommandation — chargé en HTMX lazy au premier clic sur
+    "Voir tout l'historique" depuis la page détail.
+    """
+
+    def get(self, request, pk):
+        from django.template.loader import render_to_string
+        from apps.audit.models import AuditLog
+
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        audit_logs = (
+            AuditLog.objects
+            .filter(content_type="Recommendation", object_id=recommendation.pk)
+            .order_by("-created_at")
+            .select_related("user")
+        )
+        return HttpResponse(
+            render_to_string(
+                "workflow/partials/audit_log_drawer.html",
+                {
+                    "recommendation": recommendation,
+                    "audit_logs": audit_logs,
+                },
+                request=request,
+            )
+        )
 
 
 # =============================================================================
@@ -710,6 +788,105 @@ def _render_submit_evidence_modal(request, recommendation, draft):
             "quota_used_mb": quota_used / (1024 * 1024),
             "quota_max_mb": quota_max / (1024 * 1024),
             "quota_percentage": min(round((quota_used / quota_max) * 100), 100) if quota_max else 0,
+        },
+        request=request,
+    )
+
+
+# =============================================================================
+# Rejet de preuves par le DM (Story 3.4)
+# =============================================================================
+
+
+class EvidenceRejectView(WorkflowAccessMixin, View):
+    """
+    Vue de rejet de preuves — Modale HTMX pour le DM.
+
+    GET  : Retourne la modale avec le formulaire de motif.
+    POST : Appelle reject_evidence_submission() et renvoie HX-Refresh.
+
+    Sécurité (AC3) :
+        - WorkflowAccessMixin : rôles workflow uniquement.
+        - Garde RBAC : seul recommendation.assigned_dm peut rejeter.
+        - Garde DM Porteur : rejet impossible si assigned_etp is None.
+        - Garde de statut : status == PENDING_DM_REVIEW.
+    """
+
+    def _check_permission(self, request, recommendation):
+        """Retourne une erreur texte ou None si OK (RBAC uniquement).
+
+        La règle DM Porteur (domain rule) est gérée par le service → ValueError → 422.
+        """
+        if recommendation.assigned_dm_id != request.user.pk:
+            return "Seul le DM assigné peut rejeter les preuves."
+        if recommendation.status != Recommendation.Status.PENDING_DM_REVIEW:
+            return "Le rejet n'est possible qu'en état PENDING_DM_REVIEW."
+        return None
+
+    def get(self, request, pk, submission_id):
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        error = self._check_permission(request, recommendation)
+        if error:
+            return HttpResponseForbidden(error)
+
+        form = EvidenceRejectForm()
+        return HttpResponse(
+            _render_reject_evidence_modal(request, recommendation, submission_id, form)
+        )
+
+    def post(self, request, pk, submission_id):
+        from django_fsm import TransitionNotAllowed
+
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        error = self._check_permission(request, recommendation)
+        if error:
+            return HttpResponseForbidden(error)
+
+        form = EvidenceRejectForm(request.POST)
+        if not form.is_valid():
+            return HttpResponse(
+                _render_reject_evidence_modal(
+                    request, recommendation, submission_id, form
+                )
+            )
+
+        try:
+            services.reject_evidence_submission(
+                recommendation=recommendation,
+                submission_id=submission_id,
+                reason=form.cleaned_data["reason"],
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except (TransitionNotAllowed, ValueError) as e:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(e), "type": "error"},
+            })
+            return response
+        except PermissionDenied as e:
+            return HttpResponseForbidden(str(e))
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {
+                "msg": "Preuves rejetées. Le dossier est retourné en cours de traitement.",
+                "type": "warning",
+            },
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+def _render_reject_evidence_modal(request, recommendation, submission_id, form):
+    """Render le partial de la modale de rejet."""
+    from django.template.loader import render_to_string
+    return render_to_string(
+        "workflow/partials/reject_evidence_modal.html",
+        {
+            "recommendation": recommendation,
+            "submission_id": submission_id,
+            "form": form,
         },
         request=request,
     )

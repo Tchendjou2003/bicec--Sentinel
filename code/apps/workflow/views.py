@@ -107,14 +107,13 @@ class RecommendationCreateView(AuditRequiredMixin, View):
         form = RecommendationForm(request.POST)
         formset = DeliverableFormSet(request.POST)
 
-        if form.is_valid():
+        if form.is_valid() and formset.is_valid():
             # Extraire les labels de livrables depuis le formset
             deliverables_data = []
-            if formset.is_valid():
-                for f in formset.forms:
-                    label = f.cleaned_data.get("label", "").strip()
-                    if label and not f.cleaned_data.get("DELETE", False):
-                        deliverables_data.append(label)
+            for f in formset.forms:
+                label = f.cleaned_data.get("label", "").strip()
+                if label and not f.cleaned_data.get("DELETE", False):
+                    deliverables_data.append(label)
 
             recommendation = services.create_recommendation(
                 data=form.cleaned_data,

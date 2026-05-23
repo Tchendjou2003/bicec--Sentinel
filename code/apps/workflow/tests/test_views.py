@@ -399,9 +399,16 @@ class RecommendationDetailViewTest(ViewTestMixin, TestCase):
         self.assertContains(response, rec.reference)
 
     def test_detail_200_for_dm(self):
-        """La page détail est accessible pour un DM."""
+        """La page détail est accessible pour un DM (reco ASSIGNED dans son département)."""
+        from apps.workflow import services
         self._login_as(self.dm_user)
+        # Les DMs ne voient pas les DRAFTs (RBAC) → on crée une reco ASSIGNED
         rec = self._create_draft_recommendation()
+        rec = services.assign_recommendation_to_dm(
+            recommendation=rec,
+            dm=self.dm_user,
+            performed_by=self.audit_user,
+        )
         response = self.client.get(
             reverse("workflow:recommendation-detail", args=[rec.pk])
         )
@@ -664,24 +671,24 @@ class RecommendationDelegateViewTest(DelegationTestMixin, TestCase):
     # ── Subtask 3.2 : Test RBAC Interdiction ──
 
     def test_non_assigned_dm_cannot_delegate(self):
-        """Un DM non assigné reçoit 403 (AC4)."""
+        """Un DM d'un autre département reçoit 404 sur delegate (RBAC cross-dept — AC4)."""
         self._login_as(self.dm_other)
         rec = self._create_assigned_recommendation(dm=self.dm_user)
 
         response = self.client.get(
             reverse("workflow:recommendation-delegate", args=[rec.pk]),
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)  # hors périmètre RBAC (information hiding)
 
     def test_etp_cannot_delegate(self):
-        """Un ETP ne peut pas déléguer (AC4)."""
+        """Un ETP non-assigné reçoit 404 sur delegate (RBAC — AC4)."""
         self._login_as(self.etp_user)
         rec = self._create_assigned_recommendation()
 
         response = self.client.get(
             reverse("workflow:recommendation-delegate", args=[rec.pk]),
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)  # hors périmètre RBAC (ETP voit seulement ses recos)
 
     def test_audit_cannot_delegate(self):
         """L'audit ne peut pas déléguer (seul le DM assigné peut)."""
@@ -782,15 +789,14 @@ class RecommendationDelegateViewTest(DelegationTestMixin, TestCase):
         self.assertContains(response, "Déléguer")
 
     def test_delegate_button_hidden_for_non_assigned_dm(self):
-        """Le bouton Déléguer est masqué pour un DM non assigné."""
+        """Un DM d'un autre département obtient 404 sur la page détail (RBAC cross-dept)."""
         self._login_as(self.dm_other)
         rec = self._create_assigned_recommendation(dm=self.dm_user)
 
         response = self.client.get(
             reverse("workflow:recommendation-detail", args=[rec.pk]),
         )
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "recommendation-delegate")
+        self.assertEqual(response.status_code, 404)  # hors périmètre RBAC → page introuvable
 
     # ── Subtask 3.7 : Test FSM négatif ──
 
@@ -898,14 +904,14 @@ class EvidenceSubmissionViewTest(EvidenceSubmissionTestMixin, TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_non_assigned_user_gets_403_on_get(self):
-        """Un utilisateur non assigné obtient 403 sur GET de la modale (AC6)."""
+        """Un ETP d'un autre département obtient 404 sur GET de la modale (RBAC — AC6)."""
         self._login_as(self.etp_other_dept)
         rec = self._create_in_progress_recommendation_etp()
 
         response = self.client.get(
             reverse("workflow:recommendation-submit-evidence", args=[rec.pk])
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)  # hors périmètre RBAC (information hiding)
 
     def test_cannot_submit_evidence_when_not_in_progress(self):
         """GET sur une reco non IN_PROGRESS retourne 403 (garde FSM)."""
@@ -943,14 +949,14 @@ class EvidenceSubmissionViewTest(EvidenceSubmissionTestMixin, TestCase):
         self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)
 
     def test_non_assigned_user_gets_403_on_post(self):
-        """Un utilisateur non assigné obtient 403 sur POST (AC6)."""
+        """Un ETP d'un autre département obtient 404 sur POST (RBAC — AC6)."""
         self._login_as(self.etp_other_dept)
         rec = self._create_in_progress_recommendation_etp()
 
         response = self.client.post(
             reverse("workflow:recommendation-submit-evidence", args=[rec.pk]),
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)  # hors périmètre RBAC (information hiding)
 
     def test_audit_log_created_on_evidence_submission(self):
         """Un AuditLog TRANSITION est créé après une soumission valide (AC3)."""
@@ -1348,7 +1354,7 @@ class DraftViewsTest(EvidenceSubmissionTestMixin, TestCase):
         self.assertTrue(deliverable.is_completed)
 
     def test_non_assigned_user_cannot_upload_to_draft(self):
-        """Un ETP non-assigné obtient 403 sur draft-upload (RBAC — AC6)."""
+        """Un ETP d'un autre département obtient 404 sur draft-upload (RBAC — AC6)."""
         from django.core.files.uploadedfile import SimpleUploadedFile
         from apps.workflow import services
 
@@ -1361,7 +1367,7 @@ class DraftViewsTest(EvidenceSubmissionTestMixin, TestCase):
             reverse("workflow:draft-upload", args=[rec.pk]),
             data={"file": pdf},
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)  # hors périmètre RBAC (information hiding)
 
     def test_non_assigned_user_cannot_delete_draft_file(self):
         """Un ETP non-assigné obtient 403 sur draft-delete-file (RBAC — AC6)."""
@@ -1375,7 +1381,7 @@ class DraftViewsTest(EvidenceSubmissionTestMixin, TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_non_assigned_user_cannot_save_draft_comment(self):
-        """Un ETP non-assigné obtient 403 sur draft-save-comment (RBAC — AC6)."""
+        """Un ETP d'un autre département obtient 404 sur draft-save-comment (RBAC — AC6)."""
         from apps.workflow import services
 
         rec = self._create_in_progress_recommendation_etp()
@@ -1386,10 +1392,10 @@ class DraftViewsTest(EvidenceSubmissionTestMixin, TestCase):
             reverse("workflow:draft-save-comment", args=[rec.pk]),
             data={"comment": "Tentative non autorisée."},
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)  # hors périmètre RBAC (information hiding)
 
     def test_non_assigned_user_cannot_toggle_deliverable(self):
-        """Un ETP non-assigné obtient 403 sur draft-toggle-deliverable (RBAC — AC6)."""
+        """Un ETP d'un autre département obtient 404 sur draft-toggle-deliverable (RBAC — AC6)."""
         from apps.workflow.models import Deliverable
 
         rec = self._create_in_progress_recommendation_etp()
@@ -1401,7 +1407,7 @@ class DraftViewsTest(EvidenceSubmissionTestMixin, TestCase):
         response = self.client.post(
             reverse("workflow:draft-toggle-deliverable", args=[rec.pk, deliverable.pk]),
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)  # hors périmètre RBAC (information hiding)
 
 
 class EvidenceVisibilityRBACTest(EvidenceSubmissionTestMixin, TestCase):

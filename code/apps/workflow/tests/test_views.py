@@ -11,12 +11,13 @@ Tests pour les vues :
 import uuid
 from datetime import timedelta
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
 from apps.users.models import Department, User
-from apps.workflow.models import EvidenceSubmission, Recommendation
+from apps.workflow.models import EvidenceFile, EvidenceSubmission, Recommendation
 from apps.workflow.services import create_recommendation
 
 
@@ -1652,3 +1653,181 @@ class EvidenceRejectViewTest(EvidenceSubmissionTestMixin, TestCase):
             reverse("workflow:recommendation-detail", args=[rec.pk])
         )
         self.assertTrue(response.context["show_rejection_banner"])
+
+
+# =============================================================================
+# Story 3.5 — Validation DM → Audit (Exemption PV de Recette)
+# =============================================================================
+
+
+class EvidenceDMApprovalViewTest(EvidenceSubmissionTestMixin, TestCase):
+    """Tests pour EvidenceDMApprovalView — Story 3.5 (AC1, AC2, AC3)."""
+
+    def _create_pending_submission_with_etp(self):
+        """Crée une reco PENDING_DM_REVIEW avec ETP assigné et soumission PENDING."""
+        from apps.workflow import services
+        rec = self._create_in_progress_recommendation_etp()
+        draft, _ = self._create_draft_and_upload(
+            rec, self.etp_user, "Actions correctives appliquées."
+        )
+        services.submit_evidence_for_recommendation(
+            recommendation=rec, performed_by=self.etp_user
+        )
+        return Recommendation.all_objects.get(pk=rec.pk)
+
+    def test_dm_can_approve_evidence_submission(self):
+        """AC1 — Le DM approuve avec commentaire : statut passe à PENDING_AUDIT_REVIEW."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "Dossier complet et conforme. Validé pour l'Audit."},
+        )
+
+        self.assertEqual(response.status_code, 204)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_AUDIT_REVIEW)
+
+    def test_submission_marked_as_accepted(self):
+        """AC1 — La soumission passe à ACCEPTED avec review_comment/reviewed_at/reviewed_by."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "Conforme."},
+        )
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.status, EvidenceSubmission.SubmissionStatus.ACCEPTED)
+        self.assertEqual(submission.review_comment, "Conforme.")
+        self.assertEqual(submission.reviewed_by, self.dm_user)
+        self.assertIsNotNone(submission.reviewed_at)
+
+    def test_audit_log_created_on_approval(self):
+        """AC1 — Un AuditLog TRANSITION est créé lors de la validation DM."""
+        from apps.audit.models import AuditLog
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "Validé."},
+        )
+
+        self.assertTrue(
+            AuditLog.objects.filter(
+                content_type="Recommendation",
+                object_id=rec.pk,
+                action=AuditLog.Action.TRANSITION,
+            ).exists()
+        )
+
+    def test_dm_cannot_approve_without_comment_when_no_pv_recette(self):
+        """AC2 — Sans PV de Recette, le commentaire vide renvoie 422."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": ""},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)
+
+    def test_dm_can_approve_without_comment_with_pv_recette(self):
+        """AC2 (FR19) — DM uploade un PV de Recette → commentaire vide accepté."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        pv_file = SimpleUploadedFile(
+            "pv_recette.pdf",
+            b"%PDF-1.4 " + b"A" * 100,
+            content_type="application/pdf",
+        )
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "", "pv_recette": pv_file},
+        )
+
+        self.assertEqual(response.status_code, 204)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_AUDIT_REVIEW)
+        # Le fichier PV_RECETTE a bien été créé par le service
+        self.assertTrue(
+            submission.files.filter(tag=EvidenceFile.Tag.PV_RECETTE).exists()
+        )
+
+    def test_dm_invalid_pv_file_returns_422_not_500(self):
+        """Régression Bug 1 — Un PV avec mauvais magic bytes renvoie 422, pas 500."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        bad_pv = SimpleUploadedFile(
+            "fake.pdf",
+            b"\x00\x01\x02\x03 not a real pdf",
+            content_type="application/pdf",
+        )
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "", "pv_recette": bad_pv},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)
+
+    def test_etp_cannot_approve_evidence(self):
+        """AC3 — Un ETP obtient 403 sur l'endpoint de validation."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.etp_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "Tentative non autorisée."},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)
+
+    def test_audit_cannot_approve_evidence(self):
+        """AC3 — Un AUDIT obtient 403 sur l'endpoint de validation."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.audit_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "Tentative non autorisée."},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)

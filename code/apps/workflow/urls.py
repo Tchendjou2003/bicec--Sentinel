@@ -71,6 +71,12 @@ urlpatterns = [
         views.EvidenceRejectView.as_view(),
         name="evidence-reject",
     ),
+    # ── Validation DM → Audit (Story 3.5) ──
+    path(
+        "recommandations/<uuid:pk>/submissions/<uuid:submission_id>/approve/",
+        views.EvidenceDMApprovalView.as_view(),
+        name="evidence-approve",
+    ),
     # ── Endpoints HTMX pour brouillons (Story 3.3 v2) ──
     path(
         "recommandations/<uuid:pk>/draft/upload/",

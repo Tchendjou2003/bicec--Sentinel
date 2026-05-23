@@ -4,7 +4,7 @@
 {% block title %}{{ recommendation.reference }} — Sentinel{% endblock %}
 
 {% block content %}
-  <div x-data="{ slideOverOpen: false, assignModalOpen: false, delegateModalOpen: false, submitEvidenceModalOpen: false, rejectModalOpen: false, historyDrawerOpen: false }" @close-modal.window="assignModalOpen = false" @close-delegate-modal.window="delegateModalOpen = false">
+  <div x-data="{ slideOverOpen: false, assignModalOpen: false, delegateModalOpen: false, submitEvidenceModalOpen: false, rejectModalOpen: false, approveModalOpen: false, historyDrawerOpen: false }" @close-modal.window="assignModalOpen = false" @close-delegate-modal.window="delegateModalOpen = false">
 
   {# ── Fil d'Ariane ── #}
   <nav class="flex items-center gap-2 text-sm text-gray-500" aria-label="Breadcrumb">
@@ -83,6 +83,20 @@
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Soumettre preuves
+        </button>
+      {% endif %}
+
+      {# Bouton Valider vers l'Audit (Story 3.5 — AC3) #}
+      {% if can_approve_evidence and pending_submission %}
+        <button
+          @click="approveModalOpen = true"
+          hx-get="{% url 'workflow:evidence-approve' recommendation.pk pending_submission.pk %}"
+          hx-target="#approve-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-green-600 to-green-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Valider → Audit
         </button>
       {% endif %}
 
@@ -610,6 +624,18 @@
            style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
            @click="rejectModalOpen = false"></div>
       <div class="relative w-full max-w-md mx-4" id="reject-modal-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de validation DM → Audit (Story 3.5) ── #}
+  <template x-teleport="body">
+    <div x-show="approveModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="approveModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="approveModalOpen = false"></div>
+      <div class="relative w-full max-w-lg mx-4" id="approve-modal-container">
         {# Contenu injecté par HTMX #}
       </div>
     </div>

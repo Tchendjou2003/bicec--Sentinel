@@ -11,6 +11,8 @@ Spécifications couvertes :
     - FR15 : Upload en brouillon DRAFT (soumission de preuves)
     - FR16 : Soumission verrouille les brouillons en PENDING
 """
+from uuid import UUID
+
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Sum
@@ -602,6 +604,134 @@ def reject_evidence_submission(
             },
             description=(
                 f"Rejet de preuves par {dm_display} pour {rec.reference}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return rec
+
+
+def validate_evidence_for_audit(
+    *,
+    recommendation: Recommendation,
+    submission_id: UUID,
+    comment: str = "",
+    pv_file=None,
+    performed_by,
+    ip_address: str | None = None,
+) -> Recommendation:
+    """
+    Validation DM des preuves et envoi à l'Audit Interne — Story 3.5 (AC1, AC2).
+
+    Transitions :
+        EvidenceSubmission : PENDING → ACCEPTED
+        Recommendation FSM : PENDING_DM_REVIEW → PENDING_AUDIT_REVIEW
+
+    Exemption PV (FR19) : le DM peut uploader son propre PV de Recette (pv_file).
+    Si fourni, il est sauvegardé comme EvidenceFile(tag=PV_RECETTE, uploaded_by=dm)
+    sur la soumission, puis le commentaire DM devient optionnel.
+    Sinon, le commentaire est requis.
+
+    Args:
+        recommendation: L'instance Recommendation en PENDING_DM_REVIEW.
+        submission_id: UUID de l'EvidenceSubmission à valider.
+        comment: Commentaire DM (optionnel si pv_file fourni, requis sinon).
+        pv_file: Fichier PV de Recette uploadé par le DM (optionnel).
+        performed_by: Utilisateur DM qui valide.
+        ip_address: IP client pour l'AuditLog.
+
+    Returns:
+        Recommendation: L'instance avec status=PENDING_AUDIT_REVIEW.
+
+    Raises:
+        ValueError: Si le statut est incorrect, soumission introuvable,
+                    ou commentaire manquant sans PV de Recette.
+        PermissionDenied: Si performed_by n'est pas le DM assigné.
+    """
+    # Guard RBAC — avant tout verrouillage
+    if recommendation.assigned_dm_id != performed_by.pk:
+        raise PermissionDenied(
+            "Seul le DM assigné peut valider les preuves de cette recommandation."
+        )
+
+    with transaction.atomic():
+        rec = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        if rec.status != Recommendation.Status.PENDING_DM_REVIEW:
+            raise ValueError(
+                f"La validation n'est possible qu'en état PENDING_DM_REVIEW "
+                f"(état actuel : {rec.get_status_display()})."
+            )
+
+        submission = (
+            EvidenceSubmission.objects.select_for_update()
+            .filter(recommendation=rec, pk=submission_id)
+            .first()
+        )
+        if submission is None:
+            raise ValueError("Soumission introuvable pour cette recommandation.")
+
+        if submission.status != EvidenceSubmission.SubmissionStatus.PENDING:
+            raise ValueError(
+                "Seule une soumission en attente (PENDING) peut être validée."
+            )
+
+        # Upload PV de Recette par le DM (FR19) — avant vérification d'exemption
+        if pv_file is not None:
+            validate_magic_bytes(pv_file, original_filename=pv_file.name)
+            validate_file_size(pv_file)
+            sha256 = compute_sha256(pv_file)
+            mime = detect_mime_type(pv_file, original_filename=pv_file.name)
+            EvidenceFile.objects.create(
+                submission=submission,
+                file=pv_file,
+                original_filename=pv_file.name,
+                file_size=pv_file.size,
+                mime_type=mime,
+                sha256_hash=sha256,
+                tag=EvidenceFile.Tag.PV_RECETTE,
+                uploaded_by=performed_by,
+            )
+
+        # Exemption PV de Recette (FR19) — inclut le fichier qu'on vient de créer
+        has_pv_recette = submission.files.filter(
+            tag=EvidenceFile.Tag.PV_RECETTE
+        ).exists()
+
+        if not has_pv_recette and not comment.strip():
+            raise ValueError(
+                "Un commentaire DM est requis si aucun PV de Recette n'est joint."
+            )
+
+        # Mettre à jour la soumission
+        submission.status = EvidenceSubmission.SubmissionStatus.ACCEPTED
+        submission.review_comment = comment
+        submission.reviewed_at = timezone.now()
+        submission.reviewed_by = performed_by
+        submission.save(update_fields=[
+            "status", "review_comment", "reviewed_at", "reviewed_by", "updated_at"
+        ])
+
+        # Transition FSM : PENDING_DM_REVIEW → PENDING_AUDIT_REVIEW
+        rec.approve_for_audit()
+        rec.save(update_fields=["status", "updated_at"])
+
+        dm_display = performed_by.get_full_name() or performed_by.username
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=rec.pk,
+            changes={
+                "status": ["PENDING_DM_REVIEW", "PENDING_AUDIT_REVIEW"],
+            },
+            description=(
+                f"Validation DM {dm_display} → Audit pour {rec.reference}"
             ),
             ip_address=ip_address,
         )

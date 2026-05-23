@@ -352,3 +352,59 @@ class EvidenceRejectForm(forms.Form):
         },
     )
 
+
+# ── Formulaire de Validation DM vers Audit (Story 3.5) ───────────────
+
+
+class EvidenceDMApprovalForm(forms.Form):
+    """
+    Formulaire de validation DM pour l'envoi à l'Audit — Story 3.5 (AC2, AC4).
+
+    Le champ `comment` est toujours optionnel au niveau formulaire.
+    La règle d'obligation (requis si aucun PV de Recette) est appliquée
+    dans le service layer (defense in depth — FR19).
+
+    Le champ `pv_recette` permet au DM d'uploader son propre PV de Recette
+    (document signé) lors de la validation. Si fourni, il exempte le DM
+    du commentaire obligatoire (FR19).
+    """
+
+    pv_recette = forms.FileField(
+        label=_("PV de Recette"),
+        required=False,
+        help_text=_(
+            "Joindre le PV de Recette signé pour être exempté du commentaire "
+            "obligatoire (FR19). Formats acceptés : PDF, DOC, DOCX, XLSX."
+        ),
+        widget=forms.FileInput(attrs={
+            "class": (
+                "block w-full text-sm text-gray-500 "
+                "file:mr-4 file:py-2 file:px-4 "
+                "file:rounded-xl file:border-0 "
+                "file:text-sm file:font-medium "
+                "file:bg-green-50 file:text-green-700 "
+                "hover:file:bg-green-100 "
+                "cursor-pointer"
+            ),
+            "accept": ".pdf,.doc,.docx,.xlsx",
+        }),
+    )
+
+    comment = forms.CharField(
+        label=_("Commentaire DM"),
+        required=False,
+        max_length=2000,
+        widget=forms.Textarea(attrs={
+            "class": _TEXTAREA_CLASS,
+            "rows": 4,
+            "maxlength": 2000,
+            "placeholder": _(
+                "Commentaire de validation à destination de l'Audit Interne "
+                "(optionnel si un PV de Recette est joint)..."
+            ),
+        }),
+        help_text=_(
+            "Optionnel si un PV de Recette est joint ci-dessus. "
+            "Requis dans tous les autres cas."
+        ),
+    )

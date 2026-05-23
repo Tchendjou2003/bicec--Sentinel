@@ -432,6 +432,18 @@ class Recommendation(models.Model):
         """
         pass
 
+    @transition(field=status, source=Status.PENDING_DM_REVIEW, target=Status.PENDING_AUDIT_REVIEW)
+    def approve_for_audit(self):
+        """
+        Transition PENDING_DM_REVIEW → PENDING_AUDIT_REVIEW (Story 3.5 — AC1).
+
+        Déclenchée lorsque le DM valide les preuves et les envoie à l'Audit Interne.
+        La mise à jour de l'EvidenceSubmission (ACCEPTED + commentaire DM) et
+        la vérification de l'exemption PV de Recette (FR19) sont orchestrées
+        par validate_evidence_for_audit() dans le service layer.
+        """
+        pass
+
 
 # =============================================================================
 # Livrable attendu

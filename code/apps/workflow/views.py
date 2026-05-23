@@ -14,7 +14,7 @@ Spécifications couvertes :
 """
 import json
 
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError as DjangoValidationError
 from django.http import FileResponse, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404
 from django.views import View
@@ -28,6 +28,7 @@ from .forms import (
     AssignDMForm,
     DelegateETPForm,
     DeliverableFormSet,
+    EvidenceDMApprovalForm,
     EvidenceDraftCommentForm,
     EvidenceRejectForm,
     RecommendationForm,
@@ -311,14 +312,30 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
             and rec.assigned_dm_id == user.pk
         )
 
-        # Soumission PENDING pour le DM (Story 3.4)
-        context["pending_submission"] = (
+        # Soumission PENDING pour le DM (Story 3.4 / 3.5)
+        pending_submission = (
             EvidenceSubmission.objects
             .filter(
                 recommendation=rec,
                 status=EvidenceSubmission.SubmissionStatus.PENDING,
             )
+            .prefetch_related("files")
             .first()
+        )
+        context["pending_submission"] = pending_submission
+
+        # Visibilité du bouton "Valider vers l'Audit" (Story 3.5 — AC3)
+        context["can_approve_evidence"] = (
+            rec.status == Recommendation.Status.PENDING_DM_REVIEW
+            and rec.assigned_dm_id == user.pk
+        )
+
+        # Exemption PV de Recette (FR19) — pour conditionner le label du commentaire
+        context["has_pv_recette_in_submission"] = (
+            pending_submission is not None
+            and pending_submission.files.filter(
+                tag=EvidenceFile.Tag.PV_RECETTE
+            ).exists()
         )
 
         return context
@@ -888,6 +905,130 @@ def _render_reject_evidence_modal(request, recommendation, submission_id, form):
         {
             "recommendation": recommendation,
             "submission_id": submission_id,
+            "form": form,
+        },
+        request=request,
+    )
+
+
+# =============================================================================
+# Validation DM → Audit (Story 3.5)
+# =============================================================================
+
+
+class EvidenceDMApprovalView(WorkflowAccessMixin, View):
+    """
+    Vue de validation DM et envoi à l'Audit — Modale HTMX (Story 3.5).
+
+    GET  : Retourne la modale avec le formulaire de commentaire DM.
+    POST : Appelle validate_evidence_for_audit() et renvoie HX-Refresh.
+
+    Sécurité (AC3) :
+        - WorkflowAccessMixin : rôles workflow uniquement.
+        - Garde RBAC : seul recommendation.assigned_dm peut valider.
+        - Garde de statut : status == PENDING_DM_REVIEW.
+        - Exemption PV (FR19) : commentaire optionnel si PV_RECETTE détecté.
+    """
+
+    def _check_permission(self, request, recommendation):
+        """Retourne un message d'erreur texte ou None si OK."""
+        if recommendation.assigned_dm_id != request.user.pk:
+            return "Seul le DM assigné peut valider les preuves."
+        if recommendation.status != Recommendation.Status.PENDING_DM_REVIEW:
+            return "La validation n'est possible qu'en état PENDING_DM_REVIEW."
+        return None
+
+    def _get_pending_submission(self, recommendation, submission_id):
+        """Récupère la soumission PENDING ciblée, ou None si absente."""
+        return (
+            EvidenceSubmission.objects
+            .filter(recommendation=recommendation, pk=submission_id)
+            .prefetch_related("files")
+            .first()
+        )
+
+    def get(self, request, pk, submission_id):
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        error = self._check_permission(request, recommendation)
+        if error:
+            return HttpResponseForbidden(error)
+
+        submission = self._get_pending_submission(recommendation, submission_id)
+        has_pv_recette = (
+            submission is not None
+            and submission.files.filter(tag=EvidenceFile.Tag.PV_RECETTE).exists()
+        )
+        form = EvidenceDMApprovalForm()
+        return HttpResponse(
+            _render_approve_evidence_modal(
+                request, recommendation, submission_id, form,
+                submission=submission, has_pv_recette=has_pv_recette,
+            )
+        )
+
+    def post(self, request, pk, submission_id):
+        from django_fsm import TransitionNotAllowed
+
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        error = self._check_permission(request, recommendation)
+        if error:
+            return HttpResponseForbidden(error)
+
+        form = EvidenceDMApprovalForm(request.POST, request.FILES)
+        if not form.is_valid():
+            submission = self._get_pending_submission(recommendation, submission_id)
+            has_pv_recette = (
+                submission is not None
+                and submission.files.filter(tag=EvidenceFile.Tag.PV_RECETTE).exists()
+            )
+            return HttpResponse(
+                _render_approve_evidence_modal(
+                    request, recommendation, submission_id, form,
+                    submission=submission, has_pv_recette=has_pv_recette,
+                )
+            )
+
+        try:
+            services.validate_evidence_for_audit(
+                recommendation=recommendation,
+                submission_id=submission_id,
+                comment=form.cleaned_data.get("comment", ""),
+                pv_file=request.FILES.get("pv_recette"),
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except (TransitionNotAllowed, ValueError, DjangoValidationError) as e:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(e), "type": "error"},
+            })
+            return response
+        except PermissionDenied as e:
+            return HttpResponseForbidden(str(e))
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {
+                "msg": "Preuves validées. Le dossier est transmis à l'Audit Interne.",
+                "type": "success",
+            },
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+def _render_approve_evidence_modal(
+    request, recommendation, submission_id, form, *, submission, has_pv_recette
+):
+    """Render le partial de la modale de validation DM → Audit."""
+    from django.template.loader import render_to_string
+    return render_to_string(
+        "workflow/partials/approve_evidence_modal.html",
+        {
+            "recommendation": recommendation,
+            "submission_id": submission_id,
+            "submission": submission,
+            "has_pv_recette": has_pv_recette,
             "form": form,
         },
         request=request,

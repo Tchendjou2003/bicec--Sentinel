@@ -103,6 +103,22 @@ urlpatterns = [
         views.EvidenceFileDownloadView.as_view(),
         name="evidence-download",
     ),
+    # ── Demandes de Report d'Échéance (Story 3.6 — FR13, FR14, FR34) ──
+    path(
+        "recommandations/<uuid:pk>/extension/request/",
+        views.ExtensionRequestView.as_view(),
+        name="extension-request",
+    ),
+    path(
+        "recommandations/<uuid:pk>/extension/<uuid:ext_id>/approve/",
+        views.ExtensionApproveView.as_view(),
+        name="extension-approve",
+    ),
+    path(
+        "recommandations/<uuid:pk>/extension/<uuid:ext_id>/reject/",
+        views.ExtensionRejectView.as_view(),
+        name="extension-reject",
+    ),
     # ── Habilitation Audit (Story 1.5 + 1.7) ──
     path(
         "habilitation/",

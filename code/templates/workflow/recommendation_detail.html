@@ -4,7 +4,7 @@
 {% block title %}{{ recommendation.reference }} — Sentinel{% endblock %}
 
 {% block content %}
-  <div x-data="{ slideOverOpen: false, assignModalOpen: false, delegateModalOpen: false, submitEvidenceModalOpen: false, rejectModalOpen: false, approveModalOpen: false, historyDrawerOpen: false }" @close-modal.window="assignModalOpen = false" @close-delegate-modal.window="delegateModalOpen = false">
+  <div x-data="{ slideOverOpen: false, assignModalOpen: false, delegateModalOpen: false, submitEvidenceModalOpen: false, rejectModalOpen: false, approveModalOpen: false, historyDrawerOpen: false, extensionRequestModalOpen: false, extensionReviewModalOpen: false }" @close-modal.window="assignModalOpen = false" @close-delegate-modal.window="delegateModalOpen = false">
 
   {# ── Fil d'Ariane ── #}
   <nav class="flex items-center gap-2 text-sm text-gray-500" aria-label="Breadcrumb">
@@ -111,6 +111,53 @@
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
           Rejeter
+        </button>
+      {% endif %}
+
+      {# Bouton Demander un Report (Story 3.6 — AC1, AC3) #}
+      {% if can_request_extension %}
+        <button
+          @click="extensionRequestModalOpen = true"
+          hx-get="{% url 'workflow:extension-request' recommendation.pk %}"
+          hx-target="#extension-request-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-sentinel-orange to-orange-600 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Demander un report
+        </button>
+      {% elif recommendation.assigned_dm_id == user.pk and pending_extension %}
+        {# Bouton désactivé : demande déjà en attente (AC6) #}
+        <button disabled
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 cursor-not-allowed"
+          title="Une demande de report est déjà en attente"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Report en attente…
+        </button>
+      {% endif %}
+
+      {# Boutons Approuver / Rejeter le report (Story 3.6 — AC4, AC5, AC7) #}
+      {% if can_review_extension %}
+        <button
+          @click="extensionReviewModalOpen = true"
+          hx-get="{% url 'workflow:extension-approve' recommendation.pk pending_extension.pk %}"
+          hx-target="#extension-review-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-green-600 to-green-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Approuver report
+        </button>
+        <button
+          @click="extensionReviewModalOpen = true"
+          hx-get="{% url 'workflow:extension-reject' recommendation.pk pending_extension.pk %}"
+          hx-target="#extension-review-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-red-600 to-red-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          Rejeter report
         </button>
       {% endif %}
 
@@ -251,6 +298,80 @@
         </div>
       </div>
       {% endif %}
+
+      {# ── Bannières statut report d'échéance (Story 3.6 — AC6) ── #}
+      {% if pending_extension %}
+      <div class="rounded-xl bg-amber-50 border border-amber-200 p-4">
+        <div class="flex items-start gap-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-amber-900">⏳ Demande de report en attente</p>
+            <p class="text-xs text-amber-700 mt-0.5">
+              Par <strong>{{ pending_extension.requested_by.get_full_name|default:pending_extension.requested_by.username }}</strong>
+              le {{ pending_extension.created_at|date:"d/m/Y à H:i" }}
+            </p>
+            <div class="mt-2 rounded-lg bg-white border border-amber-200 px-3 py-2 grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <p class="font-semibold text-amber-700 mb-0.5">Nouvelle date souhaitée</p>
+                <p class="text-amber-900 font-bold">{{ pending_extension.requested_date|date:"d/m/Y" }}</p>
+              </div>
+              <div>
+                <p class="font-semibold text-amber-700 mb-0.5">Motif</p>
+                <p class="text-amber-900 italic">{{ pending_extension.reason|truncatewords:20 }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Historique des reports d'échéance (APPROVED / REJECTED) #}
+      {% for ext in extension_history %}
+      {% if ext.status == 'APPROVED' %}
+      <div class="rounded-xl bg-green-50 border border-green-200 p-4">
+        <div class="flex items-start gap-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-green-900">✅ Report d'échéance approuvé</p>
+            <p class="text-xs text-green-700 mt-0.5">
+              Par <strong>{{ ext.reviewed_by.get_full_name|default:ext.reviewed_by.username }}</strong>
+              le {{ ext.reviewed_at|date:"d/m/Y à H:i" }}
+            </p>
+            <div class="mt-2 rounded-lg bg-white border border-green-200 px-3 py-2 text-xs">
+              <p class="font-semibold text-green-700 mb-0.5">Nouvelle échéance accordée</p>
+              <p class="text-green-900 font-bold">{{ ext.requested_date|date:"d/m/Y" }}</p>
+              {% if ext.audit_comment %}
+              <p class="mt-1 text-green-800 italic">{{ ext.audit_comment|truncatewords:30 }}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% elif ext.status == 'REJECTED' %}
+      <div class="rounded-xl bg-red-50 border border-red-200 p-4">
+        <div class="flex items-start gap-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-red-900">❌ Demande de report refusée</p>
+            <p class="text-xs text-red-700 mt-0.5">
+              Par <strong>{{ ext.reviewed_by.get_full_name|default:ext.reviewed_by.username }}</strong>
+              le {{ ext.reviewed_at|date:"d/m/Y à H:i" }}
+            </p>
+            <div class="mt-2 rounded-lg bg-white border border-red-200 px-3 py-2 text-xs">
+              <p class="font-semibold text-red-700 mb-0.5">Motif du refus</p>
+              <p class="text-red-900 italic">{{ ext.audit_comment }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
 
       {# ── Preuves actives (DRAFT / PENDING / ACCEPTED) — Story 3.3/3.4 ── #}
       {% if active_submissions %}
@@ -488,6 +609,9 @@
                 {% elif log.action == 'UPDATE' %}bg-blue-100 text-blue-600
                 {% elif log.action == 'DELETE' %}bg-red-100 text-red-600
                 {% elif log.action == 'TRANSITION' %}bg-purple-100 text-purple-600
+                {% elif log.action == 'EXTENSION_REQUESTED' %}bg-amber-100 text-amber-600
+                {% elif log.action == 'EXTENSION_APPROVED' %}bg-green-100 text-green-600
+                {% elif log.action == 'EXTENSION_REJECTED' %}bg-red-100 text-red-600
                 {% else %}bg-gray-100 text-gray-600
                 {% endif %}">
                 {% if log.action == 'CREATE' %}
@@ -498,6 +622,12 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
                 {% elif log.action == 'TRANSITION' %}
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M4.22 4.22l2.12 2.12m11.32 11.32 2.12 2.12M2 12h3m14 0h3M4.22 19.78l2.12-2.12M18.66 5.34l-2.12 2.12"/></svg>
+                {% elif log.action == 'EXTENSION_REQUESTED' %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                {% elif log.action == 'EXTENSION_APPROVED' %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                {% elif log.action == 'EXTENSION_REJECTED' %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                 {% else %}
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
                 {% endif %}
@@ -721,6 +851,30 @@
             </svg>
           </div>
         </div>
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de demande de report d'échéance (Story 3.6 — AC1, AC2, AC3) ── #}
+  <template x-teleport="body">
+    <div x-show="extensionRequestModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="extensionRequestModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="extensionRequestModalOpen = false"></div>
+      <div class="relative w-full max-w-md mx-4" id="extension-request-modal-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de décision Audit sur un report (Story 3.6 — AC4, AC5, AC7) ── #}
+  <template x-teleport="body">
+    <div x-show="extensionReviewModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="extensionReviewModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="extensionReviewModalOpen = false"></div>
+      <div class="relative w-full max-w-lg mx-4" id="extension-review-modal-container">
+        {# Contenu injecté par HTMX #}
       </div>
     </div>
   </template>

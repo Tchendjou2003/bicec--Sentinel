@@ -408,3 +408,109 @@ class EvidenceDMApprovalForm(forms.Form):
             "Requis dans tous les autres cas."
         ),
     )
+
+
+# ── Formulaires de Report d'Échéance (Story 3.6) ─────────────────────
+
+
+class ExtensionRequestForm(forms.Form):
+    """
+    Formulaire de demande de report d'échéance — Story 3.6 (AC1, AC2).
+
+    Soumis par le DM ou DG personnellement assigné.
+    La validation croisée avec due_date est faite via __init__(due_date=).
+    """
+
+    requested_date = forms.DateField(
+        label=_("Nouvelle date souhaitée"),
+        widget=forms.DateInput(
+            format="%Y-%m-%d",
+            attrs={
+                "class": _INPUT_CLASS,
+                "type": "date",
+            },
+        ),
+        error_messages={
+            "required": _("La nouvelle date est obligatoire."),
+            "invalid": _("Format de date invalide."),
+        },
+    )
+
+    reason = forms.CharField(
+        label=_("Motif de la demande"),
+        max_length=2000,
+        widget=forms.Textarea(attrs={
+            "class": _TEXTAREA_CLASS,
+            "rows": 4,
+            "maxlength": 2000,
+            "placeholder": _(
+                "Expliquez pourquoi une extension de délai est nécessaire..."
+            ),
+        }),
+        error_messages={
+            "required": _("Le motif est obligatoire."),
+        },
+    )
+
+    def __init__(self, *args, due_date=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._due_date = due_date  # Stocké pour la validation croisée
+
+    def clean_requested_date(self):
+        requested_date = self.cleaned_data.get("requested_date")
+        if requested_date and self._due_date:
+            if requested_date <= self._due_date:
+                raise forms.ValidationError(
+                    _("La nouvelle date doit être postérieure à l'échéance actuelle.")
+                )
+        return requested_date
+
+
+class ExtensionApproveForm(forms.Form):
+    """
+    Formulaire d'approbation d'une demande de report — Story 3.6 (AC4).
+
+    Utilisé par l'Audit pour approuver la demande.
+    Le commentaire est OPTIONNEL lors de l'approbation (différence clé vs rejet).
+    """
+
+    audit_comment = forms.CharField(
+        label=_("Commentaire Audit"),
+        required=False,
+        max_length=2000,
+        widget=forms.Textarea(attrs={
+            "class": _TEXTAREA_CLASS,
+            "rows": 3,
+            "maxlength": 2000,
+            "placeholder": _(
+                "Commentaire optionnel à destination du demandeur..."
+            ),
+        }),
+        help_text=_("Optionnel. Sera visible par le demandeur."),
+    )
+
+
+class ExtensionRejectForm(forms.Form):
+    """
+    Formulaire de rejet d'une demande de report — Story 3.6 (AC5).
+
+    Utilisé par l'Audit pour rejeter la demande.
+    Le commentaire est OBLIGATOIRE lors du rejet (AC5).
+    """
+
+    audit_comment = forms.CharField(
+        label=_("Motif du rejet"),
+        max_length=2000,
+        widget=forms.Textarea(attrs={
+            "class": _TEXTAREA_CLASS,
+            "rows": 4,
+            "maxlength": 2000,
+            "placeholder": _(
+                "Expliquez pourquoi la demande de report est rejetée..."
+            ),
+        }),
+        help_text=_("Obligatoire. Sera communiqué au demandeur."),
+        error_messages={
+            "required": _("Le motif de rejet est obligatoire."),
+        },
+    )

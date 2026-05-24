@@ -31,9 +31,12 @@ from .forms import (
     EvidenceDMApprovalForm,
     EvidenceDraftCommentForm,
     EvidenceRejectForm,
+    ExtensionApproveForm,
+    ExtensionRejectForm,
+    ExtensionRequestForm,
     RecommendationForm,
 )
-from .models import EvidenceFile, EvidenceSubmission, Recommendation
+from .models import EvidenceFile, EvidenceSubmission, ExtensionRequest, Recommendation
 
 
 def _get_client_ip(request) -> str | None:
@@ -256,6 +259,7 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
         audit_log_qs = (
             AuditLog.objects
             .filter(content_type="Recommendation", object_id=rec.pk)
+            .select_related("user")
             .order_by("-created_at")
         )
         context["audit_logs"] = audit_log_qs[:5]
@@ -336,6 +340,33 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
             and pending_submission.files.filter(
                 tag=EvidenceFile.Tag.PV_RECETTE
             ).exists()
+        )
+
+        # ── Report d'Échéance (Story 3.6) ─────────────────────────────
+        pending_extension = selectors.get_pending_extension_for_recommendation(
+            recommendation=rec
+        )
+        context["pending_extension"] = pending_extension
+        context["extension_history"] = selectors.get_extension_history_for_recommendation(
+            recommendation=rec
+        )
+
+        # can_request_extension : DM ou DG personnellement assigné,
+        # pas de demande PENDING en cours, reco non clôturée/brouillon (AC3)
+        context["can_request_extension"] = (
+            rec.assigned_dm is not None
+            and rec.assigned_dm_id == user.pk
+            and pending_extension is None
+            and rec.status not in (
+                Recommendation.Status.DRAFT,
+                Recommendation.Status.CLOSED_RESOLVED,
+            )
+        )
+
+        # can_review_extension : tout auditeur peut statuer (AC7)
+        context["can_review_extension"] = (
+            user.role == User.Role.AUDIT
+            and pending_extension is not None
         )
 
         return context
@@ -1295,4 +1326,244 @@ class EvidenceFileDownloadView(WorkflowAccessMixin, View):
             f'attachment; filename="{evidence_file.original_filename}"'
         )
         return response
+
+
+# =============================================================================
+# Demande de Report d'Échéance (Story 3.6 — FR13, FR14, FR34)
+# =============================================================================
+
+
+class ExtensionRequestView(WorkflowAccessMixin, View):
+    """
+    Vue de demande de report — Modale HTMX pour le DM ou DG assigné.
+
+    GET  : Retourne la modale avec le formulaire.
+    POST : Appelle request_extension() et renvoie HX-Refresh.
+
+    Sécurité (AC3) :
+        - WorkflowAccessMixin : rôles workflow uniquement.
+        - Garde RBAC service : seul recommendation.assigned_dm peut demander.
+    """
+
+    def get(self, request, pk):
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+
+        # Garde préventive : n'affiche la modale qu'aux ayants-droit
+        if recommendation.assigned_dm_id != request.user.pk:
+            return HttpResponseForbidden(
+                "Seul le directeur assigné peut demander un report."
+            )
+
+        form = ExtensionRequestForm(due_date=recommendation.due_date)
+        return HttpResponse(
+            _render_extension_request_modal(request, recommendation, form)
+        )
+
+    def post(self, request, pk):
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+
+        if recommendation.assigned_dm_id != request.user.pk:
+            return HttpResponseForbidden(
+                "Seul le directeur assigné peut demander un report."
+            )
+
+        form = ExtensionRequestForm(
+            request.POST, due_date=recommendation.due_date
+        )
+        if not form.is_valid():
+            # Extraire le premier message d'erreur pour le toast
+            first_errors = list(form.errors.values())
+            toast_msg = str(first_errors[0][0]) if first_errors else "Données invalides."
+            response = HttpResponse(
+                _render_extension_request_modal(request, recommendation, form),
+                status=422,
+            )
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": toast_msg, "type": "error"},
+            })
+            return response
+
+        try:
+            services.request_extension(
+                recommendation=recommendation,
+                requested_date=form.cleaned_data["requested_date"],
+                reason=form.cleaned_data["reason"],
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except (ValueError, PermissionDenied) as e:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(e), "type": "error"},
+            })
+            return response
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {
+                "msg": "Votre demande de report a été soumise à l'Audit Interne.",
+                "type": "success",
+            },
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+def _render_extension_request_modal(request, recommendation, form):
+    """Render le partial de la modale de demande de report."""
+    from django.template.loader import render_to_string
+    return render_to_string(
+        "workflow/partials/extension_request_modal.html",
+        {"recommendation": recommendation, "form": form},
+        request=request,
+    )
+
+
+class ExtensionApproveView(AuditRequiredMixin, View):
+    """
+    Vue d'approbation de report — POST HTMX pour l'Audit.
+
+    GET  : Retourne la modale de décision (mode approve).
+    POST : Appelle approve_extension() et renvoie HX-Refresh.
+
+    Sécurité (AC7) :
+        - AuditRequiredMixin : AUDIT uniquement.
+        - is_audit_admin NON requis.
+    """
+
+    def _get_extension(self, pk, ext_id):
+        return get_object_or_404(
+            ExtensionRequest,
+            pk=ext_id,
+            recommendation__pk=pk,
+        )
+
+    def get(self, request, pk, ext_id):
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        ext = self._get_extension(pk, ext_id)
+        form = ExtensionApproveForm()
+        return HttpResponse(
+            _render_extension_review_modal(
+                request, recommendation, ext, form, action="approve"
+            )
+        )
+
+    def post(self, request, pk, ext_id):
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        ext = self._get_extension(pk, ext_id)
+
+        form = ExtensionApproveForm(request.POST)
+        if not form.is_valid():
+            return HttpResponse(
+                _render_extension_review_modal(
+                    request, recommendation, ext, form, action="approve"
+                ),
+                status=422,
+            )
+
+        try:
+            services.approve_extension(
+                extension_request=ext,
+                performed_by=request.user,
+                audit_comment=form.cleaned_data.get("audit_comment", ""),
+                ip_address=_get_client_ip(request),
+            )
+        except (ValueError, PermissionDenied) as e:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(e), "type": "error"},
+            })
+            return response
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {
+                "msg": "Demande de report approuvée. L'échéance a été mise à jour.",
+                "type": "success",
+            },
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+class ExtensionRejectView(AuditRequiredMixin, View):
+    """
+    Vue de rejet de report — POST HTMX pour l'Audit.
+
+    GET  : Retourne la modale de décision (mode reject).
+    POST : Appelle reject_extension() et renvoie HX-Refresh.
+
+    Sécurité (AC7) :
+        - AuditRequiredMixin : AUDIT uniquement.
+        - audit_comment obligatoire (AC5 — validé par ExtensionRejectForm).
+    """
+
+    def _get_extension(self, pk, ext_id):
+        return get_object_or_404(
+            ExtensionRequest,
+            pk=ext_id,
+            recommendation__pk=pk,
+        )
+
+    def get(self, request, pk, ext_id):
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        ext = self._get_extension(pk, ext_id)
+        form = ExtensionRejectForm()
+        return HttpResponse(
+            _render_extension_review_modal(
+                request, recommendation, ext, form, action="reject"
+            )
+        )
+
+    def post(self, request, pk, ext_id):
+        recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+        ext = self._get_extension(pk, ext_id)
+
+        form = ExtensionRejectForm(request.POST)
+        if not form.is_valid():
+            return HttpResponse(
+                _render_extension_review_modal(
+                    request, recommendation, ext, form, action="reject"
+                ),
+                status=422,
+            )
+
+        try:
+            services.reject_extension(
+                extension_request=ext,
+                performed_by=request.user,
+                audit_comment=form.cleaned_data["audit_comment"],
+                ip_address=_get_client_ip(request),
+            )
+        except (ValueError, PermissionDenied) as e:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(e), "type": "error"},
+            })
+            return response
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {
+                "msg": "Demande de report rejetée. L'échéance est maintenue.",
+                "type": "warning",
+            },
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+def _render_extension_review_modal(request, recommendation, ext, form, *, action):
+    """Render le partial de la modale de décision Audit (approve ou reject)."""
+    from django.template.loader import render_to_string
+    return render_to_string(
+        "workflow/partials/extension_review_modal.html",
+        {
+            "recommendation": recommendation,
+            "extension": ext,
+            "form": form,
+            "action": action,
+        },
+        request=request,
+    )
 

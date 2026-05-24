@@ -1166,3 +1166,282 @@ def cleanup_abandoned_drafts(
         )
 
     return count
+
+
+# =============================================================================
+# Demandes de Report d'Échéance (Story 3.6 — FR13, FR14, FR34)
+# =============================================================================
+
+
+def request_extension(
+    *,
+    recommendation: Recommendation,
+    requested_date,
+    reason: str,
+    performed_by,
+    ip_address: str | None = None,
+):
+    """
+    Soumet une demande de report d'échéance (FR13 — DM, FR34 — DG).
+
+    Guard RBAC : seul l'utilisateur dont ``recommendation.assigned_dm == performed_by``
+    est autorisé, qu'il soit DM ou DG. L'assignation personnelle est le seul critère.
+
+    Args:
+        recommendation: La recommandation concernée.
+        requested_date: Nouvelle date souhaitée (doit être > due_date).
+        reason: Motif obligatoire.
+        performed_by: DM ou DG personnellement assigné.
+        ip_address: Adresse IP du client.
+
+    Returns:
+        ExtensionRequest: L'instance PENDING créée.
+
+    Raises:
+        PermissionDenied: Si performed_by n'est pas le DM/DG assigné.
+        ValueError: Si l'état FSM interdit la demande, si une demande PENDING
+                    existe déjà, ou si la date est invalide.
+    """
+    from .models import ExtensionRequest
+
+    # Guard RBAC — assignation personnelle (FR13 + FR34)
+    if performed_by != recommendation.assigned_dm:
+        raise PermissionDenied(
+            "Seul le directeur personnellement assigné peut soumettre une demande de report."
+        )
+
+    with transaction.atomic():
+        rec = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        # Guard état FSM — impossible en DRAFT ou CLOSED_RESOLVED
+        if rec.status in (
+            Recommendation.Status.DRAFT,
+            Recommendation.Status.CLOSED_RESOLVED,
+        ):
+            raise ValueError(
+                f"Une demande de report n'est pas possible en état "
+                f"« {rec.get_status_display()} »."
+            )
+
+        # Guard doublon — une seule demande PENDING à la fois
+        if ExtensionRequest.objects.filter(
+            recommendation=rec,
+            status=ExtensionRequest.Status.PENDING,
+        ).exists():
+            raise ValueError(
+                "Une demande de report est déjà en attente pour cette recommandation."
+            )
+
+        # Guard date — doit être postérieure à l'échéance actuelle
+        if requested_date <= rec.due_date:
+            raise ValueError(
+                "La nouvelle date doit être postérieure à l'échéance actuelle."
+            )
+
+        ext = ExtensionRequest.objects.create(
+            recommendation=rec,
+            requested_by=performed_by,
+            requested_date=requested_date,
+            reason=reason,
+            status=ExtensionRequest.Status.PENDING,
+        )
+
+        requester_display = performed_by.get_full_name() or performed_by.username
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.EXTENSION_REQUESTED,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=rec.pk,
+            changes={
+                "extension_id": str(ext.pk),
+                "requested_date": str(requested_date),
+                "reason": reason[:100],
+                "current_due_date": str(rec.due_date),
+            },
+            description=(
+                f"Demande de report soumise par {requester_display} "
+                f"pour {rec.reference} — nouvelle date : {requested_date}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return ext
+
+
+def approve_extension(
+    *,
+    extension_request,
+    performed_by,
+    audit_comment: str = "",
+    ip_address: str | None = None,
+):
+    """
+    Approuve une demande de report d'échéance (FR14 — AC4).
+
+    Met à jour ``Recommendation.due_date`` avec ``ExtensionRequest.requested_date``.
+    N'altère JAMAIS ``original_due_date`` (invariant COBAC — AC8).
+    Le commentaire est optionnel lors de l'approbation.
+
+    Args:
+        extension_request: L'instance ExtensionRequest PENDING.
+        performed_by: Auditeur qui approuve (role == AUDIT).
+        audit_comment: Commentaire optionnel (défaut vide).
+        ip_address: Adresse IP du client.
+
+    Returns:
+        ExtensionRequest: L'instance mise à jour (status=APPROVED).
+
+    Raises:
+        PermissionDenied: Si performed_by n'est pas AUDIT.
+        ValueError: Si la demande n'est pas en PENDING.
+    """
+    from apps.users.models import User
+    from .models import ExtensionRequest
+
+    # Guard RBAC — tout auditeur peut approuver (AC7 : is_audit_admin NON requis)
+    if performed_by.role != User.Role.AUDIT:
+        raise PermissionDenied(
+            "Seul un Auditeur Interne peut approuver une demande de report."
+        )
+
+    # Guard état — demande PENDING uniquement
+    if extension_request.status != ExtensionRequest.Status.PENDING:
+        raise ValueError(
+            f"Seule une demande en attente peut être approuvée "
+            f"(statut actuel : {extension_request.get_status_display()})."
+        )
+
+    with transaction.atomic():
+        ext = (
+            ExtensionRequest.objects
+            .select_for_update()
+            .get(pk=extension_request.pk)
+        )
+        rec = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=ext.recommendation_id)
+        )
+
+        old_due_date = rec.due_date
+        new_due_date = ext.requested_date
+
+        # Mise à jour de la demande
+        ext.status = ExtensionRequest.Status.APPROVED
+        ext.reviewed_by = performed_by
+        ext.reviewed_at = timezone.now()
+        ext.audit_comment = audit_comment  # Peut être vide (AC4)
+        ext.save(update_fields=["status", "reviewed_by", "reviewed_at", "audit_comment"])
+
+        # Mise à jour de l'échéance (JAMAIS original_due_date — AC8)
+        rec.due_date = new_due_date
+        rec.save(update_fields=["due_date", "updated_at"])
+
+        auditor_display = performed_by.get_full_name() or performed_by.username
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.EXTENSION_APPROVED,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=rec.pk,
+            changes={
+                "extension_id": str(ext.pk),
+                "due_date": [str(old_due_date), str(new_due_date)],
+            },
+            description=(
+                f"Report approuvé par {auditor_display} pour "
+                f"{rec.reference} — nouvelle échéance : {new_due_date}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return ext
+
+
+def reject_extension(
+    *,
+    extension_request,
+    performed_by,
+    audit_comment: str,
+    ip_address: str | None = None,
+):
+    """
+    Rejette une demande de report d'échéance (FR14 — AC5).
+
+    ``Recommendation.due_date`` reste inchangé.
+    Le commentaire est OBLIGATOIRE (différence clé vs approve_extension).
+
+    Args:
+        extension_request: L'instance ExtensionRequest PENDING.
+        performed_by: Auditeur qui rejette (role == AUDIT).
+        audit_comment: Motif de rejet obligatoire.
+        ip_address: Adresse IP du client.
+
+    Returns:
+        ExtensionRequest: L'instance mise à jour (status=REJECTED).
+
+    Raises:
+        PermissionDenied: Si performed_by n'est pas AUDIT.
+        ValueError: Si la demande n'est pas PENDING ou si le motif est vide.
+    """
+    from apps.users.models import User
+    from .models import ExtensionRequest
+
+    # Guard RBAC — tout auditeur peut rejeter (AC7)
+    if performed_by.role != User.Role.AUDIT:
+        raise PermissionDenied(
+            "Seul un Auditeur Interne peut rejeter une demande de report."
+        )
+
+    # Guard motif — obligatoire au rejet (AC5)
+    if not audit_comment or not audit_comment.strip():
+        raise ValueError("Le motif de rejet est obligatoire.")
+
+    # Guard état — demande PENDING uniquement
+    if extension_request.status != ExtensionRequest.Status.PENDING:
+        raise ValueError(
+            f"Seule une demande en attente peut être rejetée "
+            f"(statut actuel : {extension_request.get_status_display()})."
+        )
+
+    with transaction.atomic():
+        ext = (
+            ExtensionRequest.objects
+            .select_for_update()
+            .get(pk=extension_request.pk)
+        )
+        rec = Recommendation.all_objects.get(pk=ext.recommendation_id)
+
+        ext.status = ExtensionRequest.Status.REJECTED
+        ext.reviewed_by = performed_by
+        ext.reviewed_at = timezone.now()
+        ext.audit_comment = audit_comment
+        ext.save(update_fields=["status", "reviewed_by", "reviewed_at", "audit_comment"])
+
+        # due_date de la recommandation est INCHANGÉ (AC5)
+
+        auditor_display = performed_by.get_full_name() or performed_by.username
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.EXTENSION_REJECTED,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=rec.pk,
+            changes={
+                "extension_id": str(ext.pk),
+                "audit_comment": audit_comment[:100],
+                "due_date_maintained": str(rec.due_date),
+            },
+            description=(
+                f"Report rejeté par {auditor_display} pour "
+                f"{rec.reference} — échéance maintenue : {rec.due_date}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return ext

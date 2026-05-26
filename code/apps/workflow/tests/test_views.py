@@ -11,12 +11,13 @@ Tests pour les vues :
 import uuid
 from datetime import timedelta
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
 from apps.users.models import Department, User
-from apps.workflow.models import EvidenceSubmission, Recommendation
+from apps.workflow.models import EvidenceFile, EvidenceSubmission, Recommendation
 from apps.workflow.services import create_recommendation
 
 
@@ -1652,3 +1653,606 @@ class EvidenceRejectViewTest(EvidenceSubmissionTestMixin, TestCase):
             reverse("workflow:recommendation-detail", args=[rec.pk])
         )
         self.assertTrue(response.context["show_rejection_banner"])
+
+
+# =============================================================================
+# Story 3.5 — Validation DM → Audit (Exemption PV de Recette)
+# =============================================================================
+
+
+class EvidenceDMApprovalViewTest(EvidenceSubmissionTestMixin, TestCase):
+    """Tests pour EvidenceDMApprovalView — Story 3.5 (AC1, AC2, AC3)."""
+
+    def _create_pending_submission_with_etp(self):
+        """Crée une reco PENDING_DM_REVIEW avec ETP assigné et soumission PENDING."""
+        from apps.workflow import services
+        rec = self._create_in_progress_recommendation_etp()
+        draft, _ = self._create_draft_and_upload(
+            rec, self.etp_user, "Actions correctives appliquées."
+        )
+        services.submit_evidence_for_recommendation(
+            recommendation=rec, performed_by=self.etp_user
+        )
+        return Recommendation.all_objects.get(pk=rec.pk)
+
+    def test_dm_can_approve_evidence_submission(self):
+        """AC1 — Le DM approuve avec commentaire : statut passe à PENDING_AUDIT_REVIEW."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "Dossier complet et conforme. Validé pour l'Audit."},
+        )
+
+        self.assertEqual(response.status_code, 204)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_AUDIT_REVIEW)
+
+    def test_submission_marked_as_accepted(self):
+        """AC1 — La soumission passe à ACCEPTED avec review_comment/reviewed_at/reviewed_by."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "Conforme."},
+        )
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.status, EvidenceSubmission.SubmissionStatus.ACCEPTED)
+        self.assertEqual(submission.review_comment, "Conforme.")
+        self.assertEqual(submission.reviewed_by, self.dm_user)
+        self.assertIsNotNone(submission.reviewed_at)
+
+    def test_audit_log_created_on_approval(self):
+        """AC1 — Un AuditLog TRANSITION est créé lors de la validation DM."""
+        from apps.audit.models import AuditLog
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "Validé."},
+        )
+
+        self.assertTrue(
+            AuditLog.objects.filter(
+                content_type="Recommendation",
+                object_id=rec.pk,
+                action=AuditLog.Action.TRANSITION,
+            ).exists()
+        )
+
+    def test_dm_cannot_approve_without_comment_when_no_pv_recette(self):
+        """AC2 — Sans PV de Recette, le commentaire vide renvoie 422."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": ""},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)
+
+    def test_dm_can_approve_without_comment_with_pv_recette(self):
+        """AC2 (FR19) — DM uploade un PV de Recette → commentaire vide accepté."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        pv_file = SimpleUploadedFile(
+            "pv_recette.pdf",
+            b"%PDF-1.4 " + b"A" * 100,
+            content_type="application/pdf",
+        )
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "", "pv_recette": pv_file},
+        )
+
+        self.assertEqual(response.status_code, 204)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_AUDIT_REVIEW)
+        # Le fichier PV_RECETTE a bien été créé par le service
+        self.assertTrue(
+            submission.files.filter(tag=EvidenceFile.Tag.PV_RECETTE).exists()
+        )
+
+    def test_dm_invalid_pv_file_returns_422_not_500(self):
+        """Régression Bug 1 — Un PV avec mauvais magic bytes renvoie 422, pas 500."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.dm_user)
+
+        bad_pv = SimpleUploadedFile(
+            "fake.pdf",
+            b"\x00\x01\x02\x03 not a real pdf",
+            content_type="application/pdf",
+        )
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "", "pv_recette": bad_pv},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)
+
+    def test_etp_cannot_approve_evidence(self):
+        """AC3 — Un ETP obtient 403 sur l'endpoint de validation."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.etp_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "Tentative non autorisée."},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)
+
+    def test_audit_cannot_approve_evidence(self):
+        """AC3 — Un AUDIT obtient 403 sur l'endpoint de validation."""
+        rec = self._create_pending_submission_with_etp()
+        submission = rec.evidence_submissions.get(
+            status=EvidenceSubmission.SubmissionStatus.PENDING
+        )
+        self._login_as(self.audit_user)
+
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "Tentative non autorisée."},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.status, Recommendation.Status.PENDING_DM_REVIEW)
+
+
+# =============================================================================
+# Story 3.6 — Demande de Report d'Échéance (Tests 7.1 à 7.13)
+# =============================================================================
+
+class ExtensionRequestViewTest(EvidenceSubmissionTestMixin, TestCase):
+    """Tests Story 3.6 — FR13, FR14, FR34.
+
+    Couvre :
+    - AC1/AC3 : DM / DG assigné peut demander un report
+    - AC2 : doublon PENDING interdit (422)
+    - AC2 : date ≤ échéance actuelle refusée (422)
+    - AC4 : Audit peut approuver (commentaire optionnel)
+    - AC5 : Audit peut rejeter (commentaire obligatoire)
+    - AC6 : cohérence du statut en base
+    - AC7 : tout rôle AUDIT peut traiter la demande (sans is_audit_admin)
+    - FR34 : DG agit au même titre qu'un DM quand personnellement assigné
+    """
+
+    def _create_in_progress_reco_with_dm(self):
+        """Crée une reco IN_PROGRESS (DM Porteur) avec due_date dans 60 jours."""
+        from apps.workflow import services
+        rec = self._create_assigned_recommendation()
+        rec = services.become_dm_porteur(
+            recommendation=rec,
+            performed_by=self.dm_user,
+        )
+        return rec
+
+    def _future_date(self, days=60):
+        """Retourne une date future (due_date + extra jours)."""
+        return (timezone.now().date() + timedelta(days=days)).isoformat()
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.1 — DM assigné peut soumettre une demande de report
+    # ─────────────────────────────────────────────────────────────
+    def test_dm_can_request_extension(self):
+        """AC1/AC3 — Le DM assigné obtient 204 et l'ExtensionRequest est créée."""
+        from apps.audit.models import AuditLog
+        from apps.workflow.models import ExtensionRequest
+
+        rec = self._create_in_progress_reco_with_dm()
+        self._login_as(self.dm_user)
+
+        response = self.client.post(
+            reverse("workflow:extension-request", args=[rec.pk]),
+            {
+                "requested_date": self._future_date(60),
+                "reason": "Retard fournisseur externalisé.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 204)
+        ext = ExtensionRequest.objects.filter(
+            recommendation=rec,
+            status=ExtensionRequest.Status.PENDING,
+        ).first()
+        self.assertIsNotNone(ext)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                content_type="Recommendation",
+                object_id=rec.pk,
+                action="EXTENSION_REQUESTED",
+            ).exists()
+        )
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.2 — Doublon PENDING refusé (422)
+    # ─────────────────────────────────────────────────────────────
+    def test_duplicate_pending_request_returns_422(self):
+        """AC2 — Une 2e demande avec statut PENDING en cours renvoie 422."""
+        from apps.workflow.models import ExtensionRequest
+
+        rec = self._create_in_progress_reco_with_dm()
+        self._login_as(self.dm_user)
+
+        payload = {
+            "requested_date": self._future_date(60),
+            "reason": "Première demande.",
+        }
+        self.client.post(
+            reverse("workflow:extension-request", args=[rec.pk]), payload
+        )
+        response = self.client.post(
+            reverse("workflow:extension-request", args=[rec.pk]),
+            {
+                "requested_date": self._future_date(90),
+                "reason": "Deuxième demande simultanée.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            ExtensionRequest.objects.filter(
+                recommendation=rec, status=ExtensionRequest.Status.PENDING
+            ).count(),
+            1,
+        )
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.3 — Date demandée ≤ due_date refusée (422)
+    # ─────────────────────────────────────────────────────────────
+    def test_extension_date_must_be_after_due_date_returns_422(self):
+        """AC2 — Une date ≤ échéance actuelle renvoie 422."""
+        from apps.workflow.models import ExtensionRequest
+
+        rec = self._create_in_progress_reco_with_dm()
+        # La due_date est today + 30 (définie dans _create_draft_recommendation)
+        past_date = (timezone.now().date() + timedelta(days=15)).isoformat()
+        self._login_as(self.dm_user)
+
+        response = self.client.post(
+            reverse("workflow:extension-request", args=[rec.pk]),
+            {
+                "requested_date": past_date,
+                "reason": "Mauvaise date.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertFalse(
+            ExtensionRequest.objects.filter(recommendation=rec).exists()
+        )
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.4 — Rôles non autorisés reçoivent 403
+    # ─────────────────────────────────────────────────────────────
+
+    def test_non_authorized_roles_cannot_request_extension(self):
+        """AC3 — Rôles non autorisés ne peuvent pas demander un report.
+
+        - ETP non assigné : 404 (information hiding — la reco n'est pas dans son scope RBAC).
+        - AUDIT : 403 (voit la reco, mais n'est pas le DM assigné).
+        - ADMIN_IT : 403 (bloqué par WorkflowAccessMixin avant d'atteindre la vue).
+        """
+        rec = self._create_in_progress_reco_with_dm()
+
+        # ETP non assigné → 404 (information hiding, pattern établi en PR #11)
+        self._login_as(self.etp_user)
+        response = self.client.post(
+            reverse("workflow:extension-request", args=[rec.pk]),
+            {
+                "requested_date": self._future_date(60),
+                "reason": "Tentative non autorisée.",
+            },
+        )
+        self.assertEqual(response.status_code, 404)
+
+        # AUDIT et ADMIN_IT → 403
+        for user in [self.audit_user, self.admin_user]:
+            with self.subTest(role=user.role):
+                self._login_as(user)
+                response = self.client.post(
+                    reverse("workflow:extension-request", args=[rec.pk]),
+                    {
+                        "requested_date": self._future_date(60),
+                        "reason": "Tentative non autorisée.",
+                    },
+                )
+                self.assertEqual(response.status_code, 403) 
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.5 — Audit peut approuver ; due_date est mise à jour
+    # ─────────────────────────────────────────────────────────────
+    def test_audit_can_approve_extension(self):
+        """AC4/AC7 — L'Audit approuve et la due_date de la reco est mise à jour."""
+        from apps.workflow import services
+        from apps.workflow.models import ExtensionRequest
+
+        rec = self._create_in_progress_reco_with_dm()
+        new_date_str = self._future_date(60)
+        import datetime
+        new_date = datetime.date.fromisoformat(new_date_str)
+
+        ext = services.request_extension(
+            recommendation=rec,
+            requested_date=new_date,
+            reason="Raison valide.",
+            performed_by=self.dm_user,
+        )
+        self._login_as(self.audit_user)
+
+        response = self.client.post(
+            reverse("workflow:extension-approve", args=[rec.pk, ext.pk]),
+            {"audit_comment": "Accepté."},
+        )
+
+        self.assertEqual(response.status_code, 204)
+        ext.refresh_from_db()
+        self.assertEqual(ext.status, ExtensionRequest.Status.APPROVED)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.due_date, new_date)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.6 — Audit peut rejeter ; due_date inchangée
+    # ─────────────────────────────────────────────────────────────
+    def test_audit_can_reject_extension(self):
+        """AC5/AC7 — L'Audit rejette et la due_date reste inchangée."""
+        from apps.workflow import services
+        from apps.workflow.models import ExtensionRequest
+
+        rec = self._create_in_progress_reco_with_dm()
+        original_due_date = rec.due_date
+        import datetime
+        new_date = datetime.date.fromisoformat(self._future_date(60))
+
+        ext = services.request_extension(
+            recommendation=rec,
+            requested_date=new_date,
+            reason="Raison valide.",
+            performed_by=self.dm_user,
+        )
+        self._login_as(self.audit_user)
+
+        response = self.client.post(
+            reverse("workflow:extension-reject", args=[rec.pk, ext.pk]),
+            {"audit_comment": "Non recevable."},
+        )
+
+        self.assertEqual(response.status_code, 204)
+        ext.refresh_from_db()
+        self.assertEqual(ext.status, ExtensionRequest.Status.REJECTED)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.due_date, original_due_date)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.7 — Rejet sans commentaire renvoie 422
+    # ─────────────────────────────────────────────────────────────
+    def test_reject_without_comment_returns_422(self):
+        """AC5 — Un rejet sans motif renvoie 422."""
+        from apps.workflow import services
+        from apps.workflow.models import ExtensionRequest
+
+        rec = self._create_in_progress_reco_with_dm()
+        import datetime
+        new_date = datetime.date.fromisoformat(self._future_date(60))
+        ext = services.request_extension(
+            recommendation=rec,
+            requested_date=new_date,
+            reason="Raison valide.",
+            performed_by=self.dm_user,
+        )
+        self._login_as(self.audit_user)
+
+        response = self.client.post(
+            reverse("workflow:extension-reject", args=[rec.pk, ext.pk]),
+            {"audit_comment": ""},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        ext.refresh_from_db()
+        self.assertEqual(ext.status, ExtensionRequest.Status.PENDING)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.8 — DM / ETP / DG ne peuvent pas approuver ou rejeter
+    # ─────────────────────────────────────────────────────────────
+    def test_dm_etp_cannot_approve_or_reject(self):
+        """AC7 — DM, ETP et DG_non_assigné obtiennent 403 sur approve/reject."""
+        from apps.workflow import services
+
+        rec = self._create_in_progress_reco_with_dm()
+        import datetime
+        new_date = datetime.date.fromisoformat(self._future_date(60))
+        ext = services.request_extension(
+            recommendation=rec,
+            requested_date=new_date,
+            reason="Raison valide.",
+            performed_by=self.dm_user,
+        )
+
+        for user in [self.dm_user, self.etp_user, self.dg_user]:
+            with self.subTest(role=user.role):
+                self._login_as(user)
+                for url_name in ["extension-approve", "extension-reject"]:
+                    response = self.client.post(
+                        reverse(f"workflow:{url_name}", args=[rec.pk, ext.pk]),
+                        {"audit_comment": "Tentative."},
+                    )
+                    self.assertEqual(response.status_code, 403)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.9 — original_due_date est immuable après approbation (COBAC)
+    # ─────────────────────────────────────────────────────────────
+    def test_original_due_date_immutable_after_approval(self):
+        """AC6 — original_due_date reste inchangée après approbation du report."""
+        from apps.workflow import services
+
+        rec = self._create_in_progress_reco_with_dm()
+        original_due_date_before = rec.original_due_date
+        import datetime
+        new_date = datetime.date.fromisoformat(self._future_date(60))
+
+        ext = services.request_extension(
+            recommendation=rec,
+            requested_date=new_date,
+            reason="Raison valide.",
+            performed_by=self.dm_user,
+        )
+        self._login_as(self.audit_user)
+        self.client.post(
+            reverse("workflow:extension-approve", args=[rec.pk, ext.pk]),
+            {"audit_comment": ""},
+        )
+
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec.original_due_date, original_due_date_before)
+        # due_date est mise à jour, original_due_date ne bouge pas
+        self.assertEqual(rec.due_date, new_date)
+        self.assertNotEqual(rec.due_date, rec.original_due_date)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.10 — DG assigné comme DM peut demander un report (FR34)
+    # ─────────────────────────────────────────────────────────────
+    def test_dg_assigned_as_dm_can_request_extension(self):
+        """FR34 — Le DG assigné personnellement obtient 204 sur la demande de report."""
+        from apps.workflow.models import ExtensionRequest
+
+        # Assigner la reco au DG (assigned_dm = dg_user)
+        rec = self._create_draft_recommendation()
+        Recommendation.all_objects.filter(pk=rec.pk).update(
+            status=Recommendation.Status.IN_PROGRESS,
+            assigned_dm=self.dg_user,
+        )
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+
+        self._login_as(self.dg_user)
+        response = self.client.post(
+            reverse("workflow:extension-request", args=[rec.pk]),
+            {
+                "requested_date": self._future_date(60),
+                "reason": "Contrainte opérationnelle.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 204)
+        self.assertTrue(
+            ExtensionRequest.objects.filter(
+                recommendation=rec,
+                status=ExtensionRequest.Status.PENDING,
+                requested_by=self.dg_user,
+            ).exists()
+        )
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.11 — DG non assigné obtient 403 (pas de hiérarchie de département)
+    # ─────────────────────────────────────────────────────────────
+    def test_dg_not_assigned_cannot_request_extension(self):
+        """FR34 — Le DG non assigné personnellement obtient 403."""
+        from apps.workflow.models import ExtensionRequest
+
+        # Reco assignée au DM, pas au DG
+        rec = self._create_in_progress_reco_with_dm()
+
+        self._login_as(self.dg_user)
+        response = self.client.post(
+            reverse("workflow:extension-request", args=[rec.pk]),
+            {
+                "requested_date": self._future_date(60),
+                "reason": "Tentative DG non assigné.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(ExtensionRequest.objects.filter(recommendation=rec).exists())
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.12 — AUDIT sans is_audit_admin peut approuver (AC7)
+    # ─────────────────────────────────────────────────────────────
+    def test_audit_without_is_audit_admin_can_approve(self):
+        """AC7 — Un AUDIT standard (is_audit_admin=False) peut approuver."""
+        from apps.workflow import services
+        from apps.workflow.models import ExtensionRequest
+
+        # audit_user n'est pas is_audit_admin (créé dans ViewTestMixin sans flag)
+        self.assertFalse(self.audit_user.is_audit_admin)
+
+        rec = self._create_in_progress_reco_with_dm()
+        import datetime
+        new_date = datetime.date.fromisoformat(self._future_date(60))
+        ext = services.request_extension(
+            recommendation=rec,
+            requested_date=new_date,
+            reason="Raison valide.",
+            performed_by=self.dm_user,
+        )
+        self._login_as(self.audit_user)
+
+        response = self.client.post(
+            reverse("workflow:extension-approve", args=[rec.pk, ext.pk]),
+            {"audit_comment": ""},
+        )
+
+        self.assertEqual(response.status_code, 204)
+        ext.refresh_from_db()
+        self.assertEqual(ext.status, ExtensionRequest.Status.APPROVED)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.13 — Approbation sans commentaire est acceptée (AC4)
+    # ─────────────────────────────────────────────────────────────
+    def test_audit_can_approve_without_comment(self):
+        """AC4 — Le commentaire Audit est optionnel à l'approbation."""
+        from apps.workflow import services
+        from apps.workflow.models import ExtensionRequest
+
+        rec = self._create_in_progress_reco_with_dm()
+        import datetime
+        new_date = datetime.date.fromisoformat(self._future_date(60))
+        ext = services.request_extension(
+            recommendation=rec,
+            requested_date=new_date,
+            reason="Raison valide.",
+            performed_by=self.dm_user,
+        )
+        self._login_as(self.audit_user)
+
+        response = self.client.post(
+            reverse("workflow:extension-approve", args=[rec.pk, ext.pk]),
+            {"audit_comment": ""},  # vide — doit passer
+        )
+
+        self.assertEqual(response.status_code, 204)
+        ext.refresh_from_db()
+        self.assertEqual(ext.status, ExtensionRequest.Status.APPROVED)
+        self.assertEqual(ext.audit_comment, "")

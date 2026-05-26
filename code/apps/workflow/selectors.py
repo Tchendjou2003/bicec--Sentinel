@@ -10,7 +10,7 @@ Spécifications couvertes :
 from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 
-from .models import EvidenceSubmission, Recommendation
+from .models import EvidenceSubmission, ExtensionRequest, Recommendation
 
 
 def get_recommendations_for_user(*, user, filters: dict | None = None) -> QuerySet[Recommendation]:
@@ -274,5 +274,54 @@ def get_draft_submission_for_recommendation(
         .select_related("submitted_by")
         .prefetch_related("files")
         .first()
+    )
+
+
+# =============================================================================
+# Sélecteurs Report d'Échéance (Story 3.6)
+# =============================================================================
+
+
+def get_pending_extension_for_recommendation(
+    *, recommendation
+) -> ExtensionRequest | None:
+    """
+    Retourne la demande de report PENDING pour une recommandation, ou None.
+
+    Args:
+        recommendation: L'instance Recommendation.
+
+    Returns:
+        ExtensionRequest | None: La demande en attente, ou None si aucune.
+    """
+    return (
+        ExtensionRequest.objects
+        .filter(recommendation=recommendation, status=ExtensionRequest.Status.PENDING)
+        .select_related("requested_by")
+        .first()
+    )
+
+
+def get_extension_history_for_recommendation(
+    *, recommendation
+) -> QuerySet[ExtensionRequest]:
+    """
+    Retourne l'historique des demandes de report (APPROVED + REJECTED)
+    pour une recommandation, triées du plus récent au plus ancien.
+
+    Exclut les demandes PENDING (gérées séparément par get_pending_extension_for_recommendation).
+
+    Args:
+        recommendation: L'instance Recommendation.
+
+    Returns:
+        QuerySet[ExtensionRequest]: Historique APPROVED/REJECTED.
+    """
+    return (
+        ExtensionRequest.objects
+        .filter(recommendation=recommendation)
+        .exclude(status=ExtensionRequest.Status.PENDING)
+        .select_related("requested_by", "reviewed_by")
+        .order_by("-reviewed_at")
     )
 

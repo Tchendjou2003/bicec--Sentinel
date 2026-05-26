@@ -71,6 +71,12 @@ urlpatterns = [
         views.EvidenceRejectView.as_view(),
         name="evidence-reject",
     ),
+    # ── Validation DM → Audit (Story 3.5) ──
+    path(
+        "recommandations/<uuid:pk>/submissions/<uuid:submission_id>/approve/",
+        views.EvidenceDMApprovalView.as_view(),
+        name="evidence-approve",
+    ),
     # ── Endpoints HTMX pour brouillons (Story 3.3 v2) ──
     path(
         "recommandations/<uuid:pk>/draft/upload/",
@@ -96,6 +102,22 @@ urlpatterns = [
         "recommandations/<uuid:pk>/evidence/<uuid:file_id>/download/",
         views.EvidenceFileDownloadView.as_view(),
         name="evidence-download",
+    ),
+    # ── Demandes de Report d'Échéance (Story 3.6 — FR13, FR14, FR34) ──
+    path(
+        "recommandations/<uuid:pk>/extension/request/",
+        views.ExtensionRequestView.as_view(),
+        name="extension-request",
+    ),
+    path(
+        "recommandations/<uuid:pk>/extension/<uuid:ext_id>/approve/",
+        views.ExtensionApproveView.as_view(),
+        name="extension-approve",
+    ),
+    path(
+        "recommandations/<uuid:pk>/extension/<uuid:ext_id>/reject/",
+        views.ExtensionRejectView.as_view(),
+        name="extension-reject",
     ),
     # ── Habilitation Audit (Story 1.5 + 1.7) ──
     path(

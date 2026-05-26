@@ -18,3 +18,14 @@ AXES_ENABLED = False
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",
 ]
+
+# Désactiver WhiteNoise ManifestStaticFilesStorage pour les tests
+# (évite l'erreur "Missing staticfiles manifest entry" sans collectstatic préalable)
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}

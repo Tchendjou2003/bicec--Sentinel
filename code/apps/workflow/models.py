@@ -432,6 +432,18 @@ class Recommendation(models.Model):
         """
         pass
 
+    @transition(field=status, source=Status.PENDING_DM_REVIEW, target=Status.PENDING_AUDIT_REVIEW)
+    def approve_for_audit(self):
+        """
+        Transition PENDING_DM_REVIEW → PENDING_AUDIT_REVIEW (Story 3.5 — AC1).
+
+        Déclenchée lorsque le DM valide les preuves et les envoie à l'Audit Interne.
+        La mise à jour de l'EvidenceSubmission (ACCEPTED + commentaire DM) et
+        la vérification de l'exemption PV de Recette (FR19) sont orchestrées
+        par validate_evidence_for_audit() dans le service layer.
+        """
+        pass
+
 
 # =============================================================================
 # Livrable attendu
@@ -728,3 +740,112 @@ class EvidenceFile(models.Model):
         if self.file:
             self.file.delete(save=False)
         super(EvidenceFile, self).delete(*args, **kwargs)
+
+
+# =============================================================================
+# Demande de Report d'Échéance (Story 3.6 — FR13, FR14, FR34)
+# =============================================================================
+
+
+class ExtensionRequest(models.Model):
+    """
+    Demande formelle de report d'échéance émise par le DM ou DG assigné.
+
+    Modèle satellite de Recommendation — ne déclenche aucune transition FSM.
+    Une seule demande PENDING est autorisée par recommandation à la fois.
+
+    Workflow :
+        PENDING (soumis) → APPROVED (Audit approuve) : due_date est mis à jour.
+        PENDING (soumis) → REJECTED (Audit rejette) : due_date est inchangé.
+
+    Plusieurs demandes peuvent exister par reco (historique APPROVED/REJECTED conservé),
+    mais une seule en PENDING simultanément (guard dans request_extension()).
+
+    Ref. Architecture : Story 3.6 — FR13, FR14, FR34.
+    """
+
+    class Status(models.TextChoices):
+        PENDING  = "PENDING",  _("En attente")
+        APPROVED = "APPROVED", _("Approuvée")
+        REJECTED = "REJECTED", _("Rejetée")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    recommendation = models.ForeignKey(
+        Recommendation,
+        on_delete=models.CASCADE,
+        related_name="extension_requests",
+        verbose_name=_("Recommandation"),
+    )
+
+    # ── Demande DM / DG ──────────────────────────────────────────────
+
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="extension_requests_made",
+        verbose_name=_("Demandeur"),
+        help_text=_("DM ou DG personnellement assigné ayant soumis la demande."),
+    )
+    requested_date = models.DateField(
+        _("Nouvelle date souhaitée"),
+        help_text=_("Date proposée par le demandeur pour la nouvelle échéance."),
+    )
+    reason = models.TextField(
+        _("Motif de la demande"),
+        max_length=2000,
+        help_text=_("Justification obligatoire de la demande de report."),
+    )
+
+    # ── Réponse Audit ────────────────────────────────────────────────
+
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="extension_requests_reviewed",
+        verbose_name=_("Statué par"),
+        help_text=_("Auditeur ayant approuvé ou rejeté la demande."),
+    )
+    reviewed_at = models.DateTimeField(
+        _("Statué le"),
+        null=True,
+        blank=True,
+    )
+    audit_comment = models.TextField(
+        _("Commentaire Audit"),
+        max_length=2000,
+        blank=True,
+        default="",
+        help_text=_(
+            "Optionnel lors de l'approbation. "
+            "Obligatoire lors du rejet (AC5)."
+        ),
+    )
+
+    status = models.CharField(
+        _("Statut"),
+        max_length=10,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Demande de report")
+        verbose_name_plural = _("Demandes de report")
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["recommendation", "status"],
+                name="idx_ext_req_reco_status",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"Report {self.recommendation.reference} — "
+            f"{self.get_status_display()} — {self.created_at:%Y-%m-%d}"
+        )

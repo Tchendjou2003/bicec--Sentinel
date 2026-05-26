@@ -96,6 +96,7 @@
           hx-get="{% url 'workflow:recommendation-list' %}"
           hx-target="#recommendation-table"
           hx-swap="innerHTML"
+          hx-trigger="change"
           hx-include="[name='source'],[name='status'],[name='priority'],[name='q'],[name='import_status']"
           class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all min-w-[140px]"
           id="filter-priority"

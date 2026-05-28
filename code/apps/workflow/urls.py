@@ -49,6 +49,12 @@ urlpatterns = [
         views.RecommendationAssignView.as_view(),
         name="recommendation-assign",
     ),
+    # ── Assignation directe au DG (Story 3.x) ──
+    path(
+        "recommandations/<uuid:pk>/assign-dg/",
+        views.RecommendationAssignDGView.as_view(),
+        name="recommendation-assign-dg",
+    ),
     path(
         "recommandations/<uuid:pk>/delegate/",
         views.RecommendationDelegateView.as_view(),
@@ -102,6 +108,12 @@ urlpatterns = [
         "recommandations/<uuid:pk>/evidence/<uuid:file_id>/download/",
         views.EvidenceFileDownloadView.as_view(),
         name="evidence-download",
+    ),
+    # ── Soumission Directe DG (Story 3.7 — FR33) ──
+    path(
+        "recommandations/<uuid:pk>/submit-dg/",
+        views.EvidenceDGDirectSubmitView.as_view(),
+        name="evidence-submit-dg",
     ),
     # ── Demandes de Report d'Échéance (Story 3.6 — FR13, FR14, FR34) ──
     path(

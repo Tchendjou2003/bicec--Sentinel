@@ -40,7 +40,8 @@
                   {% if progress >= 100 %}bg-green-500
                   {% elif progress >= 50 %}bg-sentinel-orange
                   {% else %}bg-gray-400{% endif %}"
-           style="width: {{ progress }}%"></div>
+           x-data
+           x-bind:style="'width: ' + {{ progress|default:0 }} + '%'"></div>
     </div>
     <span class="text-xs font-medium {% if progress >= 100 %}text-green-600{% else %}text-gray-400{% endif %} shrink-0">
       {{ progress }}%

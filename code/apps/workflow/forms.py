@@ -233,6 +233,33 @@ class AssignDMForm(forms.Form):
             self.fields["dm"].queryset = User.objects.none()
 
 
+# ── Formulaire d'assignation DG directe (Story 3.x) ──────────────────
+
+
+class AssignDGForm(forms.Form):
+    """
+    Formulaire pour l'assignation directe d'une recommandation à un DG.
+
+    Contrairement à ``AssignDMForm``, le queryset n'est pas filtré par
+    département : le DG a un périmètre banque entière.
+    """
+
+    dg = forms.ModelChoiceField(
+        queryset=User.objects.none(),  # Surchargé dans __init__
+        label=_("Directeur Général"),
+        widget=forms.Select(attrs={"class": _SELECT_CLASS}),
+        empty_label=_("— Sélectionner un DG —"),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from . import selectors
+
+        self.fields["dg"].queryset = (
+            selectors.get_available_dgs_for_recommendation()
+        )
+
+
 # ── Formulaire de Délégation (Story 3.2) ─────────────────────────────
 
 

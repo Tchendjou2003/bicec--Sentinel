@@ -397,6 +397,38 @@ class Recommendation(models.Model):
             )
         self.assigned_dm = dm
 
+    @transition(
+        field=status,
+        source=Status.DRAFT,
+        target=Status.IN_PROGRESS,
+    )
+    def assign_to_dg(self, dg):
+        """
+        Assigne la recommandation directement en IN_PROGRESS à un DG (Story 3.x).
+
+        Bypass de l'état ASSIGNED — le DG agit directement sans phase
+        d'acceptation intermédiaire (contrairement au circuit DM).
+
+        Args:
+            dg: Instance User avec role=DG.
+
+        Raises:
+            ValidationError: Si l'utilisateur n'a pas le rôle DG ou si le
+                             département n'est pas renseigné.
+        """
+        from apps.users.models import User
+
+        if not dg or dg.role != User.Role.DG:
+            raise ValidationError(
+                _("L'utilisateur sélectionné n'a pas le rôle Directeur Général.")
+            )
+        if not self.department:
+            raise ValidationError(
+                _("La Direction concernée doit être renseignée avant l'assignation.")
+            )
+        # Pas de validation département — le DG a périmètre banque entière
+        self.assigned_dm = dg
+
     @transition(field=status, source=Status.ASSIGNED, target=Status.IN_PROGRESS)
     def start_processing(self):
         """
@@ -441,6 +473,23 @@ class Recommendation(models.Model):
         La mise à jour de l'EvidenceSubmission (ACCEPTED + commentaire DM) et
         la vérification de l'exemption PV de Recette (FR19) sont orchestrées
         par validate_evidence_for_audit() dans le service layer.
+        """
+        pass
+
+    @transition(
+        field=status,
+        source=[Status.ASSIGNED, Status.IN_PROGRESS],
+        target=Status.PENDING_AUDIT_REVIEW,
+    )
+    def submit_directly_to_audit(self):
+        """
+        Transition directe DG → PENDING_AUDIT_REVIEW (Story 3.7 / FR33).
+        Bypass de PENDING_DM_REVIEW.
+
+        Déclenchée lorsque le DG assigné soumet directement ses preuves à l'Audit
+        Interne sans passer par le circuit DM Review.
+        Toute la logique métier (RBAC, validation contenu, AuditLog) est orchestrée
+        par submit_evidence_by_dg() dans le service layer.
         """
         pass
 

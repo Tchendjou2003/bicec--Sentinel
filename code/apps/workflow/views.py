@@ -25,6 +25,7 @@ from apps.users.models import User
 
 from . import selectors, services
 from .forms import (
+    AssignDGForm,
     AssignDMForm,
     DelegateETPForm,
     DeliverableFormSet,
@@ -284,7 +285,8 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
             rec.assigned_etp is not None and rec.assigned_etp_id == user.pk
         )
         is_dm_porteur = (
-            rec.assigned_etp is None
+            user.role == User.Role.DM   # DG utilise can_submit_dg, pas ce chemin
+            and rec.assigned_etp is None
             and rec.assigned_dm is not None
             and rec.assigned_dm_id == user.pk
         )
@@ -367,6 +369,18 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
         context["can_review_extension"] = (
             user.role == User.Role.AUDIT
             and pending_extension is not None
+        )
+
+        # ── Soumission Directe DG (Story 3.7 — FR33) ──────────────────────
+        # Visible uniquement pour le DG personnellement assigné en ASSIGNED/IN_PROGRESS
+        context["can_submit_dg"] = (
+            user.role == User.Role.DG
+            and rec.assigned_dm is not None
+            and rec.assigned_dm_id == user.pk
+            and rec.status in (
+                Recommendation.Status.ASSIGNED,
+                Recommendation.Status.IN_PROGRESS,
+            )
         )
 
         return context
@@ -558,7 +572,7 @@ class RecommendationAssignView(AuditRequiredMixin, View):
 
 
 def _render_assign_modal(request, recommendation, form, has_dms):
-    """Render le partial de la modale d'assignation."""
+    """Render le partial de la modale d'assignation DM."""
     from django.template.loader import render_to_string
 
     return render_to_string(
@@ -567,6 +581,110 @@ def _render_assign_modal(request, recommendation, form, has_dms):
             "recommendation": recommendation,
             "form": form,
             "has_dms": has_dms,
+        },
+        request=request,
+    )
+
+
+# =============================================================================
+# Assignation directe au DG (Story 3.x)
+# =============================================================================
+
+
+class RecommendationAssignDGView(AuditRequiredMixin, View):
+    """
+    Vue d'assignation directe au DG — Modale HTMX (toggle DM ↔ DG).
+
+    GET  : Retourne le partial de la modale DG (toggle côté DG actif).
+    POST : Exécute la transition FSM DRAFT → IN_PROGRESS avec DG assigné.
+
+    Sécurité :
+        - AuditRequiredMixin : seul l'Audit peut assigner.
+        - Garde Backend : vérifie status == DRAFT côté serveur.
+        - Race condition : catch TransitionNotAllowed / ValidationError.
+    """
+
+    def get(self, request, pk):
+        recommendation = selectors.get_recommendation_by_id(
+            pk=pk, user=request.user
+        )
+
+        if recommendation.status != Recommendation.Status.DRAFT:
+            return HttpResponseForbidden(
+                "L'assignation n'est possible qu'en état DRAFT."
+            )
+
+        form = AssignDGForm()
+        has_dgs = form.fields["dg"].queryset.exists()
+
+        return HttpResponse(
+            _render_assign_dg_modal(request, recommendation, form, has_dgs),
+        )
+
+    def post(self, request, pk):
+        recommendation = selectors.get_recommendation_by_id(
+            pk=pk, user=request.user
+        )
+
+        if recommendation.status != Recommendation.Status.DRAFT:
+            return HttpResponseForbidden(
+                "L'assignation n'est possible qu'en état DRAFT."
+            )
+
+        from django_fsm import TransitionNotAllowed
+
+        form = AssignDGForm(request.POST)
+
+        if form.is_valid():
+            dg = form.cleaned_data["dg"]
+
+            try:
+                recommendation = services.assign_recommendation_to_dg(
+                    recommendation=recommendation,
+                    dg=dg,
+                    performed_by=request.user,
+                    ip_address=_get_client_ip(request),
+                )
+            except (TransitionNotAllowed, DjangoValidationError) as e:
+                response = HttpResponse(status=422)
+                response["HX-Trigger"] = json.dumps({
+                    "notify": {
+                        "msg": str(e) if str(e) else "Ce dossier a déjà été assigné.",
+                        "type": "error",
+                    },
+                    "closeModal": True,
+                    "refreshTable": True,
+                })
+                return response
+
+            dg_name = dg.get_full_name() or dg.username
+            response = HttpResponse(status=204)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {
+                    "msg": f"{recommendation.reference} assignée à {dg_name}",
+                    "type": "success",
+                },
+            })
+            response["HX-Refresh"] = "true"
+            return response
+
+        has_dgs = form.fields["dg"].queryset.exists()
+        return HttpResponse(
+            _render_assign_dg_modal(request, recommendation, form, has_dgs),
+            status=422,
+        )
+
+
+def _render_assign_dg_modal(request, recommendation, form, has_dgs):
+    """Render le partial de la modale d'assignation DG."""
+    from django.template.loader import render_to_string
+
+    return render_to_string(
+        "workflow/partials/assign_dg_modal.html",
+        {
+            "recommendation": recommendation,
+            "form": form,
+            "has_dgs": has_dgs,
         },
         request=request,
     )
@@ -1566,4 +1684,99 @@ def _render_extension_review_modal(request, recommendation, ext, form, *, action
         },
         request=request,
     )
+
+
+# =============================================================================
+# Soumission Directe DG (Story 3.7 — FR33)
+# =============================================================================
+
+
+def _render_dg_submission_panel(request, recommendation, draft, error_message=None):
+    """Render le partial du panneau de soumission directe DG (side drawer).
+
+    Lecture pure — le draft est créé en amont par la vue (GET) ou récupéré
+    avant le re-rendu (POST en erreur).
+    """
+    from django.template.loader import render_to_string
+    return render_to_string(
+        "workflow/partials/dg_submit_evidence_panel.html",
+        {
+            "recommendation": recommendation,
+            "draft": draft,
+            "error_message": error_message,
+        },
+        request=request,
+    )
+
+
+class EvidenceDGDirectSubmitView(WorkflowAccessMixin, View):
+    """
+    Vue de soumission directe à l'Audit par le DG (Story 3.7 — FR33).
+
+    GET  : Retourne le partial HTML du side drawer de soumission DG.
+    POST : Appelle submit_evidence_by_dg() et renvoie HX-Refresh.
+
+    Sécurité (AC5) :
+        - WorkflowAccessMixin : rôles workflow uniquement.
+        - dispatch() : guard RBAC précoce — DG assigné uniquement.
+    """
+
+    def _get_recommendation(self, pk):
+        return selectors.get_recommendation_detail_for_user(
+            pk=pk,
+            user=self.request.user,
+        )
+
+    def dispatch(self, request, *args, **kwargs):
+        rec = self._get_recommendation(kwargs["pk"])
+        # Guard RBAC précoce (AC5) — DG assigné uniquement
+        if (
+            request.user.role != User.Role.DG
+            or rec.assigned_dm_id != request.user.pk
+        ):
+            raise PermissionDenied("Réservé au DG assigné à cette recommandation.")
+        self._rec = rec
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, pk):
+        # Créer le draft DG dès l'ouverture du panneau pour que
+        # DraftUploadFileView puisse le retrouver lors d'un upload.
+        draft, _ = services.get_or_create_draft_submission(
+            recommendation=self._rec, user=request.user
+        )
+        return HttpResponse(
+            _render_dg_submission_panel(request, self._rec, draft)
+        )
+
+    def post(self, request, pk):
+        try:
+            services.submit_evidence_by_dg(
+                recommendation=self._rec,
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except ValueError as exc:
+            draft, _ = services.get_or_create_draft_submission(
+                recommendation=self._rec, user=request.user
+            )
+            response = HttpResponse(
+                _render_dg_submission_panel(
+                    request, self._rec, draft, error_message=str(exc)
+                ),
+                status=422,
+            )
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {
+                "msg": "Preuves soumises directement à l'Audit.",
+                "type": "success",
+            },
+        })
+        response["HX-Refresh"] = "true"
+        return response
 

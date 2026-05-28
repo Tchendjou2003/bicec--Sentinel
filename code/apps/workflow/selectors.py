@@ -19,7 +19,8 @@ def get_recommendations_for_user(*, user, filters: dict | None = None) -> QueryS
 
     Logique RBAC :
     - AUDIT / superuser : Voient tout le périmètre.
-    - DM / DG : Ne voient que leur département, et jamais les brouillons (DRAFT).
+    - DM : Ne voient que leur département (et descendants), et jamais les brouillons (DRAFT).
+    - DG : Ne voient que les recos qui leur sont personnellement assignées (assigned_dm=user).
     - ETP : Ne voient que ce qui leur est explicitement assigné, et jamais les brouillons.
 
     Args:
@@ -40,13 +41,18 @@ def get_recommendations_for_user(*, user, filters: dict | None = None) -> QueryS
     # 1. Filtre RBAC strict
     if not (user.role == User.Role.AUDIT or user.is_superuser):
         qs = qs.exclude(status=Recommendation.Status.DRAFT)
-        
-        if user.role in [User.Role.DM, User.Role.DG]:
+
+        if user.role == User.Role.DM:
             if user.department:
                 dept_ids = get_department_and_descendants_ids(user.department)
                 qs = qs.filter(department_id__in=dept_ids)
             else:
                 return qs.none()
+        elif user.role == User.Role.DG:
+            # Task 8 (Story 3.7) : le DG ne voit que les recos qui lui sont
+            # personnellement assignées (assigned_dm = user), pas toutes celles
+            # de son département.
+            qs = qs.filter(assigned_dm=user)
         elif user.role == User.Role.ETP:
             qs = qs.filter(assigned_etp=user)
         else:
@@ -178,6 +184,25 @@ def get_available_dms_for_department(*, department) -> QuerySet:
     return User.objects.filter(
         role=User.Role.DM,
         department_id__in=dept_ids,
+        is_active=True,
+    ).order_by("last_name", "first_name")
+
+
+def get_available_dgs_for_recommendation() -> QuerySet:
+    """
+    Retourne les DG actifs pour l'assignation directe (Story 3.x).
+
+    Pas de filtre département — le DG a un périmètre banque entière
+    et peut être assigné à n'importe quelle recommandation quelque
+    soit sa direction.
+
+    Returns:
+        QuerySet[User]: DG actifs, triés par nom puis prénom.
+    """
+    from apps.users.models import User
+
+    return User.objects.filter(
+        role=User.Role.DG,
         is_active=True,
     ).order_by("last_name", "first_name")
 

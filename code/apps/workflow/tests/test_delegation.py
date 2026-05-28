@@ -974,13 +974,43 @@ class HierarchicalVisibilityTest(HierarchyTestMixin, TestCase):
         self.assertNotIn(rec_risques.id, result_ids)
 
     def test_dg_selector_sees_own_department_recommendations(self):
-        """Le selector DG retourne les recommandations de son département."""
-        rec = self._create_assigned_recommendation()
+        """Le selector DG retourne uniquement les recos dont il est assigned_dm (Task 8 / Story 3.7).
+
+        Avant Task 8 : DG voyait toutes les recos de son département (identique au DM).
+        Après Task 8 : DG ne voit que les recos où assigned_dm == dg_finance.
+        """
+        # Reco pour DM (ne doit pas être visible au DG)
+        rec_dm = self._create_assigned_recommendation()
+
+        # Reco directement assignée au DG (bypass FSM role=DM check via update direct)
+        rec_dg = create_recommendation(
+            data={
+                "reference": f"REC-DG-{uuid.uuid4().hex[:6].upper()}",
+                "mission_date": timezone.now().date(),
+                "mission_label": "Mission DG test visibilité",
+                "controlled_department": self.direction_finance,
+                "observations": "Obs DG",
+                "anomalous_dossiers": "",
+                "description": "Desc DG test",
+                "source": Recommendation.Source.INTERNE,
+                "priority": Recommendation.Priority.MOYENNE,
+                "department": self.direction_finance,
+                "due_date": timezone.now().date() + timedelta(days=30),
+            },
+            deliverables_data=["Livrable DG"],
+            performed_by=self.audit_user,
+        )
+        # Story 3.x : l'assignation DG → IN_PROGRESS (bypass ASSIGNED)
+        Recommendation.all_objects.filter(pk=rec_dg.pk).update(
+            status=Recommendation.Status.IN_PROGRESS,
+            assigned_dm=self.dg_finance,
+        )
 
         results = selectors.get_recommendations_for_user(user=self.dg_finance)
         result_ids = set(results.values_list("id", flat=True))
 
-        self.assertIn(rec.id, result_ids)
+        self.assertIn(rec_dg.pk, result_ids)
+        self.assertNotIn(rec_dm.pk, result_ids)
 
     def test_etp_selector_only_sees_explicitly_assigned(self):
         """Le selector ETP ne retourne que les recommandations assignées à l'ETP."""

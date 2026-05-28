@@ -302,6 +302,80 @@ def assign_recommendation_to_dm(
     return recommendation
 
 
+def assign_recommendation_to_dg(
+    *,
+    recommendation: Recommendation,
+    dg,
+    performed_by,
+    ip_address: str | None = None,
+) -> Recommendation:
+    """
+    Assigne une recommandation DRAFT directement à un Directeur Général (Story 3.x).
+
+    Contrairement au circuit DM (DRAFT → ASSIGNED), le DG n'a pas de phase
+    d'acceptation intermédiaire : la transition FSM est DRAFT → IN_PROGRESS.
+    Le champ ``assigned_dm`` est réutilisé pour stocker le DG assigné.
+
+    Args:
+        recommendation: L'instance en état DRAFT.
+        dg: L'utilisateur cible (role=DG).
+        performed_by: L'auditeur interne effectuant l'assignation.
+        ip_address: Adresse IP du client.
+
+    Returns:
+        Recommendation: L'instance avec status=IN_PROGRESS et assigned_dm=dg.
+
+    Raises:
+        ValidationError: Si le rôle DG est invalide ou la direction absente.
+        TransitionNotAllowed: Si la recommandation n'est plus en DRAFT.
+    """
+    with transaction.atomic():
+        # Verrouiller pour concurrence (ADR-07 §5.4)
+        recommendation = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        if recommendation.is_deleted:
+            raise ValueError("Impossible d'assigner une recommandation supprimée.")
+
+        # Capturer la valeur initiale (avant la transition FSM)
+        previous_assigned_dm = (
+            str(recommendation.assigned_dm_id)
+            if recommendation.assigned_dm_id
+            else None
+        )
+
+        # Transition FSM : DRAFT → IN_PROGRESS (bypass de ASSIGNED)
+        recommendation.assign_to_dg(dg)
+        recommendation.save(update_fields=["status", "assigned_dm", "updated_at"])
+
+        # Nom lisible pour l'audit trail (pérennité réglementaire)
+        dg_display = dg.get_full_name() or dg.username
+
+        # Audit Log (NFR-SEC-05 — traçabilité complète)
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=recommendation.pk,
+            changes={
+                "status": ["DRAFT", "IN_PROGRESS"],
+                "assigned_dm": [previous_assigned_dm, str(dg.pk)],
+                "assigned_by_dg_direct": True,
+            },
+            description=(
+                f"Assignation directe de {recommendation.reference} "
+                f"au DG {dg_display} par {performed_by.username} "
+                f"(bypass ASSIGNED — circuit DG)"
+            ),
+            ip_address=ip_address,
+        )
+
+    return recommendation
+
+
 def delegate_recommendation_to_etp(
     *,
     recommendation: Recommendation,
@@ -1445,3 +1519,111 @@ def reject_extension(
         )
 
     return ext
+
+
+# =============================================================================
+# Soumission Directe DG (Story 3.7 — FR33)
+# =============================================================================
+
+
+def submit_evidence_by_dg(
+    *,
+    recommendation,
+    performed_by,
+    ip_address=None,
+):
+    """
+    Soumet directement des preuves à l'Audit Interne au nom du DG assigné (FR33).
+
+    Bypass complet du circuit DM Review : la recommandation passe de ASSIGNED/IN_PROGRESS
+    directement à PENDING_AUDIT_REVIEW sans transiter par PENDING_DM_REVIEW.
+
+    Args:
+        recommendation: La recommandation cible (doit être ASSIGNED ou IN_PROGRESS).
+        performed_by: L'utilisateur DG effectuant la soumission.
+        ip_address: L'adresse IP du client (pour l'AuditLog).
+
+    Returns:
+        Recommendation: La recommandation mise à jour (status=PENDING_AUDIT_REVIEW).
+
+    Raises:
+        PermissionDenied: Si performed_by n'a pas le rôle DG ou n'est pas assigned_dm.
+        ValueError: Si l'état FSM ne permet pas la soumission directe (AC6),
+                    ou si le draft est vide (AC3).
+
+    ACs couverts : AC2, AC3, AC4, AC5, AC6.
+    """
+    from apps.users.models import User
+
+    # Guard RBAC pré-transaction (AC5) — rôle DG obligatoire
+    if performed_by.role != User.Role.DG:
+        raise PermissionDenied(
+            "Endpoint réservé au rôle DG."
+        )
+    # Guard RBAC pré-transaction (AC5) — DG doit être assigned_dm
+    if recommendation.assigned_dm_id != performed_by.pk:
+        raise PermissionDenied(
+            "Vous n'êtes pas le DG assigné à cette recommandation."
+        )
+
+    with transaction.atomic():
+        rec = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        # Re-vérification RBAC sur instance fraîche (parade TOCTOU)
+        if rec.assigned_dm_id != performed_by.pk:
+            raise PermissionDenied(
+                "Vous n'êtes plus le DG assigné à cette recommandation."
+            )
+
+        # Guard FSM (AC6) — soumission directe impossible hors ASSIGNED/IN_PROGRESS
+        if rec.status not in (
+            Recommendation.Status.ASSIGNED,
+            Recommendation.Status.IN_PROGRESS,
+        ):
+            raise ValueError(
+                f"Soumission directe impossible depuis l'état « {rec.status} »."
+            )
+
+        # Récupérer ou créer le draft DG (AC2 — réutilise get_or_create_draft_submission)
+        draft, _ = get_or_create_draft_submission(recommendation=rec, user=performed_by)
+
+        # Guard contenu (AC3) — au moins un fichier OU un commentaire non vide
+        if not draft.files.exists() and not draft.comment.strip():
+            raise ValueError(
+                "Veuillez joindre au moins un fichier ou saisir un commentaire."
+            )
+
+        source_status = rec.status
+
+        # Valider le draft directement (AC2) — bypass DM Review
+        draft.status = EvidenceSubmission.SubmissionStatus.ACCEPTED
+        draft.reviewed_by = performed_by
+        draft.reviewed_at = timezone.now()
+        draft.save()
+
+        # Transition FSM directe (AC2)
+        rec.submit_directly_to_audit()
+        rec.save()
+
+        # AuditLog (AC4 — NFR-SEC-05 append-only)
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=rec.pk,
+            changes={
+                "status": [source_status, Recommendation.Status.PENDING_AUDIT_REVIEW],
+                "submitted_by_dg": True,
+            },
+            description=(
+                f"Soumission directe DG {performed_by.get_full_name()} "
+                f"pour {rec.reference}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return rec

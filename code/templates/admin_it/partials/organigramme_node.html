@@ -5,11 +5,11 @@
         <div class="flex items-center gap-3">
             <div
                 class="flex h-9 w-9 items-center justify-center rounded-lg bg-sentinel-orange/10 text-sentinel-orange text-xs font-bold">
-                {{ node.get_type_display|truncatechars:3 }}
+                {{ node.type.name|truncatechars:3 }}
             </div>
             <div>
                 <p class="text-sm font-semibold text-gray-900">{{ node.name }}</p>
-                <p class="text-xs text-gray-400">{{ node.code }} • {{ node.get_type_display }}</p>
+                <p class="text-xs text-gray-400">{{ node.code }} • {{ node.type.name }}</p>
             </div>
         </div>
         <div class="flex items-center gap-2">

@@ -10,7 +10,45 @@ Spécifications couvertes :
 from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 
-from .models import EvidenceSubmission, ExtensionRequest, Recommendation
+from .models import EvidenceSubmission, ExtensionRequest, Recommendation, RecommendationSource
+
+
+# =============================================================================
+# Sélecteurs Sources (Story 3.7.b — Phase A)
+# =============================================================================
+
+
+def get_active_sources() -> QuerySet[RecommendationSource]:
+    """
+    Retourne les sources actives pour le formulaire de création de recommandation.
+
+    Exclut les sources désactivées (is_active=False) — celles-ci restent
+    visibles sur les recommandations historiques mais ne sont plus proposées
+    à la création.
+    """
+    return RecommendationSource.objects.filter(is_active=True).order_by("is_external", "label")
+
+
+def get_all_sources() -> QuerySet[RecommendationSource]:
+    """
+    Retourne toutes les sources (actives + inactives) pour l'interface Audit Admin.
+    """
+    return RecommendationSource.objects.all().order_by("is_external", "label")
+
+
+def get_source_by_code(code: str) -> "RecommendationSource | None":
+    """
+    Retourne une source par son code, ou None si inexistante.
+
+    Usage : tests et services uniquement.
+    Les data migrations utilisent apps.get_model() directement.
+    """
+    return RecommendationSource.objects.filter(code=code).first()
+
+
+# =============================================================================
+# Sélecteurs Recommandations
+# =============================================================================
 
 
 def get_recommendations_for_user(*, user, filters: dict | None = None) -> QuerySet[Recommendation]:
@@ -34,7 +72,10 @@ def get_recommendations_for_user(*, user, filters: dict | None = None) -> QueryS
 
     qs = (
         Recommendation.objects
-        .select_related("created_by", "department", "controlled_department", "assigned_dm", "assigned_etp")
+        .select_related(
+            "created_by", "department", "controlled_department",
+            "assigned_dm", "assigned_etp", "source",
+        )
         .all()
     )
 
@@ -68,7 +109,8 @@ def get_recommendations_for_user(*, user, filters: dict | None = None) -> QueryS
         import_status = filters.get("import_status", "recent")
 
         if source:
-            qs = qs.filter(source=source)
+            # Coupe nette : source est un UUID (PK de RecommendationSource)
+            qs = qs.filter(source_id=source)
         if status:
             qs = qs.filter(status=status)
         if priority:
@@ -112,7 +154,7 @@ def get_recommendation_by_id(*, pk, user) -> Recommendation:
     """
     qs = get_recommendations_for_user(user=user).select_related(
         "created_by", "department", "controlled_department",
-        "assigned_dm", "assigned_etp",
+        "assigned_dm", "assigned_etp", "source",
     )
     return get_object_or_404(qs, pk=pk)
 
@@ -139,7 +181,7 @@ def get_recommendation_detail_for_user(*, pk, user) -> Recommendation:
     """
     qs = get_recommendations_for_user(user=user).select_related(
         "created_by", "department", "controlled_department",
-        "assigned_dm", "assigned_etp",
+        "assigned_dm", "assigned_etp", "source",
     ).prefetch_related("deliverables")
     return get_object_or_404(qs, pk=pk)
 

@@ -70,6 +70,78 @@ class ImmutableManager(models.Manager):
 
 
 # =============================================================================
+# Référentiel Sources (paramétrable — Story 3.7.b)
+# =============================================================================
+
+
+class RecommendationSource(models.Model):
+    """
+    Source d'une recommandation d'audit — référentiel paramétrable.
+
+    Remplace l'enum ``Recommendation.Source`` figé en dur en Python.
+    Géré exclusivement par l'Audit Admin (is_audit_admin=True).
+    Les sources désactivées (is_active=False) sont masquées du formulaire
+    de création mais restent visibles sur les recommandations historiques.
+
+    Ref. Story 3.7.b — NFR-AGN-01 (agnosticisme produit)
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    code = models.CharField(
+        _("Code"),
+        max_length=30,
+        unique=True,
+        help_text=_(
+            "Identifiant technique immuable (ex: COBAC). "
+            "Ne peut plus être modifié après création."
+        ),
+    )
+    label = models.CharField(
+        _("Libellé"),
+        max_length=120,
+        help_text=_("Libellé affiché dans l'UI et les exports."),
+    )
+    is_external = models.BooleanField(
+        _("Source externe"),
+        default=True,
+        help_text=_(
+            "True = autorité réglementaire externe (COBAC, ANIF…). "
+            "False = audit interne."
+        ),
+    )
+    is_active = models.BooleanField(
+        _("Active"),
+        default=True,
+        help_text=_(
+            "Sources inactives masquées du formulaire de création. "
+            "Désactiver plutôt que supprimer pour préserver l'historique."
+        ),
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name=_("Créé par"),
+    )
+
+    class Meta:
+        verbose_name = _("Source de recommandation")
+        verbose_name_plural = _("Sources de recommandation")
+        db_table = "workflow_recommendation_source"
+        ordering = ["is_external", "label"]
+
+    def __str__(self) -> str:
+        return self.label
+
+
+# =============================================================================
 # Recommandation
 # =============================================================================
 
@@ -90,15 +162,6 @@ class Recommendation(models.Model):
     """
 
     # ── Enums ─────────────────────────────────────────────────────────
-
-    class Source(models.TextChoices):
-        INTERNE = "INTERNE", _("Audit Interne")
-        COBAC = "COBAC", _("COBAC")
-        CAC = "CAC", _("CAC")
-        ANIF = "ANIF", _("ANIF")
-        BEAC = "BEAC", _("BEAC")
-        ANTIC = "ANTIC", _("ANTIC")
-        CONSULTANT = "CONSULTANT", _("Consultant")
 
     class Priority(models.TextChoices):
         CRITIQUE = "CRITIQUE", _("Critique")
@@ -174,10 +237,11 @@ class Recommendation(models.Model):
             "Décrit ce qui doit être corrigé ou amélioré."
         ),
     )
-    source = models.CharField(
-        _("Source"),
-        max_length=20,
-        choices=Source.choices,
+    source = models.ForeignKey(
+        "RecommendationSource",
+        on_delete=models.PROTECT,
+        related_name="recommendations",
+        verbose_name=_("Source"),
         help_text=_("Origine réglementaire de la recommandation."),
     )
     priority = models.CharField(

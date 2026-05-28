@@ -19,7 +19,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from ..audit.models import AuditLog
-from .models import Deliverable, EvidenceFile, EvidenceSubmission, Recommendation
+from .models import Deliverable, EvidenceFile, EvidenceSubmission, Recommendation, RecommendationSource
 from .validators import (
     compute_sha256,
     detect_mime_type,
@@ -80,7 +80,14 @@ def create_recommendation(
             object_id=recommendation.pk,
             changes={
                 "reference": recommendation.reference,
-                "source": recommendation.source,
+                # Piège 3 (Story 3.7.b) : après bascule FK, source est une instance
+                # RecommendationSource → utiliser .code pour rester JSON-safe.
+                # Avant bascule : source est encore un CharField (string) → pas de .code.
+                "source": (
+                    recommendation.source.code
+                    if hasattr(recommendation.source, "code")
+                    else recommendation.source
+                ),
                 "priority": recommendation.priority,
                 "status": recommendation.status,
                 "deliverables_count": len(deliverables),
@@ -1627,3 +1634,133 @@ def submit_evidence_by_dg(
         )
 
     return rec
+
+
+# =============================================================================
+# Services Sources de recommandation (Story 3.7.b — Phase A)
+# =============================================================================
+
+
+def create_recommendation_source(
+    *,
+    code: str,
+    label: str,
+    is_external: bool,
+    performed_by,
+    ip_address: str | None = None,
+) -> RecommendationSource:
+    """
+    Crée une nouvelle source de recommandation.
+
+    Args:
+        code: Identifiant technique unique (ex: MINFI). Immuable après création.
+        label: Libellé affiché dans l'UI.
+        is_external: True = autorité externe, False = audit interne.
+        performed_by: Audit Admin effectuant la création (is_audit_admin=True).
+        ip_address: Adresse IP du client.
+
+    Returns:
+        RecommendationSource: L'instance créée.
+    """
+    with transaction.atomic():
+        source = RecommendationSource(
+            code=code.strip().upper(),
+            label=label.strip(),
+            is_external=is_external,
+            is_active=True,
+            created_by=performed_by,
+        )
+        source.full_clean()
+        source.save()
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.CREATE,
+            user=performed_by,
+            content_type="RecommendationSource",
+            object_id=source.pk,
+            changes={
+                "code": source.code,
+                "label": source.label,
+                "is_external": source.is_external,
+                "is_active": True,
+            },
+            description=f"Création de la source '{source.code}' ({source.label})",
+            ip_address=ip_address,
+        )
+
+    return source
+
+
+def update_recommendation_source(
+    *,
+    source: RecommendationSource,
+    label: str,
+    is_external: bool,
+    performed_by,
+    ip_address: str | None = None,
+) -> RecommendationSource:
+    """
+    Met à jour le libellé et/ou le flag is_external d'une source.
+
+    Piège 2 (Story 3.7.b Dev Notes) : ModelForm._post_clean() mute l'instance
+    AVANT l'appel au service → on recharge depuis la DB avec select_for_update()
+    pour comparer le vrai état pré-form.
+    """
+    with transaction.atomic():
+        # Recharger depuis DB (piège 2 : form._post_clean a peut-être déjà muté `source`)
+        fresh = RecommendationSource.objects.select_for_update().get(pk=source.pk)
+
+        delta = {}
+        new_label = label.strip()
+        if fresh.label != new_label:
+            delta["label"] = [fresh.label, new_label]
+            fresh.label = new_label
+        if fresh.is_external != is_external:
+            delta["is_external"] = [fresh.is_external, is_external]
+            fresh.is_external = is_external
+
+        if delta:
+            fresh.save(update_fields=["label", "is_external"])
+            AuditLog.objects.create(
+                action=AuditLog.Action.UPDATE,
+                user=performed_by,
+                content_type="RecommendationSource",
+                object_id=fresh.pk,
+                changes=delta,
+                description=f"Modification de la source '{fresh.code}' : {list(delta.keys())}",
+                ip_address=ip_address,
+            )
+
+    return fresh
+
+
+def toggle_recommendation_source(
+    *,
+    source: RecommendationSource,
+    performed_by,
+    ip_address: str | None = None,
+) -> RecommendationSource:
+    """
+    Bascule l'état is_active d'une source (activation / désactivation).
+
+    Une source désactivée disparaît du formulaire de création de recommandation
+    mais reste visible sur les recommandations historiques.
+    """
+    with transaction.atomic():
+        fresh = RecommendationSource.objects.select_for_update().get(pk=source.pk)
+        old_state = fresh.is_active
+        fresh.is_active = not old_state
+        fresh.save(update_fields=["is_active"])
+
+        action_word = "Activation" if fresh.is_active else "Désactivation"
+        AuditLog.objects.create(
+            action=AuditLog.Action.UPDATE,
+            user=performed_by,
+            content_type="RecommendationSource",
+            object_id=fresh.pk,
+            changes={"is_active": [old_state, fresh.is_active]},
+            description=f"{action_word} de la source '{fresh.code}' ({fresh.label})",
+            ip_address=ip_address,
+        )
+
+    return fresh

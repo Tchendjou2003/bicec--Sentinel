@@ -12,7 +12,7 @@ Spécifications couvertes :
 from django.core.exceptions import PermissionDenied
 
 from ..audit.models import AuditLog
-from .models import Department, User
+from .models import Department, OrgUnitType, User
 from django.db import transaction
 
 
@@ -192,6 +192,95 @@ def soft_delete_department_with_audit(
         ip_address=ip_address,
     )
     return department
+
+
+@transaction.atomic
+def create_org_unit_type(
+    *,
+    form,
+    performed_by: User,
+    ip_address: str | None = None,
+) -> OrgUnitType:
+    """
+    Création d'un type d'unité organisationnelle avec trace d'audit.
+
+    Le ``code`` est verrouillé à la création (immuable).
+    """
+    instance = form.save()
+    AuditLog.objects.create(
+        action=AuditLog.Action.CREATE,
+        user=performed_by,
+        content_type="OrgUnitType",
+        object_id=instance.pk,
+        changes={"code": [None, instance.code], "name": [None, instance.name]},
+        description=(
+            f"Création du type d'unité : {instance.name} ({instance.code}) "
+            f"par {performed_by.username}"
+        ),
+        ip_address=ip_address,
+    )
+    return instance
+
+
+@transaction.atomic
+def update_org_unit_type(
+    *,
+    form,
+    performed_by: User,
+    ip_address: str | None = None,
+) -> OrgUnitType:
+    """
+    Modification du libellé ou du niveau d'un type d'unité.
+
+    Le ``code`` est immuable — le formulaire doit le désactiver en édition.
+    Seuls ``name``, ``level`` et ``is_active`` peuvent changer.
+    """
+    instance_before = form.instance
+    old_name = instance_before.name
+    old_level = instance_before.level
+    instance = form.save()
+    AuditLog.objects.create(
+        action=AuditLog.Action.UPDATE,
+        user=performed_by,
+        content_type="OrgUnitType",
+        object_id=instance.pk,
+        changes={
+            "name": [old_name, instance.name],
+            "level": [old_level, instance.level],
+        },
+        description=(
+            f"Modification du type d'unité : {instance.code} "
+            f"par {performed_by.username}"
+        ),
+        ip_address=ip_address,
+    )
+    return instance
+
+
+@transaction.atomic
+def toggle_org_unit_type(
+    *,
+    instance: OrgUnitType,
+    performed_by: User,
+    ip_address: str | None = None,
+) -> OrgUnitType:
+    """Active ou désactive un type d'unité organisationnelle."""
+    old_value = instance.is_active
+    instance.is_active = not old_value
+    instance.save(update_fields=["is_active"])
+    AuditLog.objects.create(
+        action=AuditLog.Action.UPDATE,
+        user=performed_by,
+        content_type="OrgUnitType",
+        object_id=instance.pk,
+        changes={"is_active": [old_value, instance.is_active]},
+        description=(
+            f"Type d'unité {'activé' if instance.is_active else 'désactivé'} : "
+            f"{instance.code} par {performed_by.username}"
+        ),
+        ip_address=ip_address,
+    )
+    return instance
 
 
 @transaction.atomic

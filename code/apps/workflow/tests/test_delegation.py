@@ -21,8 +21,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
-from apps.users.models import Department, User
-from apps.workflow.models import Recommendation
+from apps.users.models import Department, OrgUnitType, User
+from apps.workflow.models import Recommendation, RecommendationSource
 from apps.workflow.services import (
     assign_recommendation_to_dm,
     create_recommendation,
@@ -39,18 +39,32 @@ class HierarchyTestMixin:
 
     @classmethod
     def setUpTestData(cls):
+        # ── Types d'unités organisationnelles (seeded by migration 0006) ──
+        cls.type_direction, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION", defaults={"name": "Direction", "level": 1},
+        )
+        cls.type_sous_direction, _ = OrgUnitType.objects.get_or_create(
+            code="SOUS_DIRECTION", defaults={"name": "Sous-Direction", "level": 2},
+        )
+        cls.type_departement, _ = OrgUnitType.objects.get_or_create(
+            code="DEPARTEMENT", defaults={"name": "Département", "level": 3},
+        )
+        cls.type_service, _ = OrgUnitType.objects.get_or_create(
+            code="SERVICE", defaults={"name": "Service", "level": 4},
+        )
+
         # ── Direction Finance (racine) ──
         cls.direction_finance = Department.objects.create(
             name="Direction des Finances",
             code="DFI",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
 
         # ── Sous-Direction Comptabilité (enfant de Direction Finance) ──
         cls.sous_direction_compta = Department.objects.create(
             name="Sous-Direction Comptabilité",
             code="SDC",
-            type=Department.Type.SOUS_DIRECTION,
+            type=cls.type_sous_direction,
             parent=cls.direction_finance,
         )
 
@@ -58,7 +72,7 @@ class HierarchyTestMixin:
         cls.departement_saisie = Department.objects.create(
             name="Département Saisie",
             code="DSA",
-            type=Department.Type.DEPARTEMENT,
+            type=cls.type_departement,
             parent=cls.sous_direction_compta,
         )
 
@@ -66,7 +80,7 @@ class HierarchyTestMixin:
         cls.service_saisie_credits = Department.objects.create(
             name="Service Saisie Crédits",
             code="SSC",
-            type=Department.Type.SERVICE,
+            type=cls.type_service,
             parent=cls.departement_saisie,
         )
 
@@ -74,14 +88,14 @@ class HierarchyTestMixin:
         cls.direction_risques = Department.objects.create(
             name="Direction des Risques",
             code="DRQ",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
 
         # ── Sous-Direction Risques Crédit (enfant de Direction Risques) ──
         cls.sous_direction_risque_credit = Department.objects.create(
             name="Sous-Direction Risques Crédit",
             code="SDRC",
-            type=Department.Type.SOUS_DIRECTION,
+            type=cls.type_sous_direction,
             parent=cls.direction_risques,
         )
 
@@ -171,6 +185,12 @@ class HierarchyTestMixin:
             last_name="Interne",
         )
 
+        # ── Source de recommandation (Story 3.7.b) ──
+        cls.source_interne, _ = RecommendationSource.objects.get_or_create(
+            code="INTERNE",
+            defaults={"label": "Audit Interne", "is_external": False},
+        )
+
         # ── DG ──
         cls.dg_finance = User.objects.create_user(
             username="dg_finance",
@@ -197,7 +217,7 @@ class HierarchyTestMixin:
                 "observations": "Obs test",
                 "anomalous_dossiers": "",
                 "description": "Description test délégation",
-                "source": Recommendation.Source.INTERNE,
+                "source": self.source_interne,  # Story 3.7.b — FK instance
                 "priority": Recommendation.Priority.MOYENNE,
                 "department": dept,
                 "due_date": timezone.now().date() + timedelta(days=30),
@@ -630,7 +650,7 @@ class FSMStateBlockingTest(HierarchyTestMixin, TestCase):
                 "observations": "Obs",
                 "anomalous_dossiers": "",
                 "description": "Description draft",
-                "source": Recommendation.Source.INTERNE,
+                "source": self.source_interne,  # Story 3.7.b — FK instance
                 "priority": Recommendation.Priority.MOYENNE,
                 "department": self.direction_finance,
                 "due_date": timezone.now().date() + timedelta(days=30),
@@ -939,7 +959,7 @@ class HierarchicalVisibilityTest(HierarchyTestMixin, TestCase):
                 "observations": "Obs",
                 "anomalous_dossiers": "",
                 "description": "Desc SD",
-                "source": Recommendation.Source.INTERNE,
+                "source": self.source_interne,  # Story 3.7.b — FK instance
                 "priority": Recommendation.Priority.MOYENNE,
                 "department": self.sous_direction_compta,
                 "due_date": timezone.now().date() + timedelta(days=30),
@@ -992,7 +1012,7 @@ class HierarchicalVisibilityTest(HierarchyTestMixin, TestCase):
                 "observations": "Obs DG",
                 "anomalous_dossiers": "",
                 "description": "Desc DG test",
-                "source": Recommendation.Source.INTERNE,
+                "source": self.source_interne,  # Story 3.7.b — FK instance
                 "priority": Recommendation.Priority.MOYENNE,
                 "department": self.direction_finance,
                 "due_date": timezone.now().date() + timedelta(days=30),

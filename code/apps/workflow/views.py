@@ -20,10 +20,11 @@ from django.shortcuts import get_object_or_404
 from django.views import View
 from django.views.generic import DetailView, ListView
 
-from apps.users.mixins import AuditRequiredMixin, WorkflowAccessMixin
+from apps.users.mixins import AuditAdminRequiredMixin, AuditRequiredMixin, WorkflowAccessMixin
 from apps.users.models import User
 
 from . import selectors, services
+from .admin_forms import RecommendationSourceForm
 from .forms import (
     AssignDGForm,
     AssignDMForm,
@@ -37,7 +38,7 @@ from .forms import (
     ExtensionRequestForm,
     RecommendationForm,
 )
-from .models import EvidenceFile, EvidenceSubmission, ExtensionRequest, Recommendation
+from .models import EvidenceFile, EvidenceSubmission, ExtensionRequest, Recommendation, RecommendationSource
 
 
 def _get_client_ip(request) -> str | None:
@@ -82,7 +83,7 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
         context["topbar_title"] = "Recommandations"
         context["topbar_subtitle"] = "Suivi des recommandations d'audit"
         # Pour les filtres
-        context["sources"] = Recommendation.Source.choices
+        context["sources"] = selectors.get_active_sources()
         context["statuses"] = Recommendation.Status.choices
         context["priorities"] = Recommendation.Priority.choices
         # Filtres actuels
@@ -1755,7 +1756,7 @@ class EvidenceDGDirectSubmitView(WorkflowAccessMixin, View):
                 performed_by=request.user,
                 ip_address=_get_client_ip(request),
             )
-        except ValueError as exc:
+        except (ValueError, PermissionDenied) as exc:
             draft, _ = services.get_or_create_draft_submission(
                 recommendation=self._rec, user=request.user
             )
@@ -1776,6 +1777,158 @@ class EvidenceDGDirectSubmitView(WorkflowAccessMixin, View):
                 "msg": "Preuves soumises directement à l'Audit.",
                 "type": "success",
             },
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+# =============================================================================
+# Administration des Sources de Recommandation (Story 3.7.b — Audit Admin)
+# =============================================================================
+
+
+def _render_source_form(request, form, source=None):
+    """Rendu du partial formulaire (modal) de source."""
+    from django.template.loader import render_to_string
+    return render_to_string(
+        "workflow/admin/sources/_form_modal.html",
+        {"form": form, "source": source},
+        request=request,
+    )
+
+
+class RecommendationSourceListView(AuditAdminRequiredMixin, ListView):
+    """
+    Vue liste — Administration des sources de recommandation.
+
+    Accès : Audit Admin uniquement (role=AUDIT AND is_audit_admin=True).
+    Affiche toutes les sources (actives et inactives) avec leur statut.
+    """
+
+    template_name = "workflow/admin/sources/list.html"
+    context_object_name = "sources"
+
+    def get_queryset(self):
+        return selectors.get_all_sources()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["active_route"] = "sources-admin"
+        context["topbar_title"] = "Sources de recommandation"
+        context["topbar_subtitle"] = "Paramétrage des sources (internes et externes)"
+        return context
+
+
+class RecommendationSourceCreateView(AuditAdminRequiredMixin, View):
+    """
+    Création d'une source de recommandation.
+
+    GET  : Retourne le partial formulaire vide (HTMX hx-get).
+    POST : Crée la source via le service. Retourne 204+HX-Refresh ou 422+form.
+    """
+
+    def get(self, request):
+        form = RecommendationSourceForm()
+        return HttpResponse(_render_source_form(request, form))
+
+    def post(self, request):
+        form = RecommendationSourceForm(request.POST)
+        if not form.is_valid():
+            return HttpResponse(_render_source_form(request, form), status=422)
+
+        try:
+            services.create_recommendation_source(
+                code=form.cleaned_data["code"],
+                label=form.cleaned_data["label"],
+                is_external=form.cleaned_data["is_external"],
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except Exception as exc:
+            form.add_error(None, str(exc))
+            return HttpResponse(_render_source_form(request, form), status=422)
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {"msg": "Source créée avec succès.", "type": "success"},
+            "closeModal": True,
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+class RecommendationSourceEditView(AuditAdminRequiredMixin, View):
+    """
+    Modification d'une source de recommandation (libellé + is_external).
+
+    GET  : Retourne le partial formulaire prérempli.
+    POST : Met à jour via le service. Retourne 204+HX-Refresh ou 422+form.
+
+    Note : le champ `code` est rendu disabled en édition (AC5 — immuable).
+    """
+
+    def _get_source(self, pk):
+        return get_object_or_404(RecommendationSource, pk=pk)
+
+    def get(self, request, pk):
+        source = self._get_source(pk)
+        form = RecommendationSourceForm(instance=source)
+        return HttpResponse(_render_source_form(request, form, source=source))
+
+    def post(self, request, pk):
+        source = self._get_source(pk)
+        form = RecommendationSourceForm(request.POST, instance=source)
+        if not form.is_valid():
+            return HttpResponse(_render_source_form(request, form, source=source), status=422)
+
+        try:
+            services.update_recommendation_source(
+                source=source,
+                label=form.cleaned_data["label"],
+                is_external=form.cleaned_data["is_external"],
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except Exception as exc:
+            form.add_error(None, str(exc))
+            return HttpResponse(_render_source_form(request, form, source=source), status=422)
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {"msg": "Source mise à jour.", "type": "success"},
+            "closeModal": True,
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+class RecommendationSourceToggleView(AuditAdminRequiredMixin, View):
+    """
+    Activation / désactivation d'une source (toggle is_active).
+
+    POST uniquement — sécurité CSRF assurée par le middleware Django.
+    Retourne 204 + HX-Refresh pour recharger le tableau.
+    """
+
+    def post(self, request, pk):
+        source = get_object_or_404(RecommendationSource, pk=pk)
+        try:
+            services.toggle_recommendation_source(
+                source=source,
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except Exception as exc:
+            response = HttpResponse(str(exc), status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
+        action = "activée" if source.is_active else "désactivée"
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {"msg": f"Source {action}.", "type": "success"},
         })
         response["HX-Refresh"] = "true"
         return response

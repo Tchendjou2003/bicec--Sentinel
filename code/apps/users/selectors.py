@@ -12,7 +12,7 @@ from django.db.models import QuerySet, Count, Q
 from django.core.exceptions import ValidationError
 from uuid import UUID
 
-from .models import Department, User
+from .models import Department, OrgUnitType, User
 
 
 def get_shell_accounts() -> QuerySet[User]:
@@ -31,7 +31,20 @@ def get_all_manageable_users() -> QuerySet[User]:
 
 def get_active_departments() -> QuerySet[Department]:
     """Retourne les départements actifs pour les listes déroulantes."""
-    return Department.objects.filter(is_active=True).order_by("name")
+    return Department.objects.filter(is_active=True).select_related("type").order_by("name")
+
+
+def get_all_org_unit_types() -> QuerySet[OrgUnitType]:
+    """
+    Retourne tous les types d'unités organisationnelles, actifs et inactifs,
+    triés par niveau indicatif puis libellé.
+    """
+    return OrgUnitType.objects.all().order_by("level", "name")
+
+
+def get_active_org_unit_types() -> QuerySet[OrgUnitType]:
+    """Retourne les types d'unités actifs pour les listes déroulantes."""
+    return OrgUnitType.objects.filter(is_active=True).order_by("level", "name")
 
 
 def count_shell_accounts() -> int:

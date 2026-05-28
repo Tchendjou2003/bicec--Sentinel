@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.users.models import User
-from .models import Deliverable, EvidenceFile, Recommendation
+from .models import Deliverable, EvidenceFile, Recommendation, RecommendationSource
 from .validators import validate_file_size, validate_magic_bytes
 
 
@@ -148,11 +148,10 @@ class RecommendationForm(forms.ModelForm):
         controlled_dept.empty_label = _("— Sélectionner —")
         dept.empty_label = _("— Sélectionner —")
 
-        source_field = cast(forms.ChoiceField, self.fields["source"])
-        source_choices = list(source_field.choices)
-        if source_choices and source_choices[0][0] in ('', None):
-            source_choices[0] = ('', _("— Sélectionner une source —"))
-        source_field.choices = source_choices
+        # source est désormais un FK → ModelChoiceField (Story 3.7.b)
+        source_field = cast(forms.ModelChoiceField, self.fields["source"])
+        source_field.queryset = RecommendationSource.objects.filter(is_active=True).order_by("is_external", "label")
+        source_field.empty_label = _("— Sélectionner une source —")
 
         priority_field = cast(forms.ChoiceField, self.fields["priority"])
         priority_choices = list(priority_field.choices)

@@ -131,6 +131,27 @@ urlpatterns = [
         views.ExtensionRejectView.as_view(),
         name="extension-reject",
     ),
+    # ── Administration Sources (Audit Admin — Story 3.7.b) ──
+    path(
+        "sources-admin/",
+        views.RecommendationSourceListView.as_view(),
+        name="source-list",
+    ),
+    path(
+        "sources-admin/create/",
+        views.RecommendationSourceCreateView.as_view(),
+        name="source-create",
+    ),
+    path(
+        "sources-admin/<uuid:pk>/edit/",
+        views.RecommendationSourceEditView.as_view(),
+        name="source-edit",
+    ),
+    path(
+        "sources-admin/<uuid:pk>/toggle/",
+        views.RecommendationSourceToggleView.as_view(),
+        name="source-toggle",
+    ),
     # ── Habilitation Audit (Story 1.5 + 1.7) ──
     path(
         "habilitation/",

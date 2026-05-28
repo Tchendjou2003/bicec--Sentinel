@@ -13,7 +13,7 @@ Acceptance Criteria couverts :
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from apps.users.models import Department, User
+from apps.users.models import Department, OrgUnitType, User
 from apps.audit.models import AuditLog
 
 
@@ -80,23 +80,42 @@ class AdminDashboardAccessTest(TestCase):
 
 
 class OrganigrammeTest(TestCase):
-    """Tests CRUD organigramme (AC2, AC3)."""
+    """Tests CRUD organigramme (AC2, AC3) — accès Audit Admin (Story 3.7.b)."""
 
     def setUp(self):
         self.client = Client()
-        self.admin_user = User.objects.create_user(
-            username="admin_it",
+        # Les vues organigramme sont désormais protégées par AuditAdminRequiredMixin
+        self.audit_admin = User.objects.create_user(
+            username="audit_admin",
             password="testpass123",
-            role=User.Role.ADMIN,
-            is_staff=True,
+            role=User.Role.AUDIT,
+            is_audit_admin=True,
         )
-        self.client.force_login(self.admin_user)
+        self.client.force_login(self.audit_admin)
+
+        # Fixtures OrgUnitType (seeded by migration 0006 — use get_or_create)
+        self.type_dg, _ = OrgUnitType.objects.get_or_create(code="DG", defaults={"name": "Direction Générale", "level": 0})
+        self.type_direction, _ = OrgUnitType.objects.get_or_create(code="DIRECTION", defaults={"name": "Direction", "level": 1})
+        self.type_departement, _ = OrgUnitType.objects.get_or_create(code="DEPARTEMENT", defaults={"name": "Département", "level": 3})
+        self.type_service, _ = OrgUnitType.objects.get_or_create(code="SERVICE", defaults={"name": "Service", "level": 4})
+        self.type_region, _ = OrgUnitType.objects.get_or_create(code="REGION", defaults={"name": "Direction Régionale", "level": 5})
+        self.type_agence, _ = OrgUnitType.objects.get_or_create(code="AGENCE", defaults={"name": "Agence", "level": 6})
 
     def test_organigramme_list_renders(self):
         """La page organigramme s'affiche."""
         response = self.client.get(reverse("auth:organigramme-list"))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "admin_it/organigramme_list.html")
+
+    def test_organigramme_forbidden_for_admin_it(self):
+        """Un Admin IT (ADMIN role) reçoit 403 — organigramme réservé aux Audit Admins."""
+        admin_it = User.objects.create_user(
+            username="admin_it_test", password="testpass123",
+            role=User.Role.ADMIN, is_staff=True,
+        )
+        self.client.force_login(admin_it)
+        response = self.client.get(reverse("auth:organigramme-list"))
+        self.assertEqual(response.status_code, 403)
 
     def test_create_department_get(self):
         """Le formulaire de création de département s'affiche."""
@@ -107,34 +126,34 @@ class OrganigrammeTest(TestCase):
         """AC2 — Créer un département via POST."""
         response = self.client.post(reverse("auth:department-create"), {
             "name": "Direction Générale",
-            "code": "DG",
-            "type": Department.Type.DG,
+            "code": "DG01",
+            "type": str(self.type_dg.pk),
         })
         self.assertEqual(response.status_code, 302)
         self.assertEqual(Department.objects.count(), 1)
         dept = Department.objects.first()
         self.assertEqual(dept.name, "Direction Générale")
-        self.assertEqual(dept.type, Department.Type.DG)
+        self.assertEqual(dept.type, self.type_dg)
         self.assertIsNone(dept.parent)
-        
+
         # Test NFR-SEC-05 (AuditLog)
         self.assertEqual(AuditLog.objects.filter(content_type="Department").count(), 1)
         audit = AuditLog.objects.first()
         self.assertEqual(audit.action, AuditLog.Action.CREATE)
-        self.assertEqual(audit.user, self.admin_user)
+        self.assertEqual(audit.user, self.audit_admin)
 
     def test_create_hierarchie_multi_niveaux(self):
         """AC2 — Créer une arborescence DG → DIRECTION → DEPARTEMENT."""
         dg = Department.objects.create(
-            name="Direction Générale", code="DG", type=Department.Type.DG,
+            name="Direction Générale", code="DG", type=self.type_dg,
         )
         direction = Department.objects.create(
             name="Direction des Opérations", code="DOP",
-            type=Department.Type.DIRECTION, parent=dg,
+            type=self.type_direction, parent=dg,
         )
         dept = Department.objects.create(
             name="Département Crédit", code="DCRED",
-            type=Department.Type.DEPARTEMENT, parent=direction,
+            type=self.type_departement, parent=direction,
         )
         self.assertEqual(dept.parent, direction)
         self.assertEqual(direction.parent, dg)
@@ -144,27 +163,27 @@ class OrganigrammeTest(TestCase):
         """AC3 — La hiérarchie REGION → AGENCE est correctement persistée."""
         region = Department.objects.create(
             name="Direction Régionale Littoral", code="DRL",
-            type=Department.Type.REGION,
+            type=self.type_region,
         )
         agence = Department.objects.create(
             name="Agence Akwa", code="AKW",
-            type=Department.Type.AGENCE, parent=region,
+            type=self.type_agence, parent=region,
         )
         self.assertEqual(agence.parent, region)
-        self.assertEqual(agence.type, Department.Type.AGENCE)
+        self.assertEqual(agence.type, self.type_agence)
         self.assertIn(agence, region.children.all())
 
     def test_edit_department(self):
         """Modifier un département via POST."""
         dept = Department.objects.create(
-            name="Test", code="TST", type=Department.Type.SERVICE,
+            name="Test", code="TST", type=self.type_service,
         )
         response = self.client.post(
             reverse("auth:department-edit", kwargs={"pk": dept.pk}),
             {
                 "name": "Test Modifié",
                 "code": "TST",
-                "type": Department.Type.SERVICE,
+                "type": str(self.type_service.pk),
                 "is_active": True,
             },
         )
@@ -174,11 +193,11 @@ class OrganigrammeTest(TestCase):
 
         # Test NFR-SEC-05 (AuditLog)
         self.assertTrue(AuditLog.objects.filter(content_type="Department", action=AuditLog.Action.UPDATE).exists())
-        
+
     def test_department_form_excludes_self_from_parent(self):
         """Un département ne peut pas être son propre parent."""
         dept = Department.objects.create(
-            name="Test", code="TST", type=Department.Type.SERVICE,
+            name="Test", code="TST", type=self.type_service,
         )
         response = self.client.get(reverse("auth:department-edit", kwargs={"pk": dept.pk}))
         form = response.context["form"]
@@ -186,16 +205,16 @@ class OrganigrammeTest(TestCase):
 
     def test_organigramme_drilldown_htmx(self):
         """Le drilldown retourne les enfants directs (via HTMX)."""
-        dg = Department.objects.create(name="DG", code="DG", type=Department.Type.DG)
-        dir1 = Department.objects.create(name="DIR1", code="D1", type=Department.Type.DIRECTION, parent=dg)
-        
+        dg = Department.objects.create(name="DG", code="DG", type=self.type_dg)
+        dir1 = Department.objects.create(name="DIR1", code="D1", type=self.type_direction, parent=dg)
+
         # Requête HTMX sur la racine
         response = self.client.get(reverse("auth:organigramme-list"), HTTP_HX_REQUEST="true")
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "admin_it/partials/organigramme_drilldown.html")
         self.assertIn(dg, response.context["departments"])
         self.assertNotIn(dir1, response.context["departments"])
-        
+
         # Requête HTMX sur DG
         response = self.client.get(f"{reverse('auth:organigramme-list')}?parent_id={dg.pk}", HTTP_HX_REQUEST="true")
         self.assertIn(dir1, response.context["departments"])
@@ -203,9 +222,9 @@ class OrganigrammeTest(TestCase):
 
     def test_organigramme_search(self):
         """La vue de recherche filtre correctement par nom ou code."""
-        Department.objects.create(name="Direction Réseau", code="DRES")
-        Department.objects.create(name="Service Informatique", code="SIT")
-        
+        Department.objects.create(name="Direction Réseau", code="DRES", type=self.type_direction)
+        Department.objects.create(name="Service Informatique", code="SIT", type=self.type_service)
+
         response = self.client.get(f"{reverse('auth:department-search')}?q=rés")
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "admin_it/partials/organigramme_search_results.html")
@@ -215,16 +234,16 @@ class OrganigrammeTest(TestCase):
 
     def test_department_circular_reference(self):
         """Vérifie que la boucle A -> B -> A est interdite dans le formulaire."""
-        dept_a = Department.objects.create(name="Dept A", code="A")
-        dept_b = Department.objects.create(name="Dept B", code="B", parent=dept_a)
-        
+        dept_a = Department.objects.create(name="Dept A", code="A", type=self.type_direction)
+        dept_b = Department.objects.create(name="Dept B", code="B", type=self.type_direction, parent=dept_a)
+
         # Essayer de mettre B comme parent de A
         response = self.client.post(
             reverse("auth:department-edit", kwargs={"pk": dept_a.pk}),
             {
                 "name": "Dept A",
                 "code": "A",
-                "type": Department.Type.DIRECTION,
+                "type": str(self.type_direction.pk),
                 "is_active": True,
                 "parent": dept_b.pk,
             },
@@ -326,18 +345,27 @@ class DepartmentDeleteTest(TestCase):
 
     def setUp(self):
         self.client = Client()
+        # Les vues organigramme (dont delete) sont protégées par AuditAdminRequiredMixin
         self.admin_user = User.objects.create_user(
-            username="admin_it",
+            username="audit_admin_del",
             password="testpass123",
-            role=User.Role.ADMIN,
-            is_staff=True,
+            role=User.Role.AUDIT,
+            is_audit_admin=True,
         )
         self.client.force_login(self.admin_user)
+
+        # Fixtures OrgUnitType (seeded by migration 0006 — use get_or_create)
+        self.type_service, _ = OrgUnitType.objects.get_or_create(
+            code="SERVICE", defaults={"name": "Service", "level": 4},
+        )
+        self.type_direction, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION", defaults={"name": "Direction", "level": 1},
+        )
 
     def test_soft_delete_department_success(self):
         """Un département sans enfants ni utilisateurs est désactivé."""
         dept = Department.objects.create(
-            name="À supprimer", code="DEL", type=Department.Type.SERVICE,
+            name="À supprimer", code="DEL", type=self.type_service,
         )
         url = reverse("auth:department-delete", kwargs={"pk": dept.pk})
         response = self.client.post(url)
@@ -348,10 +376,10 @@ class DepartmentDeleteTest(TestCase):
     def test_soft_delete_blocked_by_active_children(self):
         """Un département avec des sous-structures actives ne peut pas être supprimé."""
         parent = Department.objects.create(
-            name="Parent", code="PAR", type=Department.Type.DIRECTION,
+            name="Parent", code="PAR", type=self.type_direction,
         )
         Department.objects.create(
-            name="Enfant", code="ENF", type=Department.Type.SERVICE, parent=parent,
+            name="Enfant", code="ENF", type=self.type_service, parent=parent,
         )
         url = reverse("auth:department-delete", kwargs={"pk": parent.pk})
         self.client.post(url)
@@ -361,7 +389,7 @@ class DepartmentDeleteTest(TestCase):
     def test_soft_delete_blocked_by_active_users(self):
         """Un département avec des utilisateurs actifs ne peut pas être supprimé."""
         dept = Department.objects.create(
-            name="Peuplé", code="PEU", type=Department.Type.SERVICE,
+            name="Peuplé", code="PEU", type=self.type_service,
         )
         User.objects.create_user(
             username="rattaché", password="x", role=User.Role.ETP, department=dept,
@@ -374,7 +402,7 @@ class DepartmentDeleteTest(TestCase):
     def test_soft_delete_creates_audit_log(self):
         """La suppression génère une trace dans l'AuditLog (NFR-SEC-05)."""
         dept = Department.objects.create(
-            name="Auditable", code="AUD", type=Department.Type.SERVICE,
+            name="Auditable", code="AUD", type=self.type_service,
         )
         url = reverse("auth:department-delete", kwargs={"pk": dept.pk})
         self.client.post(url)
@@ -389,7 +417,7 @@ class DepartmentDeleteTest(TestCase):
     def test_soft_delete_htmx_returns_drilldown(self):
         """En requête HTMX, la suppression retourne le partial drilldown."""
         dept = Department.objects.create(
-            name="HTMX Delete", code="HXD", type=Department.Type.SERVICE,
+            name="HTMX Delete", code="HXD", type=self.type_service,
         )
         url = reverse("auth:department-delete", kwargs={"pk": dept.pk})
         response = self.client.post(url, HTTP_HX_REQUEST="true")

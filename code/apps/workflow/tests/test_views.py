@@ -16,8 +16,8 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.users.models import Department, User
-from apps.workflow.models import EvidenceFile, EvidenceSubmission, Recommendation
+from apps.users.models import Department, OrgUnitType, User
+from apps.workflow.models import EvidenceFile, EvidenceSubmission, Recommendation, RecommendationSource
 from apps.workflow.services import create_recommendation
 
 
@@ -26,10 +26,13 @@ class ViewTestMixin:
 
     @classmethod
     def setUpTestData(cls):
+        cls.type_direction, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION", defaults={"name": "Direction", "level": 1},
+        )
         cls.department = Department.objects.create(
             name="Direction Vue Test",
             code="DVT",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
         cls.audit_user = User.objects.create_user(
             username="audit_view",
@@ -82,6 +85,15 @@ class ViewTestMixin:
         cls.dm_user.save()
         cls.etp_user.department = cls.department
         cls.etp_user.save()
+        # Story 3.7.b — sources FK (seeded par migration 0011)
+        cls.source_interne, _ = RecommendationSource.objects.get_or_create(
+            code="INTERNE",
+            defaults={"label": "Audit Interne", "is_external": False},
+        )
+        cls.source_cobac, _ = RecommendationSource.objects.get_or_create(
+            code="COBAC",
+            defaults={"label": "COBAC", "is_external": True},
+        )
 
     def _login_as(self, user):
         self.client.force_login(user)
@@ -96,7 +108,7 @@ class ViewTestMixin:
                 "observations": "Obs test",
                 "anomalous_dossiers": "",
                 "description": "Desc test",
-                "source": Recommendation.Source.INTERNE,
+                "source": self.source_interne,  # Story 3.7.b — FK instance
                 "priority": Recommendation.Priority.MOYENNE,
                 "department": self.department,
                 "due_date": timezone.now().date() + timedelta(days=30),
@@ -139,7 +151,8 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         own_rec = self._create_draft_recommendation()
         Recommendation.all_objects.filter(pk=own_rec.pk).update(status=Recommendation.Status.ASSIGNED)
         
-        other_dept = Department.objects.create(name="Other", code="OTH", type=Department.Type.DIRECTION)
+        type_dir, _ = OrgUnitType.objects.get_or_create(code="DIRECTION", defaults={"name": "Direction", "level": 1})
+        other_dept = Department.objects.create(name="Other", code="OTH", type=type_dir)
         other_rec = self._create_draft_recommendation()
         Recommendation.all_objects.filter(pk=other_rec.pk).update(
             status=Recommendation.Status.ASSIGNED, department=other_dept
@@ -220,14 +233,16 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         """Le statut d'import est préservé lors du filtrage croisé (hx-include)."""
         self._login_as(self.audit_user)
         rec_hist = self._create_draft_recommendation()
-        Recommendation.all_objects.filter(pk=rec_hist.pk).update(import_tag="IMPORTED", source=Recommendation.Source.COBAC)
-        
+        Recommendation.all_objects.filter(pk=rec_hist.pk).update(
+            import_tag="IMPORTED", source=self.source_cobac  # Story 3.7.b — FK instance
+        )
+
         response = self.client.get(
             reverse("workflow:recommendation-list"),
-            {"import_status": "historical", "source": Recommendation.Source.COBAC}
+            {"import_status": "historical", "source": str(self.source_cobac.pk)}
         )
         self.assertEqual(response.context["current_import_status"], "historical")
-        self.assertEqual(response.context["current_source"], Recommendation.Source.COBAC)
+        self.assertEqual(response.context["current_source"], str(self.source_cobac.pk))
         self.assertContains(response, rec_hist.reference)
 
     def test_pagination_preserves_import_status(self):
@@ -278,7 +293,7 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         rec = self._create_draft_recommendation()
         response = self.client.get(
             reverse("workflow:recommendation-list"),
-            {"source": Recommendation.Source.INTERNE},
+            {"source": str(self.source_interne.pk)},  # Story 3.7.b
         )
         self.assertContains(response, rec.reference)
 
@@ -288,7 +303,7 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         self._create_draft_recommendation()
         response = self.client.get(
             reverse("workflow:recommendation-list"),
-            {"source": Recommendation.Source.COBAC},
+            {"source": str(self.source_cobac.pk)},  # Story 3.7.b
         )
         self.assertEqual(response.status_code, 200)
 
@@ -335,7 +350,7 @@ class RecommendationCreateViewTest(ViewTestMixin, TestCase):
                 "observations": "Observations test",
                 "anomalous_dossiers": "",
                 "description": "Description test",
-                "source": Recommendation.Source.INTERNE,
+                "source": str(self.source_interne.pk),  # Piège 4 — str(pk) pour client.post
                 "priority": Recommendation.Priority.MOYENNE,
                 "department": str(self.department.pk),
                 "due_date": due_date,
@@ -382,7 +397,7 @@ class RecommendationCreateViewTest(ViewTestMixin, TestCase):
                 "controlled_department": str(self.department.pk),
                 "observations": "Obs",
                 "description": "Desc",
-                "source": Recommendation.Source.INTERNE,
+                "source": str(self.source_interne.pk),  # Piège 4 — str(pk) pour client.post
                 "priority": Recommendation.Priority.HAUTE,
                 "department": str(self.department.pk),
                 "due_date": due_date,
@@ -451,6 +466,36 @@ class RecommendationDetailViewTest(ViewTestMixin, TestCase):
             reverse("workflow:recommendation-detail", args=[rec.pk])
         )
         self.assertEqual(response.status_code, 404)
+
+    def test_dg_assigned_is_not_considered_dm_porteur(self):
+        """Non-régression — un DG assigné (stored in assigned_dm) ne doit pas
+        déclencher le chemin DM porteur dans le contexte de la vue détail.
+
+        Avant le fix de Story 3.7, is_dm_porteur était True pour le DG assigné,
+        ce qui lui affichait les boutons DM à tort.
+        """
+        rec = self._create_draft_recommendation()
+        Recommendation.all_objects.filter(pk=rec.pk).update(
+            status=Recommendation.Status.IN_PROGRESS,
+            assigned_dm=self.dg_user,
+        )
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+
+        self._login_as(self.dg_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-detail", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        # Le DG ne doit pas voir is_dm_porteur=True — sinon il voit les boutons DM
+        self.assertFalse(
+            response.context.get("is_dm_porteur", False),
+            "is_dm_porteur doit être False pour un DG — seul un DM peut être porteur.",
+        )
+        # En revanche, can_submit_dg doit être True (c'est son circuit)
+        self.assertTrue(
+            response.context.get("can_submit_dg", False),
+            "can_submit_dg doit être True pour le DG assigné en IN_PROGRESS.",
+        )
 
 
 class RecommendationDeleteViewTest(ViewTestMixin, TestCase):
@@ -530,8 +575,9 @@ class RecommendationAssignViewTest(ViewTestMixin, TestCase):
         # Depending on how the context is passed or rendered, we can check content
         # Or we can just ensure 200 works for an empty department
         # Let's create another rec with a department that has NO dms
-        from apps.users.models import Department
-        empty_dept = Department.objects.create(name="Empty", code="EMP", type=Department.Type.DIRECTION)
+        from apps.users.models import Department, OrgUnitType
+        type_dir, _ = OrgUnitType.objects.get_or_create(code="DIRECTION", defaults={"name": "Direction", "level": 1})
+        empty_dept = Department.objects.create(name="Empty", code="EMP", type=type_dir)
         rec_empty = self._create_draft_recommendation()
         rec_empty.department = empty_dept
         rec_empty.save(update_fields=["department"])
@@ -615,7 +661,7 @@ class DelegationTestMixin(ViewTestMixin):
         cls.other_department = Department.objects.create(
             name="Direction Autre Test",
             code="DAT",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
         # ETP d'un autre département
         cls.etp_other_dept = User.objects.create_user(

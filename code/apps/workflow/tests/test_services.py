@@ -17,8 +17,8 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
-from apps.users.models import Department, User
-from apps.workflow.models import Deliverable, Recommendation
+from apps.users.models import Department, OrgUnitType, User
+from apps.workflow.models import Deliverable, Recommendation, RecommendationSource
 from apps.workflow.services import (
     assign_recommendation_to_dm,
     create_recommendation,
@@ -32,10 +32,13 @@ class ServiceTestMixin:
 
     @classmethod
     def setUpTestData(cls):
+        cls.type_direction, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION", defaults={"name": "Direction", "level": 1},
+        )
         cls.department = Department.objects.create(
             name="Direction Opérations",
             code="DOP",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
         cls.audit_user = User.objects.create_user(
             username="auditeur_svc",
@@ -43,6 +46,11 @@ class ServiceTestMixin:
             role=User.Role.AUDIT,
             first_name="Test",
             last_name="Auditeur",
+        )
+        # Story 3.7.b — source FK
+        cls.source_cobac, _ = RecommendationSource.objects.get_or_create(
+            code="COBAC",
+            defaults={"label": "COBAC", "is_external": True},
         )
 
     def _base_data(self, **overrides):
@@ -54,7 +62,7 @@ class ServiceTestMixin:
             "observations": "Observations SVC",
             "anomalous_dossiers": "",
             "description": "Description recommandation SVC",
-            "source": Recommendation.Source.COBAC,
+            "source": self.source_cobac,  # Story 3.7.b — FK instance
             "priority": Recommendation.Priority.HAUTE,
             "department": self.department,
             "due_date": timezone.now().date() + timedelta(days=60),
@@ -391,8 +399,9 @@ class AssignRecommendationToDMTest(ServiceTestMixin, TestCase):
         )
         
         # DM d'un autre département
-        from apps.users.models import Department, User
-        other_dept = Department.objects.create(name="Autre", code="AUT", type=Department.Type.DIRECTION)
+        from apps.users.models import Department, OrgUnitType, User
+        type_dir, _ = OrgUnitType.objects.get_or_create(code="DIRECTION", defaults={"name": "Direction", "level": 1})
+        other_dept = Department.objects.create(name="Autre", code="AUT", type=type_dir)
         other_dm = User.objects.create_user(
             username="other_dm", password="TestPass123!", role=User.Role.DM, department=other_dept
         )

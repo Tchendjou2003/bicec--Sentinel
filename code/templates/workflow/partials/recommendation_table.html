@@ -27,7 +27,7 @@
             <span class="relative z-10 text-sm text-gray-600 truncate max-w-xs block">{{ rec.mission_label|default:"—" }}</span>
           </td>
           <td class="px-4 py-3.5">
-            <span class="relative z-10 inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">{{ rec.get_source_display }}</span>
+            <span class="relative z-10 inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700" title="{{ rec.source.label }}">{{ rec.source.label|truncatechars:12 }}</span>
           </td>
           <td class="px-4 py-3.5">
             {% if rec.is_overdue %}

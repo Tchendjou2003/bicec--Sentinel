@@ -1,0 +1,119 @@
+{% comment %}
+  Partial — Formulaire de création/édition d'une source (modal HTMX)
+
+  Context :
+    form    — RecommendationSourceForm (vide = création, prérempli = édition)
+    source  — Instance RecommendationSource (None en création)
+{% endcomment %}
+{% load static %}
+
+<div class="p-6">
+  {# ── En-tête modale ── #}
+  <div class="flex items-start justify-between mb-5">
+    <div>
+      <h2 class="text-lg font-semibold text-gray-900">
+        {% if source %}Modifier la source{% else %}Nouvelle source{% endif %}
+      </h2>
+      <p class="text-sm text-gray-500 mt-0.5">
+        {% if source %}
+          Code immuable — seul le libellé et le type sont modifiables.
+        {% else %}
+          Le code sera verrouillé après création.
+        {% endif %}
+      </p>
+    </div>
+    <button
+      type="button"
+      @click="modalOpen = false"
+      class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+      aria-label="Fermer"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  {# ── Erreurs non-field ── #}
+  {% if form.non_field_errors %}
+  <div class="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+    {% for error in form.non_field_errors %}
+    <p class="text-sm text-red-700">{{ error }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── Formulaire ── #}
+  <form
+    {% if source %}
+      hx-post="{% url 'workflow:source-edit' source.pk %}"
+    {% else %}
+      hx-post="{% url 'workflow:source-create' %}"
+    {% endif %}
+    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    hx-target="#modal-content"
+    hx-swap="innerHTML"
+    class="space-y-4"
+  >
+    {% csrf_token %}
+
+    {# Champ Code #}
+    <div>
+      <label for="{{ form.code.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+        {{ form.code.label }}
+        {% if not source %}<span class="text-red-500 ml-0.5">*</span>{% endif %}
+      </label>
+      {{ form.code }}
+      {% if form.code.help_text %}
+      <p class="mt-1 text-xs text-gray-500">{{ form.code.help_text }}</p>
+      {% endif %}
+      {% if form.code.errors %}
+      <p class="mt-1 text-xs text-red-600">{{ form.code.errors|join:", " }}</p>
+      {% endif %}
+    </div>
+
+    {# Champ Libellé #}
+    <div>
+      <label for="{{ form.label.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">
+        {{ form.label.label }} <span class="text-red-500 ml-0.5">*</span>
+      </label>
+      {{ form.label }}
+      {% if form.label.help_text %}
+      <p class="mt-1 text-xs text-gray-500">{{ form.label.help_text }}</p>
+      {% endif %}
+      {% if form.label.errors %}
+      <p class="mt-1 text-xs text-red-600">{{ form.label.errors|join:", " }}</p>
+      {% endif %}
+    </div>
+
+    {# Champ Source externe #}
+    <div class="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-3">
+      <div class="flex h-5 items-center mt-0.5">
+        {{ form.is_external }}
+      </div>
+      <div>
+        <label for="{{ form.is_external.id_for_label }}" class="block text-sm font-medium text-gray-700">
+          {{ form.is_external.label }}
+        </label>
+        {% if form.is_external.help_text %}
+        <p class="text-xs text-gray-500 mt-0.5">{{ form.is_external.help_text }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Actions ── #}
+    <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
+      <button
+        type="button"
+        @click="modalOpen = false"
+        class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+      >
+        Annuler
+      </button>
+      <button
+        type="submit"
+        class="rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-sentinel-orange to-[#C9631A] shadow-sm hover:shadow-md shadow-orange-500/20 transition-all duration-200"
+      >
+        {% if source %}Enregistrer{% else %}Créer la source{% endif %}
+      </button>
+    </div>
+  </form>
+</div>

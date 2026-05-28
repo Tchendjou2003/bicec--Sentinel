@@ -14,11 +14,12 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.users.models import Department, User
+from apps.users.models import Department, OrgUnitType, User
 from apps.workflow.models import (
     ActiveRecommendationManager,
     Deliverable,
     Recommendation,
+    RecommendationSource,
 )
 
 
@@ -27,10 +28,13 @@ class RecommendationModelTestMixin:
 
     @classmethod
     def setUpTestData(cls):
+        cls.type_direction, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION", defaults={"name": "Direction", "level": 1},
+        )
         cls.department = Department.objects.create(
             name="Direction Test",
             code="DT",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
         cls.audit_user = User.objects.create_user(
             username="auditeur_test",
@@ -38,6 +42,11 @@ class RecommendationModelTestMixin:
             role=User.Role.AUDIT,
             first_name="Test",
             last_name="Auditeur",
+        )
+        # Story 3.7.b — source FK (seeded par migration 0011)
+        cls.source_interne, _ = RecommendationSource.objects.get_or_create(
+            code="INTERNE",
+            defaults={"label": "Audit Interne", "is_external": False},
         )
 
     def _make_recommendation(self, **overrides):
@@ -49,7 +58,7 @@ class RecommendationModelTestMixin:
             "controlled_department": self.department,
             "observations": "Observations de test",
             "description": "Description de la recommandation test",
-            "source": Recommendation.Source.INTERNE,
+            "source": self.source_interne,
             "priority": Recommendation.Priority.MOYENNE,
             "department": self.department,
             "due_date": timezone.now().date() + timedelta(days=30),
@@ -99,9 +108,11 @@ class RecommendationFieldsTest(RecommendationModelTestMixin, TestCase):
         with self.assertRaises(Exception):
             self._make_recommendation(reference="REC-UNIQUE-001")
 
-    def test_source_choices(self):
-        """Vérifie les 7 choix de source."""
-        self.assertEqual(len(Recommendation.Source.choices), 7)
+    def test_source_is_fk_to_recommendation_source(self):
+        """Vérifie que le champ source est un FK vers RecommendationSource (Story 3.7.b)."""
+        rec = self._make_recommendation()
+        self.assertIsInstance(rec.source, RecommendationSource)
+        self.assertEqual(rec.source.code, "INTERNE")
 
     def test_priority_choices(self):
         """Vérifie les 4 choix de criticité."""

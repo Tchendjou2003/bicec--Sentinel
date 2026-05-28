@@ -72,5 +72,26 @@ urlpatterns = [
         views.ITUserCreateView.as_view(),
         name="admin-user-create",
     ),
+    # ── Types d'unités organisationnelles (Story 3.7.b / Phase B) ──
+    path(
+        "admin/types-unites/",
+        views.OrgUnitTypeListView.as_view(),
+        name="org-unit-type-list",
+    ),
+    path(
+        "admin/types-unites/create/",
+        views.OrgUnitTypeCreateView.as_view(),
+        name="org-unit-type-create",
+    ),
+    path(
+        "admin/types-unites/<uuid:pk>/edit/",
+        views.OrgUnitTypeEditView.as_view(),
+        name="org-unit-type-edit",
+    ),
+    path(
+        "admin/types-unites/<uuid:pk>/toggle/",
+        views.OrgUnitTypeToggleView.as_view(),
+        name="org-unit-type-toggle",
+    ),
 ]
 

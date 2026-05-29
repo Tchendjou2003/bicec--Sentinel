@@ -4,7 +4,7 @@
 {% block title %}{{ recommendation.reference }} — Sentinel{% endblock %}
 
 {% block content %}
-  <div x-data="{ slideOverOpen: false, assignModalOpen: false, delegateModalOpen: false, submitEvidenceModalOpen: false, rejectModalOpen: false, approveModalOpen: false, historyDrawerOpen: false, extensionRequestModalOpen: false, extensionReviewModalOpen: false, dgSubmitPanelOpen: false }" @close-modal.window="assignModalOpen = false" @close-delegate-modal.window="delegateModalOpen = false">
+  <div x-data="{ slideOverOpen: false, assignModalOpen: false, delegateModalOpen: false, submitEvidenceModalOpen: false, rejectModalOpen: false, approveModalOpen: false, historyDrawerOpen: false, extensionRequestModalOpen: false, extensionReviewModalOpen: false, dgSubmitPanelOpen: false, closeConfirmModalOpen: false, rejectAuditModalOpen: false }" @close-modal.window="assignModalOpen = false" @close-delegate-modal.window="delegateModalOpen = false">
 
   {# ── Fil d'Ariane ── #}
   <nav class="flex items-center gap-2 text-sm text-gray-500" aria-label="Breadcrumb">
@@ -12,6 +12,11 @@
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     <span class="font-medium text-gray-900">{{ recommendation.reference }}</span>
   </nav>
+
+  {# ── Bandeau de clôture définitive (Story 3.8 — AC8) ── #}
+  {% if is_closed %}
+  {% include "workflow/partials/closure_banner.html" %}
+  {% endif %}
 
   {# ── Barre d'actions sticky ── #}
   <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-md rounded-xl border border-gray-100 shadow-sm px-5 py-3 flex items-center justify-between gap-4">
@@ -40,6 +45,36 @@
     </div>
 
     <div class="flex items-center gap-2">
+
+      {# ── Boutons Audit : Clôture / Rejet (Story 3.8 — AC1) ── #}
+      {% if can_close_by_audit %}
+        <button
+          @click="closeConfirmModalOpen = true"
+          hx-get="{% url 'workflow:recommendation-close-audit' recommendation.pk %}"
+          hx-target="#close-confirm-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-green-600 to-green-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Clôturer définitivement
+        </button>
+      {% endif %}
+      {% if can_reject_by_audit %}
+        <button
+          @click="rejectAuditModalOpen = true"
+          hx-get="{% url 'workflow:recommendation-reject-audit' recommendation.pk %}"
+          hx-target="#reject-audit-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-red-600 to-red-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          Rejeter
+        </button>
+      {% endif %}
+
+      {# ── Autres actions métier — masquées si CLOSED_RESOLVED (AC7 Story 3.8) ── #}
+      {% if not is_closed %}
+
       {# Bouton Assigner (Story 2.5 — AC1, AC3) #}
       {% if recommendation.status == 'DRAFT' %}
         {% if recommendation.department %}
@@ -202,6 +237,8 @@
         Supprimer
       </button>
       {% endif %}
+
+      {% endif %}{# /if not is_closed #}
     </div>
   </div>
 
@@ -292,7 +329,7 @@
       </div>
       {% endif %}
 
-      {# ── Bandeau rejet ETP (Story 3.4 — cuisine interne : visible ETP/DM uniquement) ── #}
+      {# ── Bandeau rejet (Story 3.4/3.8 — cuisine interne : visible porteurs ETP/DM/DG) ── #}
       {% if show_rejection_banner %}
       <div class="rounded-xl bg-red-50 border border-red-200 p-4">
         <div class="flex items-start gap-3">
@@ -930,6 +967,30 @@
              class="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
           {# Contenu injecté par HTMX via le bouton "Soumettre directement à l'Audit" #}
         </div>
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de clôture définitive Audit (Story 3.8 — AC2, FR20) ── #}
+  <template x-teleport="body">
+    <div x-show="closeConfirmModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="closeConfirmModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="closeConfirmModalOpen = false"></div>
+      <div class="relative w-full max-w-md mx-4" id="close-confirm-modal-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de rejet Audit vers DM (Story 3.8 — AC3, AC4) ── #}
+  <template x-teleport="body">
+    <div x-show="rejectAuditModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="rejectAuditModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="rejectAuditModalOpen = false"></div>
+      <div class="relative w-full max-w-md mx-4" id="reject-audit-modal-container">
+        {# Contenu injecté par HTMX #}
       </div>
     </div>
   </template>

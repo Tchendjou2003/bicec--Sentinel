@@ -115,6 +115,17 @@ urlpatterns = [
         views.EvidenceDGDirectSubmitView.as_view(),
         name="evidence-submit-dg",
     ),
+    # ── Clôture Définitive et Rejet Audit (Story 3.8 — FR20) ──
+    path(
+        "recommandations/<uuid:pk>/close-audit/",
+        views.RecommendationCloseByAuditView.as_view(),
+        name="recommendation-close-audit",
+    ),
+    path(
+        "recommandations/<uuid:pk>/reject-audit/",
+        views.RecommendationRejectByAuditView.as_view(),
+        name="recommendation-reject-audit",
+    ),
     # ── Demandes de Report d'Échéance (Story 3.6 — FR13, FR14, FR34) ──
     path(
         "recommandations/<uuid:pk>/extension/request/",

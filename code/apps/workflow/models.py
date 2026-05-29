@@ -321,6 +321,30 @@ class Recommendation(models.Model):
         help_text=_("Valeur 'IMPORTED' inaltérable si import historique (FR9)."),
     )
 
+    # ── Clôture définitive (Story 3.8 / FR20) ────────────────────────
+
+    closed_at = models.DateTimeField(
+        _("Clôturée le"),
+        null=True,
+        blank=True,
+        help_text=_(
+            "Horodatage exact de la clôture par l'Audit Interne (Story 3.8). "
+            "Alimentera le sceau HMAC-SHA256 en Story 3.10."
+        ),
+    )
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="closed_recommendations",
+        verbose_name=_("Clôturée par"),
+        help_text=_(
+            "Auditeur responsable de la clôture définitive. "
+            "Référence Story 3.10 (HMAC) pour l'identité du signataire."
+        ),
+    )
+
     # ── Soft Delete ───────────────────────────────────────────────────
 
     is_deleted = models.BooleanField(
@@ -557,6 +581,34 @@ class Recommendation(models.Model):
         """
         pass
 
+    @transition(
+        field=status,
+        source=Status.PENDING_AUDIT_REVIEW,
+        target=Status.CLOSED_RESOLVED,
+    )
+    def close_by_audit(self):
+        """
+        Clôture définitive Audit Interne (Story 3.8 / FR20).
+
+        Toute logique métier dans le service layer
+        (close_recommendation_by_audit).
+        """
+        pass
+
+    @transition(
+        field=status,
+        source=Status.PENDING_AUDIT_REVIEW,
+        target=Status.IN_PROGRESS,
+    )
+    def reject_by_audit(self):
+        """
+        Rejet Audit Interne avec motif obligatoire (Story 3.8).
+
+        Symétrique de ``reject_by_dm()``. Toute logique métier dans le
+        service layer (reject_recommendation_by_audit).
+        """
+        pass
+
 
 # =============================================================================
 # Livrable attendu
@@ -654,10 +706,11 @@ class EvidenceSubmission(models.Model):
     """
 
     class SubmissionStatus(models.TextChoices):
-        DRAFT    = "DRAFT",    _("Brouillon")
-        PENDING  = "PENDING",  _("En attente de validation")
-        ACCEPTED = "ACCEPTED", _("Acceptée")
-        REJECTED = "REJECTED", _("Rejetée")
+        DRAFT             = "DRAFT",             _("Brouillon")
+        PENDING           = "PENDING",           _("En attente de validation")
+        ACCEPTED          = "ACCEPTED",          _("Acceptée")
+        REJECTED          = "REJECTED",          _("Rejetée")
+        REJECTED_BY_AUDIT = "REJECTED_BY_AUDIT", _("Rejetée par l'Audit")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     recommendation = models.ForeignKey(
@@ -688,7 +741,8 @@ class EvidenceSubmission(models.Model):
         default=SubmissionStatus.DRAFT,
         help_text=_(
             "DRAFT à la création du brouillon. PENDING à la soumission. "
-            "ACCEPTED/REJECTED piloté par le DM (Story 3.4)."
+            "ACCEPTED/REJECTED piloté par le DM (Story 3.4). "
+            "REJECTED_BY_AUDIT piloté par l'Audit Interne (Story 3.8)."
         ),
     )
     review_comment = models.TextField(

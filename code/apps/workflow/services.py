@@ -1637,6 +1637,188 @@ def submit_evidence_by_dg(
 
 
 # =============================================================================
+# Clôture Définitive par l'Audit Interne (Story 3.8 — FR20)
+# =============================================================================
+
+
+def close_recommendation_by_audit(
+    *,
+    recommendation: Recommendation,
+    performed_by,
+    ip_address: str | None = None,
+) -> Recommendation:
+    """
+    Clôture définitivement une recommandation par l'Audit Interne (FR20).
+
+    Transition FSM : PENDING_AUDIT_REVIEW → CLOSED_RESOLVED.
+    Renseigne ``closed_at`` et ``closed_by`` pour permettre à Story 3.10
+    (HMAC-SHA256) de retrouver le moment exact de clôture et l'identité
+    du responsable sans dépendre du parsing AuditLog.
+
+    Args:
+        recommendation: L'instance Recommendation en PENDING_AUDIT_REVIEW.
+        performed_by: Auditeur Interne (role=AUDIT) effectuant la clôture.
+        ip_address: Adresse IP du client pour l'AuditLog.
+
+    Returns:
+        Recommendation: L'instance avec status=CLOSED_RESOLVED.
+
+    Raises:
+        PermissionDenied: Si performed_by n'a pas le rôle AUDIT (AC5 / FR20).
+        ValueError: Si la recommandation n'est pas en PENDING_AUDIT_REVIEW (AC6).
+
+    Refs: AC2, AC5, AC6 / FR20 — Story 3.8.
+    """
+    from apps.users.models import User
+
+    # Guard RBAC pré-transaction (AC5)
+    if performed_by.role != User.Role.AUDIT:
+        raise PermissionDenied(
+            "Seul l'Audit Interne peut clôturer définitivement une recommandation."
+        )
+
+    with transaction.atomic():
+        rec = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        # Guard FSM (AC6)
+        if rec.status != Recommendation.Status.PENDING_AUDIT_REVIEW:
+            raise ValueError(
+                f"La clôture est impossible depuis l'état « {rec.status} »."
+            )
+
+        source_status = rec.status
+
+        # Transition FSM : PENDING_AUDIT_REVIEW → CLOSED_RESOLVED
+        rec.close_by_audit()
+        rec.closed_at = timezone.now()
+        rec.closed_by = performed_by
+        rec.save(update_fields=["status", "closed_at", "closed_by", "updated_at"])
+
+        performed_by_display = performed_by.get_full_name() or performed_by.username
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=rec.pk,
+            changes={
+                "status": [source_status, Recommendation.Status.CLOSED_RESOLVED],
+                "closed_by_audit": True,
+            },
+            description=(
+                f"Clôture définitive {rec.reference} par {performed_by_display}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return rec
+
+
+def reject_recommendation_by_audit(
+    *,
+    recommendation: Recommendation,
+    reason: str,
+    performed_by,
+    ip_address: str | None = None,
+) -> Recommendation:
+    """
+    Rejette les preuves soumises et retourne la recommandation en IN_PROGRESS.
+
+    Transition FSM : PENDING_AUDIT_REVIEW → IN_PROGRESS.
+    La dernière EvidenceSubmission ACCEPTED passe à REJECTED_BY_AUDIT.
+    Le draft DM existant est conservé (AC3 — décision 2026-05-28).
+
+    Args:
+        recommendation: L'instance Recommendation en PENDING_AUDIT_REVIEW.
+        reason: Motif de rejet obligatoire (min 10 caractères après strip).
+        performed_by: Auditeur Interne (role=AUDIT) effectuant le rejet.
+        ip_address: Adresse IP du client pour l'AuditLog.
+
+    Returns:
+        Recommendation: L'instance avec status=IN_PROGRESS.
+
+    Raises:
+        PermissionDenied: Si performed_by n'a pas le rôle AUDIT (AC5).
+        ValueError: Si le motif est trop court (AC4) ou si la reco n'est
+                    pas en PENDING_AUDIT_REVIEW (AC6).
+
+    Refs: AC3, AC4, AC5, AC6 — Story 3.8.
+    """
+    from apps.users.models import User
+
+    # Guard RBAC pré-transaction (AC5)
+    if performed_by.role != User.Role.AUDIT:
+        raise PermissionDenied(
+            "Seul l'Audit Interne peut rejeter une soumission."
+        )
+
+    # Guard motif (AC4)
+    if not reason or len(reason.strip()) < 10:
+        raise ValueError("Le motif doit comporter au moins 10 caractères.")
+
+    with transaction.atomic():
+        rec = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        # Guard FSM (AC6)
+        if rec.status != Recommendation.Status.PENDING_AUDIT_REVIEW:
+            raise ValueError(
+                f"Le rejet est impossible depuis l'état « {rec.status} »."
+            )
+
+        source_status = rec.status
+        clean_reason = reason.strip()
+
+        # Mettre à jour la dernière soumission ACCEPTED → REJECTED_BY_AUDIT (AC3)
+        last_submission = (
+            rec.evidence_submissions
+            .filter(status=EvidenceSubmission.SubmissionStatus.ACCEPTED)
+            .order_by("-created_at")
+            .first()
+        )
+        if last_submission is not None:
+            last_submission.status = EvidenceSubmission.SubmissionStatus.REJECTED_BY_AUDIT
+            last_submission.review_comment = clean_reason
+            last_submission.reviewed_by = performed_by
+            last_submission.reviewed_at = timezone.now()
+            last_submission.save(update_fields=[
+                "status", "review_comment", "reviewed_by", "reviewed_at", "updated_at"
+            ])
+
+        # Transition FSM : PENDING_AUDIT_REVIEW → IN_PROGRESS
+        rec.reject_by_audit()
+        rec.save(update_fields=["status", "updated_at"])
+
+        performed_by_display = performed_by.get_full_name() or performed_by.username
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=rec.pk,
+            changes={
+                "status": [source_status, Recommendation.Status.IN_PROGRESS],
+                "rejected_by_audit": True,
+                "reason": clean_reason,
+            },
+            description=(
+                f"Rejet Audit {rec.reference} par {performed_by_display} "
+                f"— motif : {clean_reason[:80]}{'...' if len(clean_reason) > 80 else ''}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return rec
+
+
+# =============================================================================
 # Services Sources de recommandation (Story 3.7.b — Phase A)
 # =============================================================================
 

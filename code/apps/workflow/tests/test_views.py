@@ -2019,17 +2019,17 @@ class ExtensionRequestViewTest(EvidenceSubmissionTestMixin, TestCase):
     # ─────────────────────────────────────────────────────────────
     # 7.4 — Rôles non autorisés reçoivent 403
     # ─────────────────────────────────────────────────────────────
+
     def test_non_authorized_roles_cannot_request_extension(self):
         """AC3 — Rôles non autorisés ne peuvent pas demander un report.
 
-        - ETP : 404 (information hiding — RBAC selector filtre par assigned_etp,
-          l'ETP non assigné ne voit pas la recommandation).
-        - AUDIT / ADMIN_IT : 403 (voient la reco via leur périmètre élargi,
-          mais ne sont pas assigned_dm).
+        - ETP non assigné : 404 (information hiding — la reco n'est pas dans son scope RBAC).
+        - AUDIT : 403 (voit la reco, mais n'est pas le DM assigné).
+        - ADMIN_IT : 403 (bloqué par WorkflowAccessMixin avant d'atteindre la vue).
         """
         rec = self._create_in_progress_reco_with_dm()
 
-        # ETP non assigné → 404 (information hiding FR28)
+        # ETP non assigné → 404 (information hiding, pattern établi en PR #11)
         self._login_as(self.etp_user)
         response = self.client.post(
             reverse("workflow:extension-request", args=[rec.pk]),
@@ -2051,7 +2051,7 @@ class ExtensionRequestViewTest(EvidenceSubmissionTestMixin, TestCase):
                         "reason": "Tentative non autorisée.",
                     },
                 )
-                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.status_code, 403) 
 
     # ─────────────────────────────────────────────────────────────
     # 7.5 — Audit peut approuver ; due_date est mise à jour

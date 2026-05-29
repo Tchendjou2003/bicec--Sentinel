@@ -66,7 +66,7 @@ development_status:
   3-6-demande-report-echeance: done
   3-7-soumission-exclusive-dg: done
   3-8-cloture-definitive-audit-interne: done
-  3-9-bascule-automatique-overdue-cron: backlog
+  3-9-bascule-automatique-overdue-cron: done
   3-10-generation-sceau-hmac-sha256-cloture: backlog
   epic-3-retrospective: optional
 

@@ -108,6 +108,17 @@ def generate_recommendation_seal(*, recommendation, sealed_by) -> HmacSeal:
         HmacSeal: Le sceau (créé ou existant).
     """
     sealed_metadata, file_hashes, hmac_hash = _build_seal_payload(recommendation)
+
+    # F3 — Guard réglementaire : refuser de sceller un dossier sans preuve fichier.
+    # Un sceau sans file_hashes ne certifie aucune preuve documentaire (COBAC / NFR-SEC-04).
+    # La garde F2 dans close_recommendation_by_audit() devrait déjà bloquer avant ici,
+    # mais cette double protection garantit l'intégrité du sceau indépendamment du contexte d'appel.
+    if not file_hashes:
+        raise ValueError(
+            "Scellement impossible : le dossier ne contient aucun fichier probatoire accepté. "
+            "Un sceau HMAC sans preuve documentaire n'a aucune valeur réglementaire (COBAC)."
+        )
+
     seal, _created = HmacSeal.objects.get_or_create(
         recommendation=recommendation,
         defaults={

@@ -18,6 +18,9 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
+from apps.notifications.services import notify_porteur, notify_dm, notify_audit_owner
+from apps.notifications.models import Notification
+
 from ..audit.models import AuditLog
 from .models import Deliverable, EvidenceFile, EvidenceSubmission, Recommendation, RecommendationSource
 from .validators import (
@@ -306,6 +309,14 @@ def assign_recommendation_to_dm(
             ip_address=ip_address,
         )
 
+        notify_dm(
+            recommendation,
+            type=Notification.Type.ASSIGNED,
+            title="Recommandation assignée",
+            actor=performed_by,
+            key=f"ASSIGNED:{recommendation.pk}:{dm.pk}",
+        )
+
     return recommendation
 
 
@@ -378,6 +389,14 @@ def assign_recommendation_to_dg(
                 f"(bypass ASSIGNED — circuit DG)"
             ),
             ip_address=ip_address,
+        )
+
+        notify_dm(
+            recommendation,
+            type=Notification.Type.ASSIGNED,
+            title="Recommandation assignée (DG)",
+            actor=performed_by,
+            key=f"ASSIGNED:{recommendation.pk}:{dg.pk}",
         )
 
     return recommendation
@@ -469,6 +488,14 @@ def delegate_recommendation_to_etp(
                 f"à l'ETP {etp_display} par le DM {dm_display}"
             ),
             ip_address=ip_address,
+        )
+
+        notify_porteur(
+            recommendation,
+            type=Notification.Type.DELEGATED,
+            title="Recommandation déléguée",
+            actor=performed_by,
+            key=f"DELEGATED:{recommendation.pk}:{etp.pk}",
         )
 
     return recommendation
@@ -590,6 +617,27 @@ def submit_evidence_for_recommendation(
             ip_address=ip_address,
         )
 
+        # [D4] Destinataire selon le porteur réel :
+        #  - ETP assigné → notifier le DM (qui devra valider).
+        #  - DM Porteur direct (pas d'ETP) → le DM EST l'acteur ; notifier l'Audit
+        #    créateur (sinon angle mort : personne n'apprend que la soumission est prête).
+        if recommendation.assigned_etp_id is None:
+            notify_audit_owner(
+                recommendation,
+                type=Notification.Type.EVIDENCE_SUBMITTED,
+                title="Preuves soumises",
+                actor=performed_by,
+                key=f"EVIDENCE_SUBMITTED:{recommendation.pk}:{draft.pk}",
+            )
+        else:
+            notify_dm(
+                recommendation,
+                type=Notification.Type.EVIDENCE_SUBMITTED,
+                title="Preuves soumises",
+                actor=performed_by,
+                key=f"EVIDENCE_SUBMITTED:{recommendation.pk}:{draft.pk}",
+            )
+
     return recommendation
 
 
@@ -687,6 +735,16 @@ def reject_evidence_submission(
                 f"Rejet de preuves par {dm_display} pour {rec.reference}"
             ),
             ip_address=ip_address,
+        )
+
+        notify_porteur(
+            rec,
+            type=Notification.Type.EVIDENCE_REJECTED,
+            title="Preuves rejetées par le DM",
+            body=reason[:200],
+            actor=performed_by,
+            key=f"EVIDENCE_REJECTED:{rec.pk}:{submission_id}",
+            is_urgent=True,
         )
 
     return rec
@@ -815,6 +873,14 @@ def validate_evidence_for_audit(
                 f"Validation DM {dm_display} → Audit pour {rec.reference}"
             ),
             ip_address=ip_address,
+        )
+
+        notify_audit_owner(
+            rec,
+            type=Notification.Type.EVIDENCE_VALIDATED,
+            title="Preuves validées par le DM",
+            actor=performed_by,
+            key=f"EVIDENCE_VALIDATED:{rec.pk}:{submission_id}",
         )
 
     return rec
@@ -1299,10 +1365,62 @@ def flag_overdue_recommendations() -> dict:
         flagged_pks = [pk for pk, _ in to_flag]
         cleared_pks = [pk for pk, _ in to_clear]
 
+        # ── Rupture OVERDUE — notifie le porteur (CRITIQUE uniquement, Story 4.1) ──
+        # Les recos non-CRITIQUE basculent bien is_overdue mais NE déclenchent
+        # AUCUNE notif (doctrine « alarme incendie » ; le routinier relève du
+        # digest 4.2). Échelle progressive : OVERDUE → porteur.
         if flagged_pks:
+            recos_to_flag = list(
+                Recommendation.objects
+                .select_related("assigned_dm", "assigned_etp")
+                .filter(pk__in=flagged_pks)
+            )
             Recommendation.objects.filter(pk__in=flagged_pks).update(is_overdue=True)
+
+            for rec in recos_to_flag:
+                if rec.priority != Recommendation.Priority.CRITIQUE:
+                    continue
+                notify_porteur(
+                    rec,
+                    type=Notification.Type.OVERDUE,
+                    title="Recommandation en retard",
+                    body=f"L'échéance de la recommandation {rec.reference} est dépassée.",
+                    actor=None,
+                    key=f"OVERDUE:{rec.pk}",
+                    is_urgent=True,
+                )
+
         if cleared_pks:
             Recommendation.objects.filter(pk__in=cleared_pks).update(is_overdue=False)
+            # Réconciliation (AC4) : purger les notifs de rupture des recos « réparées »
+            # pour qu'un futur re-dépassement re-notifie (sinon la clé unique bloque à vie).
+            Notification.objects.filter(
+                idempotency_key__in=(
+                    [f"OVERDUE:{pk}" for pk in cleared_pks]
+                    + [f"OVERDUE_J30:{pk}" for pk in cleared_pks]
+                )
+            ).delete()
+
+        # ── Rupture J+30 — escalade au DM (CRITIQUE uniquement, Story 4.1) ──
+        # Échelle progressive : OVERDUE → porteur, puis J30 → DM. Seuil « ≥ 30 j »
+        # (pas « exactement 30 j ») ; idempotent via la clé.
+        date_j30 = today - timezone.timedelta(days=30)
+        recos_j30 = Recommendation.objects.select_related("assigned_dm").filter(
+            status__in=eligible,
+            priority=Recommendation.Priority.CRITIQUE,
+            due_date__lte=date_j30,
+            is_overdue=True,
+        )
+        for rec in recos_j30:
+            notify_dm(
+                rec,
+                type=Notification.Type.OVERDUE_J30,
+                title="Retard critique (30 jours)",
+                body=f"La recommandation {rec.reference} est en retard de plus de 30 jours.",
+                actor=None,
+                key=f"OVERDUE_J30:{rec.pk}",
+                is_urgent=True,
+            )
 
         logs = [
             AuditLog(
@@ -1433,6 +1551,15 @@ def request_extension(
             ip_address=ip_address,
         )
 
+        notify_audit_owner(
+            rec,
+            type=Notification.Type.EXTENSION_REQUESTED,
+            title="Demande de report",
+            body=reason[:200],
+            actor=performed_by,
+            key=f"EXTENSION_REQUESTED:{rec.pk}:{ext.pk}",
+        )
+
     return ext
 
 
@@ -1523,6 +1650,14 @@ def approve_extension(
             ip_address=ip_address,
         )
 
+        notify_dm(
+            rec,
+            type=Notification.Type.EXTENSION_APPROVED,
+            title="Report d'échéance approuvé",
+            actor=performed_by,
+            key=f"EXTENSION_APPROVED:{rec.pk}:{ext.pk}",
+        )
+
     return ext
 
 
@@ -1607,6 +1742,16 @@ def reject_extension(
             ip_address=ip_address,
         )
 
+        notify_dm(
+            rec,
+            type=Notification.Type.EXTENSION_REJECTED,
+            title="Report d'échéance rejeté",
+            body=audit_comment[:200],
+            actor=performed_by,
+            key=f"EXTENSION_REJECTED:{rec.pk}:{ext.pk}",
+            is_urgent=True,
+        )
+
     return ext
 
 
@@ -1680,10 +1825,17 @@ def submit_evidence_by_dg(
         # Récupérer ou créer le draft DG (AC2 — réutilise get_or_create_draft_submission)
         draft, _ = get_or_create_draft_submission(recommendation=rec, user=performed_by)
 
-        # Guard contenu (AC3) — au moins un fichier OU un commentaire non vide
-        if not draft.files.exists() and not draft.comment.strip():
+        # Guard contenu (AC3) — aligné sur le circuit ETP/DM (Story 3.3) :
+        # au moins 1 fichier probatoire ET un commentaire non vide sont obligatoires.
+        # Un commentaire seul n'est pas une preuve au sens réglementaire (COBAC).
+        if draft.files.count() == 0:
             raise ValueError(
-                "Veuillez joindre au moins un fichier ou saisir un commentaire."
+                "La soumission DG doit contenir au moins un fichier probatoire. "
+                "Un commentaire seul n'est pas une preuve documentaire suffisante."
+            )
+        if not draft.comment.strip():
+            raise ValueError(
+                "Le commentaire de résolution est obligatoire pour soumettre."
             )
 
         source_status = rec.status
@@ -1713,6 +1865,14 @@ def submit_evidence_by_dg(
                 f"pour {rec.reference}"
             ),
             ip_address=ip_address,
+        )
+
+        notify_audit_owner(
+            rec,
+            type=Notification.Type.EVIDENCE_SUBMITTED,
+            title="Preuves soumises (DG)",
+            actor=performed_by,
+            key=f"EVIDENCE_SUBMITTED_DG:{rec.pk}:{draft.pk}",
         )
 
     return rec
@@ -1772,6 +1932,18 @@ def close_recommendation_by_audit(
                 f"La clôture est impossible depuis l'état « {rec.status} »."
             )
 
+        # Guard F2 — vérifier qu'au moins un fichier probatoire est présent
+        # dans la soumission acceptée avant d'autoriser la clôture (COBAC / FR20).
+        has_evidence_files = EvidenceFile.objects.filter(
+            submission__recommendation=rec,
+            submission__status=EvidenceSubmission.SubmissionStatus.ACCEPTED,
+        ).exists()
+        if not has_evidence_files:
+            raise ValueError(
+                "Clôture impossible : le dossier ne contient aucune preuve documentaire. "
+                "L'Audit doit disposer d'au moins un fichier probatoire accepté (COBAC)."
+            )
+
         source_status = rec.status
 
         # Transition FSM : PENDING_AUDIT_REVIEW → CLOSED_RESOLVED
@@ -1801,6 +1973,14 @@ def close_recommendation_by_audit(
                 f"— sceau {seal.hmac_hash[:12]}…"
             ),
             ip_address=ip_address,
+        )
+
+        notify_porteur(
+            rec,
+            type=Notification.Type.CLOSED,
+            title="Recommandation clôturée",
+            actor=performed_by,
+            key=f"CLOSED:{rec.pk}",
         )
 
     return rec
@@ -1902,6 +2082,26 @@ def reject_recommendation_by_audit(
             ),
             ip_address=ip_address,
         )
+
+        notify_porteur(
+            rec,
+            type=Notification.Type.EVIDENCE_REJECTED,
+            title="Preuves rejetées par l'Audit",
+            body=clean_reason[:200],
+            actor=performed_by,
+            key=f"REJECTED_BY_AUDIT:{rec.pk}:{last_submission.pk if last_submission else '0'}",
+            is_urgent=True,
+        )
+        if rec.assigned_etp_id and rec.assigned_etp_id != rec.assigned_dm_id:
+            notify_dm(
+                rec,
+                type=Notification.Type.EVIDENCE_REJECTED,
+                title="Preuves de votre ETP rejetées par l'Audit",
+                body=clean_reason[:200],
+                actor=performed_by,
+                key=f"REJECTED_BY_AUDIT_DM:{rec.pk}:{last_submission.pk if last_submission else '0'}",
+                is_urgent=True,
+            )
 
     return rec
 

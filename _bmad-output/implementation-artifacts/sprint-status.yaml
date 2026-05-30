@@ -71,9 +71,10 @@ development_status:
   epic-3-retrospective: optional
 
   # ── Epic 4: Proactive Alerting & Notification Engine ──
-  epic-4: backlog
-  4-1-alertes-journalieres-critiques: backlog
-  4-2-digest-hebdomadaire-anticipation-j7: backlog
+  epic-4: in-progress
+  4-0-socle-notifications-in-app: done
+  4-1-notifications-in-app-workflow-et-ruptures: done
+  4-2-anticipation-in-app-echeances: ready-for-dev
   4-3-importation-atomique-historique: backlog
   4-4-triage-auto-assignation: backlog
   epic-4-retrospective: optional

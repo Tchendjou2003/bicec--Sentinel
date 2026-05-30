@@ -10,6 +10,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("auth/", include("apps.users.urls")),
     path("audit/", include("apps.workflow.urls")),
+    path("notifications/", include("apps.notifications.urls", namespace="notifications")),
     path(
         "",
         login_required(TemplateView.as_view(template_name="home.html")),

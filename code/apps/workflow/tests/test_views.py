@@ -2406,10 +2406,10 @@ class DGDirectSubmitViewTest(EvidenceSubmissionTestMixin, TestCase):
         self.assertEqual(response.status_code, 422)
 
     # ─────────────────────────────────────────────────────────────
-    # 7.5 — Commentaire seul (sans fichier) → 204 (AC3)
+    # 7.5 — Commentaire seul (sans fichier) → 422 (F1 — fichier obligatoire COBAC)
     # ─────────────────────────────────────────────────────────────
-    def test_comment_only_submission_accepted(self):
-        """AC3 — Un commentaire seul (sans fichier) est suffisant pour soumettre."""
+    def test_comment_only_submission_blocked(self):
+        """F1 — Un commentaire sans fichier est bloqué → 422 (règle COBAC, aligné ETP/DM)."""
         from apps.workflow import services as svc
         rec = self._create_recommendation_for_dg()
         draft, _ = svc.get_or_create_draft_submission(
@@ -2422,7 +2422,8 @@ class DGDirectSubmitViewTest(EvidenceSubmissionTestMixin, TestCase):
         response = self.client.post(
             reverse("workflow:evidence-submit-dg", args=[rec.pk])
         )
-        self.assertEqual(response.status_code, 204)
+        # Un commentaire seul sans fichier probatoire doit être refusé (422)
+        self.assertEqual(response.status_code, 422)
 
     # ─────────────────────────────────────────────────────────────
     # 7.6 — AuditLog créé avec action=TRANSITION + submitted_by_dg=True (AC4)

@@ -1780,6 +1780,10 @@ def close_recommendation_by_audit(
         rec.closed_by = performed_by
         rec.save(update_fields=["status", "closed_at", "closed_by", "updated_at"])
 
+        # Sceau HMAC-SHA256 — effet de bord de la transaction finale (Story 3.10 / FR24).
+        from apps.audit.services import generate_recommendation_seal
+        seal = generate_recommendation_seal(recommendation=rec, sealed_by=performed_by)
+
         performed_by_display = performed_by.get_full_name() or performed_by.username
 
         AuditLog.objects.create(
@@ -1790,9 +1794,11 @@ def close_recommendation_by_audit(
             changes={
                 "status": [source_status, Recommendation.Status.CLOSED_RESOLVED],
                 "closed_by_audit": True,
+                "seal_hash": seal.hmac_hash,
             },
             description=(
-                f"Clôture définitive {rec.reference} par {performed_by_display}"
+                f"Clôture définitive {rec.reference} par {performed_by_display} "
+                f"— sceau {seal.hmac_hash[:12]}…"
             ),
             ip_address=ip_address,
         )

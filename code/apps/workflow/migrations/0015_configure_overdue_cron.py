@@ -41,7 +41,10 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("workflow", "0014_add_closure_fields_and_audit_rejection"),
-        ("django_q", "0001_initial"),
+        # Le get_or_create importe le VRAI modèle Schedule (SELECT sur toutes les
+        # colonnes courantes) → dépendre de la dernière migration django_q, sinon
+        # ordre non déterministe et « column django_q_schedule.* does not exist ».
+        ("django_q", "0018_task_success_index"),
     ]
 
     operations = [

@@ -31,7 +31,6 @@ from .forms import (
     DelegateETPForm,
     DeliverableFormSet,
     EvidenceDMApprovalForm,
-    EvidenceDraftCommentForm,
     EvidenceRejectForm,
     ExtensionApproveForm,
     ExtensionRejectForm,
@@ -424,6 +423,15 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
             and rec.status == Recommendation.Status.PENDING_AUDIT_REVIEW
         )
         context["is_closed"] = rec.status == Recommendation.Status.CLOSED_RESOLVED
+
+        # ── Sceau HMAC (Story 3.10 — FR24) ─────────────────────────────────
+        hmac_seal = getattr(rec, "hmac_seal", None)
+        context["hmac_seal"] = hmac_seal
+        if hmac_seal is not None:
+            from apps.audit.services import verify_recommendation_seal
+            context["seal_valid"] = verify_recommendation_seal(rec)
+        else:
+            context["seal_valid"] = None
 
         return context
 
@@ -1503,7 +1511,7 @@ class DraftSaveCommentView(WorkflowAccessMixin, View):
                 comment=comment,
                 user=request.user,
             )
-        except (ValueError, PermissionError) as e:
+        except (ValueError, PermissionError):
             return HttpResponse(status=422)
 
         from django.template.loader import render_to_string

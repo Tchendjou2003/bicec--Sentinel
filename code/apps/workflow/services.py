@@ -1449,6 +1449,102 @@ def flag_overdue_recommendations() -> dict:
     return {"flagged": len(flagged_pks), "cleared": len(cleared_pks)}
 
 
+def notify_upcoming_deadlines() -> dict:
+    """
+    Anticipation in-app des échéances proches J-7 / J-3 (Story 4.2 / FR23).
+
+    Émet une notification **non urgente** au porteur (`assigned_etp or assigned_dm`)
+    quand l'échéance d'une recommandation **active** (ASSIGNED/IN_PROGRESS) approche :
+      - palier J-7 : ``today < due_date <= today+7`` → ``DUE_SOON_J7`` ;
+      - palier J-3 : ``today < due_date <= today+3`` → ``DUE_SOON_J3``.
+    Toutes priorités (l'in-app porte le routinier ; pas d'e-mail).
+
+    Réconciliation (handoff Jour J) : supprime les ``DUE_SOON_*`` des recos qui ne
+    sont plus « actives ET dans la fenêtre ``[today, today+N]`` ». Le seuil **``>= today``**
+    (et non ``> today``) garantit que le rappel **survit le jour exact de l'échéance**
+    (le job OVERDUE ne bascule qu'à ``due_date < today``) ; le relais à OVERDUE se fait
+    le lendemain. Permet aussi la re-notification après un report approuvé (Story 3.6).
+
+    Returns:
+        dict: ``{"j7": <émis>, "j3": <émis>, "cleared": <supprimés>}``.
+    """
+    today = timezone.localdate()
+    active = [Recommendation.Status.ASSIGNED, Recommendation.Status.IN_PROGRESS]
+    j7_limit = today + timezone.timedelta(days=7)
+    j3_limit = today + timezone.timedelta(days=3)
+
+    j7 = j3 = 0
+    with transaction.atomic():
+        def _days_title(rec):
+            # Titre dynamique : nombre exact de jours restants (1..7), pas un libellé figé.
+            n = (rec.due_date - today).days
+            return f"Échéance dans {n} jour{'s' if n > 1 else ''}"
+
+        # ── Palier J-7 ──────────────────────────────────────────────────
+        for rec in Recommendation.objects.select_related("assigned_dm", "assigned_etp").filter(
+            status__in=active, due_date__gt=today, due_date__lte=j7_limit,
+        ):
+            if notify_porteur(
+                rec,
+                type=Notification.Type.DUE_SOON_J7,
+                title=_days_title(rec),
+                body=f"L'échéance de {rec.reference} est le {rec.due_date}.",
+                actor=None,
+                key=f"DUE_SOON_J7:{rec.pk}",
+                is_urgent=False,
+            ):
+                j7 += 1
+
+        # ── Palier J-3 ──────────────────────────────────────────────────
+        for rec in Recommendation.objects.select_related("assigned_dm", "assigned_etp").filter(
+            status__in=active, due_date__gt=today, due_date__lte=j3_limit,
+        ):
+            if notify_porteur(
+                rec,
+                type=Notification.Type.DUE_SOON_J3,
+                title=_days_title(rec),
+                body=f"L'échéance de {rec.reference} est le {rec.due_date}.",
+                actor=None,
+                key=f"DUE_SOON_J3:{rec.pk}",
+                is_urgent=False,
+            ):
+                j3 += 1
+
+        # ── Réconciliation (handoff Jour J : >= today) ──────────────────
+        cleared = Notification.objects.filter(
+            notification_type=Notification.Type.DUE_SOON_J7,
+        ).exclude(
+            recommendation__status__in=active,
+            recommendation__due_date__gte=today,
+            recommendation__due_date__lte=j7_limit,
+        ).delete()[0]
+        cleared += Notification.objects.filter(
+            notification_type=Notification.Type.DUE_SOON_J3,
+        ).exclude(
+            recommendation__status__in=active,
+            recommendation__due_date__gte=today,
+            recommendation__due_date__lte=j3_limit,
+        ).delete()[0]
+
+    return {"j7": j7, "j3": j3, "cleared": cleared}
+
+
+def run_nightly_notifications() -> dict:
+    """
+    Point d'entrée unique du cron nocturne (Story 4.2 / D6).
+
+    Exécute, dans l'ordre : (1) la bascule OVERDUE + ruptures (3.9/4.1), puis
+    (2) l'anticipation des échéances proches J-7/J-3 (4.2). Un seul Schedule
+    Django-Q2 le déclenche chaque nuit (cf. migration 0016).
+
+    Returns:
+        dict: compteurs agrégés ``{"overdue": {...}, "upcoming": {...}}``.
+    """
+    overdue = flag_overdue_recommendations()
+    upcoming = notify_upcoming_deadlines()
+    return {"overdue": overdue, "upcoming": upcoming}
+
+
 # =============================================================================
 # Demandes de Report d'Échéance (Story 3.6 — FR13, FR14, FR34)
 # =============================================================================

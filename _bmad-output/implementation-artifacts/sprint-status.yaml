@@ -71,17 +71,15 @@ development_status:
   epic-3-retrospective: optional
 
   # ── Epic 4: Proactive Alerting & Notification Engine ──
-  epic-4: in-progress
+  epic-4: done
   4-0-socle-notifications-in-app: done
   4-1-notifications-in-app-workflow-et-ruptures: done
-  4-2-anticipation-in-app-echeances: ready-for-dev
-  4-3-importation-atomique-historique: backlog
-  4-4-triage-auto-assignation: backlog
+  4-2-anticipation-in-app-echeances: done
   epic-4-retrospective: optional
 
   # ── Epic 5: Confiance Réglementaire & Audit Trail ──
-  epic-5: backlog
-  5-1-timeline-statique-audit-trail: backlog
+  epic-5: in-progress
+  5-1-timeline-statique-audit-trail: done
   5-2-compilation-archive-zip-audit-externe: backlog
   epic-5-retrospective: optional
 
@@ -91,4 +89,6 @@ development_status:
   6-2-todo-list-executive: backlog
   6-3-optimisation-impression-pdf-css-print: backlog
   6-4-configuration-interim-delegation: backlog
+  6-5-importation-atomique-historique: backlog
+  6-6-triage-auto-assignation: backlog
   epic-6-retrospective: optional

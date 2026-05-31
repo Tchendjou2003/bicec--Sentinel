@@ -1,6 +1,6 @@
 # Story 4.2: Anticipation In-App des Échéances (J-7 / J-3)
 
-Status: ready-for-dev
+Status: done
 
 <!-- Prérequis : Story 4.0 (socle Notification) + 4.1 (hooks + job ruptures) — done. -->
 
@@ -126,4 +126,10 @@ claude-opus-4-8 (planification create-story, exécution manuelle)
   + `test_due_soon_cleared_day_after` ajoutés. Émission inchangée (`> today`).
 
 ### File List
-*(À compléter pendant l'implémentation dev-story)*
+- `code/apps/workflow/services.py` — `notify_upcoming_deadlines()` + `run_nightly_notifications()` (wrapper).
+- `code/apps/workflow/migrations/0016_repoint_nightly_schedule.py` — repointe le Schedule django-q2.
+- `code/apps/notifications/tests/test_anticipation_notifications.py` — 12 tests (J-7/J-3, toutes priorités, idempotence, réconciliation, **survie Jour J**, wrapper).
+
+### Dev-story réalisé
+- **2026-05-31** : Implémenté. 384 tests verts, `makemigrations --check` propre, Schedule repointé vers
+  `run_nightly_notifications`. Fix « Jour J » (`__gte`) appliqué et couvert par `test_due_soon_survives_day_j`.

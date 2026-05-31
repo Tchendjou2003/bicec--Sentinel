@@ -97,8 +97,8 @@ This document provides the complete epic and story breakdown for bicec--Sentinel
 - FR6: Epic 2 - Soft-delete en état DRAFT
 - FR6b: Epic 2 - État transitoire DRAFT pré-assignation
 - FR7: Différé en V2 (Bulk create)
-- FR8: Epic 4 - Droits d'import pour l'Audit uniquement
-- FR9: Epic 4 - File import transactionnel atomique + date originale Excel
+- FR8: Epic 6 - Droits d'import pour l'Audit uniquement
+- FR9: Epic 6 - File import transactionnel atomique + date originale Excel
 - FR10: Epic 2 - Auto-assignation pour triage
 - FR11: Epic 2 - Assigner à un DM cible
 
@@ -466,33 +466,6 @@ So that **je pilote mes échéances de manière proactive sans être spammé (FR
 > - **Alertes e-mail immédiates « alarme incendie »** (ruptures Critiques + escalade), texte brut via `EMAIL_BACKEND`.
 > Prérequis de réouverture : infra SMTP on-premise COBAC disponible.
 
-#### Story 4.3: Importation Atomique Historique (Substitut de Masse MVP)
-
-As an **Audit Interne (Seulement)**,
-I want **uploader le template Excel officiel contenant l'historique massif (2000 lignes)**,
-So that **tout l'historique soit intégré de manière fiable dans la base de données.**
-
-**Acceptance Criteria:**
-
-**Given** l'upload d'un Excel par l'Audit,
-**When** déclenché,
-**Then** l'import exécute une transaction atomique stricte (tout ou rien).
-**And** les recos importées avec succès ont le statut `ASSIGNED`, le tag `IMPORTED`, et conservent leur date de création Excel originale (FR8, FR9).
-
-
-#### Story 4.4: Triage et Auto-Assignation
-
-As an **Audit Interne**,
-I want **m'auto-assigner des recommandations à trier (notamment les imports historiques)**,
-So that **mon équipe puisse finaliser la complétion des données avant l'envoi légal aux métiers.**
-
-**Acceptance Criteria:**
-
-**Given** une reco importée ou en brouillon,
-**When** l'audit se l'auto-assigne,
-**Then** elle n'est visible que par le pool Audit et ne déclenche aucune alerte (FR10).
-
-
 #### Story 4.5: Bannière Contextuelle de Notifications In-App
 
 As a **Utilisateur (DM, ETP, Audit, DG)**,
@@ -606,3 +579,29 @@ So that **l'intérimaire puisse agir au nom de l'absent avec une traçabilité t
 **When** l'ETP effectue une action métier (ex: validation preuve),
 **Then** le système permet l'action
 **And** l'Audit Log enregistre explicitement que l'action a été effectuée par l'ETP agissant pour le DM (FR4).
+
+#### Story 6.5: Importation Atomique Historique (Substitut de Masse MVP)
+
+As an **Audit Interne (Seulement)**,
+I want **uploader le template Excel officiel contenant l'historique massif (2000 lignes)**,
+So that **tout l'historique soit intégré de manière fiable dans la base de données.**
+
+**Acceptance Criteria:**
+
+**Given** l'upload d'un Excel par l'Audit,
+**When** déclenché,
+**Then** l'import exécute une transaction atomique stricte (tout ou rien).
+**And** les recos importées avec succès ont le statut `ASSIGNED`, le tag `IMPORTED`, et conservent leur date de création Excel originale (FR8, FR9).
+
+
+#### Story 6.6: Triage et Auto-Assignation
+
+As an **Audit Interne**,
+I want **m'auto-assigner des recommandations à trier (notamment les imports historiques)**,
+So that **mon équipe puisse finaliser la complétion des données avant l'envoi légal aux métiers.**
+
+**Acceptance Criteria:**
+
+**Given** une reco importée ou en brouillon,
+**When** l'audit se l'auto-assigne,
+**Then** elle n'est visible que par le pool Audit et ne déclenche aucune alerte (FR10).

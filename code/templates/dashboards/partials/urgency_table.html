@@ -1,0 +1,105 @@
+{% comment %}
+Tableau urgence/aging — partage DM et ETP
+Variables : urgency_rows (list[dict] avec rec, aging_band, days_delta)
+Reutilisable via HTMX refresh dans les stories suivantes.
+{% endcomment %}
+{% if urgency_rows %}
+<div class="overflow-x-auto rounded-xl border border-gray-100">
+  <table class="min-w-full divide-y divide-gray-100 text-sm">
+    <thead class="bg-gray-50/60">
+      <tr>
+        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Référence</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Statut</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Criticité</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Échéance</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Aging</th>
+        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Responsable</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100 bg-white">
+      {% for row in urgency_rows %}
+      {% with rec=row.rec band=row.aging_band delta=row.days_delta %}
+      <tr class="transition-colors hover:bg-gray-50/50
+        {% if band == 'overdue' %}border-l-4 border-l-red-500 bg-red-50/20
+        {% elif band == 'warning' %}border-l-4 border-l-orange-400 bg-orange-50/20
+        {% else %}border-l-4 border-l-green-400{% endif %}">
+
+        {# Référence — lien vers la page de détail #}
+        <td class="px-4 py-3 font-medium text-gray-900">
+          <a href="{% url 'workflow:recommendation-detail' rec.pk %}"
+             class="hover:text-sentinel-orange hover:underline transition-colors">
+            {{ rec.reference }}
+          </a>
+        </td>
+
+        {# Statut #}
+        <td class="px-4 py-3">
+          {% with status=rec.status %}
+          <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
+            {% if status == 'ASSIGNED' %}bg-blue-100 text-blue-700
+            {% elif status == 'IN_PROGRESS' %}bg-amber-100 text-amber-700
+            {% elif status == 'PENDING_DM_REVIEW' %}bg-purple-100 text-purple-700
+            {% elif status == 'PENDING_AUDIT_REVIEW' %}bg-indigo-100 text-indigo-700
+            {% elif status == 'CLOSED_RESOLVED' %}bg-green-100 text-green-700
+            {% else %}bg-gray-100 text-gray-700{% endif %}">
+            {{ rec.get_status_display }}
+          </span>
+          {% endwith %}
+        </td>
+
+        {# Criticité #}
+        <td class="px-4 py-3">
+          {% with priority=rec.priority %}
+          <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
+            {% if priority == 'CRITIQUE' %}bg-red-100 text-red-700
+            {% elif priority == 'HAUTE' %}bg-orange-100 text-orange-700
+            {% elif priority == 'MOYENNE' %}bg-yellow-100 text-yellow-700
+            {% else %}bg-gray-100 text-gray-600{% endif %}">
+            {{ rec.get_priority_display }}
+          </span>
+          {% endwith %}
+        </td>
+
+        {# Échéance #}
+        <td class="px-4 py-3 text-gray-700 tabular-nums">
+          {% if rec.is_overdue %}
+            <span class="text-red-600 font-medium">{{ rec.due_date|date:"d/m/Y" }}</span>
+          {% else %}
+            {{ rec.due_date|date:"d/m/Y" }}
+          {% endif %}
+        </td>
+
+        {# Aging #}
+        <td class="px-4 py-3 tabular-nums font-medium">
+          {% if band == 'overdue' %}
+            <span class="text-red-600">J+{{ delta }} retard</span>
+          {% elif band == 'warning' %}
+            <span class="text-orange-500">Dans {{ delta }}j</span>
+          {% else %}
+            <span class="text-green-600">OK</span>
+          {% endif %}
+        </td>
+
+        {# Responsable #}
+        <td class="px-4 py-3 text-gray-600 text-xs">
+          {% if rec.assigned_etp %}
+            {{ rec.assigned_etp.get_full_name|default:rec.assigned_etp.username }}
+          {% elif rec.assigned_dm %}
+            {{ rec.assigned_dm.get_full_name|default:rec.assigned_dm.username }}
+            <span class="ml-1 text-gray-400">(DM porteur)</span>
+          {% else %}
+            <span class="text-gray-400">—</span>
+          {% endif %}
+        </td>
+
+      </tr>
+      {% endwith %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 py-10 text-center">
+  <p class="text-sm text-gray-500">Aucune recommandation active dans votre périmètre.</p>
+</div>
+{% endif %}

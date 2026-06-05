@@ -25,19 +25,19 @@
     <p class="text-gray-400 text-[10px] font-bold uppercase tracking-widest px-2 mb-3 mt-6 first:mt-0">Pilotage</p>
     <ul class="space-y-2">
       <li>
-        <a href="/dg/" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 {% if active_route == 'dashboard' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-lg shadow-orange-500/30{% else %}text-gray-500 hover:bg-orange-50 hover:text-sentinel-orange hover:shadow-sm{% endif %}">
+        <a href="{% url 'dashboards:home' %}" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 {% if active_route == 'dashboard' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-lg shadow-orange-500/30{% else %}text-gray-500 hover:bg-orange-50 hover:text-sentinel-orange hover:shadow-sm{% endif %}">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
           <span>Dashboard Exécutif</span>
         </a>
       </li>
       <li>
-        <a href="/dg/directions/" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 {% if active_route == 'vue' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-lg shadow-orange-500/30{% else %}text-gray-500 hover:bg-orange-50 hover:text-sentinel-orange hover:shadow-sm{% endif %}">
+        <a href="#" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 {% if active_route == 'vue' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-lg shadow-orange-500/30{% else %}text-gray-500 hover:bg-orange-50 hover:text-sentinel-orange hover:shadow-sm{% endif %}">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>
           <span>Vue par Direction</span>
         </a>
       </li>
       <li>
-        <a href="/dg/rapports/" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 {% if active_route == 'rapports' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-lg shadow-orange-500/30{% else %}text-gray-500 hover:bg-orange-50 hover:text-sentinel-orange hover:shadow-sm{% endif %}">
+        <a href="#" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 {% if active_route == 'rapports' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-lg shadow-orange-500/30{% else %}text-gray-500 hover:bg-orange-50 hover:text-sentinel-orange hover:shadow-sm{% endif %}">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           <span>Rapports & Exports</span>
         </a>

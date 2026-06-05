@@ -1,0 +1,128 @@
+{% extends "layouts/app_shell.html" %}
+{% load static %}
+
+{% block extra_js %}
+<script src="{% static 'js/chart.umd.min.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+
+{# ── Section 1 : Bandeau KPIs macro-banque (5 cartes) ── #}
+<div class="mb-8">
+  <div class="mb-4 flex items-end justify-between">
+    <div>
+      <h2 class="text-lg font-bold text-gray-900 font-heading">Exposition réglementaire — Banque entière</h2>
+      <p class="text-xs text-gray-400 mt-0.5">Vision consolidée de toutes les directions</p>
+    </div>
+  </div>
+  <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+    {% include "components/kpi_card.html" with title="Recommandations actives" value=kpis.total_actives accent="primary" %}
+    {% include "components/kpi_card.html" with title="En retard" value=kpis.overdue accent="destructive" %}
+    {% include "components/kpi_card.html" with title="Critiques ouvertes" value=kpis.critique_open accent="warning" %}
+    {% with taux_str=kpis.taux_cloture|stringformat:".1f" %}
+      {% include "components/kpi_card.html" with title="Taux de cloture" value=taux_str accent="success" %}
+    {% endwith %}
+    {% include "components/kpi_card.html" with title="En validation Audit" value=kpis.pending_audit_review accent="info" %}
+  </div>
+</div>
+
+{# ── Section 2 : Heatmap Santé par Direction ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white shadow-premium-sm overflow-hidden">
+    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-2 w-2 rounded-full bg-sentinel-orange"></span>
+        <h3 class="text-sm font-bold text-gray-800">Santé par Direction</h3>
+      </div>
+      <div class="flex items-center gap-4 text-[11px] font-medium text-gray-500">
+        <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-red-500"></span>Critique</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-orange-400"></span>Modéré</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-green-500"></span>Faible</span>
+      </div>
+    </div>
+
+    {% if dept_breakdown %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-100 text-sm">
+        <thead class="bg-gray-50/60">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Direction</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actives</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">En retard</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Critiques</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Taux clôture</th>
+            <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">Risque</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for d in dept_breakdown %}
+          <tr class="transition-colors hover:bg-gray-50/50
+            {% if d.risk_level == 'CRITIQUE' %}bg-red-50/30{% elif d.risk_level == 'MODERE' %}bg-orange-50/20{% endif %}">
+            <td class="px-6 py-3.5 font-medium text-gray-900">
+              <a href="{% url 'workflow:recommendation-list' %}" class="hover:text-sentinel-orange hover:underline transition-colors">{{ d.department.name }}</a>
+            </td>
+            <td class="px-4 py-3.5 text-right tabular-nums text-gray-700">{{ d.actives }}</td>
+            <td class="px-4 py-3.5 text-right tabular-nums">
+              {% if d.overdue > 0 %}<span class="font-semibold text-red-600">{{ d.overdue }}</span>
+              <span class="ml-1 text-[11px] text-red-400">({{ d.overdue_pct }}%)</span>
+              {% else %}<span class="text-gray-300">—</span>{% endif %}
+            </td>
+            <td class="px-4 py-3.5 text-right tabular-nums">
+              {% if d.critique_open > 0 %}<span class="font-semibold text-orange-600">{{ d.critique_open }}</span>
+              {% else %}<span class="text-gray-300">—</span>{% endif %}
+            </td>
+            <td class="px-4 py-3.5 text-right">
+              <div class="inline-flex items-center gap-2">
+                <div class="h-1.5 w-16 overflow-hidden rounded-full bg-gray-100">
+                  <div class="h-full rounded-full {% if d.taux_cloture >= 75 %}bg-green-500{% elif d.taux_cloture >= 40 %}bg-orange-400{% else %}bg-red-400{% endif %}" style="width: {{ d.taux_cloture }}%"></div>
+                </div>
+                <span class="tabular-nums text-xs font-medium text-gray-600 w-10 text-right">{{ d.taux_cloture }}%</span>
+              </div>
+            </td>
+            <td class="px-6 py-3.5 text-center">
+              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold
+                {% if d.risk_level == 'CRITIQUE' %}bg-red-100 text-red-700
+                {% elif d.risk_level == 'MODERE' %}bg-orange-100 text-orange-700
+                {% else %}bg-green-100 text-green-700{% endif %}">
+                <span class="h-1.5 w-1.5 rounded-full
+                  {% if d.risk_level == 'CRITIQUE' %}bg-red-500{% elif d.risk_level == 'MODERE' %}bg-orange-500{% else %}bg-green-500{% endif %}"></span>
+                {% if d.risk_level == 'CRITIQUE' %}Critique{% elif d.risk_level == 'MODERE' %}Modéré{% else %}Faible{% endif %}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-10 text-center">
+      <p class="text-sm text-gray-500">Aucune direction avec des recommandations actives.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Section 3 : Barres empilées par Direction ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-premium-sm">
+    <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500">Répartition des statuts par direction</h3>
+    <div style="height: 320px;">
+      {% include "components/bar_chart.html" with chart_id="dg-stacked" chart_data_json=stacked_bar_json %}
+    </div>
+  </div>
+</div>
+
+{# ── Section 4 : Mes recommandations directes ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white shadow-premium-sm">
+    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <h3 class="text-sm font-bold text-gray-800">Mes recommandations directes</h3>
+      <a href="{% url 'workflow:recommendation-list' %}" class="text-xs font-medium text-sentinel-orange hover:underline">Liste complète →</a>
+    </div>
+    <div class="p-2">
+      {% include "dashboards/partials/urgency_table.html" with urgency_rows=my_recos %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

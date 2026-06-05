@@ -1,0 +1,51 @@
+{% load static %}
+{% comment %}
+Composant Donut Chart.js
+Variables : chart_id (str, unique), chart_data_json (JSON string {labels, values, colors})
+Chart.js doit etre charge avant via block extra_js.
+Utiliser escapejs (pas safe) pour XSS prevention.
+{% endcomment %}
+<div class="relative">
+  <canvas id="{{ chart_id }}" height="220" aria-label="Repartition des recommandations" role="img"></canvas>
+</div>
+<script>
+(function () {
+  var chartId = "{{ chart_id }}";
+  var chartJson = "{{ chart_data_json|escapejs }}";
+  var d = JSON.parse(chartJson);
+  var canvas = document.getElementById(chartId);
+  if (!canvas) { return; }
+  new Chart(canvas, {
+    type: "doughnut",
+    data: {
+      labels: d.labels,
+      datasets: [{
+        data: d.values,
+        backgroundColor: d.colors,
+        borderWidth: 2,
+        borderColor: "#ffffff",
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      cutout: "65%",
+      plugins: {
+        legend: {
+          position: "right",
+          labels: { boxWidth: 12, padding: 14, font: { size: 12 } }
+        },
+        tooltip: {
+          callbacks: {
+            label: function (item) {
+              var total = item.dataset.data.reduce(function (a, b) { return a + b; }, 0);
+              var pct = total > 0 ? Math.round((item.parsed / total) * 100) : 0;
+              return " " + item.label + " : " + item.parsed + " (" + pct + "%)";
+            }
+          }
+        }
+      },
+      animation: { duration: 500 }
+    }
+  });
+}());
+</script>

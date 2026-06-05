@@ -1,0 +1,112 @@
+{% extends "layouts/app_shell.html" %}
+{% load static %}
+
+{% block extra_js %}
+<script src="{% static 'js/chart.umd.min.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+
+{# ── Section 1 : Bandeau KPIs (5 cartes) ── #}
+<div class="mb-8">
+  <h2 class="mb-4 text-lg font-bold text-gray-900 font-heading">Vue d'ensemble — {{ request.user.department.name|default:"Ma Direction" }}</h2>
+  <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+
+    {% include "components/kpi_card.html" with title="Recommandations actives" value=kpis.total_actives accent="primary" %}
+    {% include "components/kpi_card.html" with title="En retard" value=kpis.overdue accent="destructive" %}
+    {% include "components/kpi_card.html" with title="A valider (preuves)" value=kpis.pending_dm_review accent="warning" %}
+    {% with taux_str=kpis.taux_cloture|stringformat:".1f" %}
+      {% include "components/kpi_card.html" with title="Taux de cloture" value=taux_str accent="success" %}
+    {% endwith %}
+    {% include "components/kpi_card.html" with title="Critiques ouvertes" value=kpis.critique_open accent="destructive" %}
+
+  </div>
+</div>
+
+{# ── Section 2 : Donut — Répartition par statut ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-premium-sm">
+    <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500">Répartition par statut</h3>
+    <div class="flex justify-center">
+      <div class="w-full max-w-md">
+        {% include "components/donut_chart.html" with chart_id="dm-status-donut" chart_data_json=donut_data_json %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Section 3 : File d'attente DM — PENDING_DM_REVIEW ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-orange-100 bg-orange-50/30 shadow-premium-sm">
+    <div class="flex items-center justify-between border-b border-orange-100 px-6 py-4">
+      <div class="flex items-center gap-2">
+        <h3 class="text-sm font-bold text-orange-700">Preuves en attente de ma validation</h3>
+        {% if kpis.pending_dm_review > 0 %}
+          <span class="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-orange-500 px-1.5 text-xs font-bold text-white">{{ kpis.pending_dm_review }}</span>
+        {% endif %}
+      </div>
+      <a href="{% url 'workflow:recommendation-list' %}?status=PENDING_DM_REVIEW" class="text-xs font-medium text-orange-600 hover:text-orange-800 hover:underline">Voir tout →</a>
+    </div>
+
+    {% if pending_validation %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-orange-100 text-sm">
+        <thead class="bg-orange-50/50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Référence</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">ETP soumetteur</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Criticité</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Échéance</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-orange-50 bg-white/60">
+          {% for rec in pending_validation %}
+          <tr class="hover:bg-orange-50/40 transition-colors">
+            <td class="px-6 py-3 font-medium text-gray-900">
+              <a href="{% url 'workflow:recommendation-detail' rec.pk %}" class="hover:text-sentinel-orange hover:underline">{{ rec.reference }}</a>
+            </td>
+            <td class="px-6 py-3 text-gray-600">
+              {% if rec.assigned_etp %}{{ rec.assigned_etp.get_full_name|default:rec.assigned_etp.username }}
+              {% else %}<span class="text-gray-400">DM porteur</span>{% endif %}
+            </td>
+            <td class="px-6 py-3">
+              {% with p=rec.priority %}
+              <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {% if p == 'CRITIQUE' %}bg-red-100 text-red-700{% elif p == 'HAUTE' %}bg-orange-100 text-orange-700{% elif p == 'MOYENNE' %}bg-yellow-100 text-yellow-700{% else %}bg-gray-100 text-gray-600{% endif %}">{{ rec.get_priority_display }}</span>
+              {% endwith %}
+            </td>
+            <td class="px-6 py-3 tabular-nums text-gray-700">
+              {% if rec.is_overdue %}<span class="text-red-600 font-medium">{{ rec.due_date|date:"d/m/Y" }}</span>
+              {% else %}{{ rec.due_date|date:"d/m/Y" }}{% endif %}
+            </td>
+            <td class="px-6 py-3">
+              <a href="{% url 'workflow:recommendation-detail' rec.pk %}" class="inline-flex items-center gap-1 rounded-lg bg-orange-100 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-200 transition-colors">Examiner →</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="px-6 py-10 text-center">
+      <p class="text-sm font-medium text-gray-600">File d'attente vide</p>
+      <p class="mt-1 text-xs text-gray-400">Aucune preuve en attente de votre validation.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Section 4 : Tableau Aging / Urgence ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white shadow-premium-sm">
+    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <h3 class="text-sm font-bold text-gray-800">Recommandations actives — Vue urgence</h3>
+      <a href="{% url 'workflow:recommendation-list' %}" class="text-xs font-medium text-sentinel-orange hover:underline">Liste complète →</a>
+    </div>
+    <div class="p-2">
+      {% include "dashboards/partials/urgency_table.html" %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

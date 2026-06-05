@@ -1,0 +1,38 @@
+{% extends "layouts/app_shell.html" %}
+{% load static %}
+
+{% block content %}
+
+{# ── Section 1 : Bandeau KPIs (4 cartes) ── #}
+<div class="mb-8">
+  <h2 class="mb-4 text-lg font-bold text-gray-900 font-heading">Mes recommandations</h2>
+  <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+    {% include "components/kpi_card.html" with title="Actives" value=kpis.total_actives accent="primary" %}
+    {% include "components/kpi_card.html" with title="En retard" value=kpis.overdue accent="destructive" %}
+    {% include "components/kpi_card.html" with title="En cours" value=kpis.in_progress accent="warning" %}
+    {% include "components/kpi_card.html" with title="Cloturees" value=kpis.closed_resolved accent="success" %}
+  </div>
+</div>
+
+{# ── Section 2 : Tableau mes recos déléguées ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white shadow-premium-sm">
+    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <h3 class="text-sm font-bold text-gray-800">Mes recommandations actives</h3>
+      <a href="{% url 'workflow:recommendation-list' %}" class="text-xs font-medium text-sentinel-orange hover:underline">Liste complète →</a>
+    </div>
+    <div class="p-2">
+      {% if etp_rows %}
+        {% with urgency_rows=etp_rows %}
+          {% include "dashboards/partials/urgency_table.html" %}
+        {% endwith %}
+      {% else %}
+        <div class="py-10 text-center">
+          <p class="text-sm text-gray-500">Aucune recommandation déléguée pour le moment.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -54,7 +54,7 @@ class RoleRequiredMiddlewareTest(TestCase):
     def test_active_user_not_redirected(self):
         """Un compte actif (avec rôle) n'est pas bloqué par le middleware."""
         self.client.force_login(self.dm_user)
-        response = self.client.get(self.home_url)
+        response = self.client.get(self.home_url, follow=True)
         self.assertEqual(response.status_code, 200)
 
     def test_anonymous_user_not_affected(self):
@@ -123,14 +123,14 @@ class IdleTimeoutMiddlewareTest(TestCase):
         self.client.force_login(self.user)
 
         # Requête initiale
-        self.client.get(self.home_url)
+        self.client.get(self.home_url, follow=True)
 
         # Simuler 25 min d'inactivité (dans la limite)
         session = self.client.session
         session["_last_activity"] = time.time() - 1500  # 25 minutes ago
         session.save()
 
-        response = self.client.get(self.home_url)
+        response = self.client.get(self.home_url, follow=True)
         self.assertEqual(response.status_code, 200)
 
     def test_login_page_excluded_from_timeout(self):

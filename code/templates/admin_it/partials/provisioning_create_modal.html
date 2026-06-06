@@ -1,0 +1,219 @@
+{% comment %}
+  Slide-over de création d'une demande de provisioning (Story 6.2.0 / AC1 + AC7).
+
+  Pattern calqué sur stepper_slideover.html + recommendation_list.html :
+  - Overlay bg-gray-900/40 backdrop-blur-sm
+  - Panel qui glisse de la droite, pleine hauteur
+  - Header fixe + body scrollable + footer sticky
+  - Fermeture via Échap, clic overlay, ou bouton ×
+
+  Design sobre institutionnel — sentinel-orange uniquement sur le CTA principal.
+{% endcomment %}
+
+<div
+  x-data="{ role: '' }"
+  class="flex flex-col h-full"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="provisioning-panel-title"
+  @keydown.escape.window="window.dispatchEvent(new CustomEvent('close-create-provisioning'))"
+>
+
+  {# ── Header ── #}
+  <div
+    class="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white shrink-0"
+    style="border-top-left-radius: 1.5rem;"
+  >
+    <div class="flex items-center gap-3">
+      <div class="flex h-10 w-10 items-center justify-center rounded-full bg-sentinel-orange/10 shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+        </svg>
+      </div>
+      <div>
+        <h2 id="provisioning-panel-title" class="text-lg font-bold text-gray-900 tracking-tight">
+          Nouvelle demande de compte
+        </h2>
+        <p class="text-sm text-gray-500 mt-0.5">Aucun compte créé avant la validation du checker.</p>
+      </div>
+    </div>
+    <button
+      type="button"
+      @click="window.dispatchEvent(new CustomEvent('close-create-provisioning'))"
+      class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+      aria-label="Fermer"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  {# ── Formulaire — flex-col pour que le footer reste sticky ── #}
+  <form
+    hx-post="{% url 'auth:provisioning-create' %}"
+    hx-target="this"
+    hx-swap="outerHTML"
+    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    class="flex flex-col flex-1 overflow-hidden"
+  >
+    {% csrf_token %}
+
+    {# Corps scrollable #}
+    <div class="flex-1 overflow-y-auto">
+
+      {# ── Identité ── #}
+      <div class="px-6 py-5 space-y-4">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Identité</p>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_first_name">Prénom</label>
+            {{ form.requested_first_name }}
+            {% if form.requested_first_name.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_first_name.errors.0 }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_last_name">Nom</label>
+            {{ form.requested_last_name }}
+            {% if form.requested_last_name.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_last_name.errors.0 }}</p>{% endif %}
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_username">
+            Identifiant de connexion <span class="text-red-500">*</span>
+          </label>
+          {{ form.requested_username }}
+          {% if form.requested_username.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_username.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_email">
+            E-mail professionnel <span class="text-red-500">*</span>
+          </label>
+          {{ form.requested_email }}
+          {% if form.requested_email.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_email.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_password">
+            Mot de passe initial <span class="text-red-500">*</span>
+          </label>
+          {{ form.password }}
+          <p class="mt-1 text-xs text-gray-400">{{ form.password.help_text }}</p>
+          {% if form.password.errors %}<p class="mt-1 text-xs text-red-500">{{ form.password.errors.0 }}</p>{% endif %}
+        </div>
+      </div>
+
+      <div class="mx-6 border-t border-gray-100"></div>
+
+      {# ── Habilitation ── #}
+      <div class="px-6 py-5 space-y-4">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Habilitation</p>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_role">
+            Rôle <span class="text-red-500">*</span>
+          </label>
+          <select
+            name="requested_role"
+            id="id_requested_role"
+            x-model="role"
+            class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200"
+          >
+            <option value="">— Sélectionner un rôle —</option>
+            {% for value, label in form.requested_role.field.choices %}
+              {% if value %}<option value="{{ value }}"{% if form.requested_role.value == value %} selected{% endif %}>{{ label }}</option>{% endif %}
+            {% endfor %}
+          </select>
+          {% if form.requested_role.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_role.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_department">
+            Département
+            <span class="text-xs font-normal text-gray-400">(requis sauf AUDIT, ADMIN, EXT)</span>
+          </label>
+          {{ form.requested_department }}
+          {% if form.requested_department.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_department.errors.0 }}</p>{% endif %}
+        </div>
+      </div>
+
+      {# ── Mission externe — visible uniquement si rôle EXT ── #}
+      <div
+        x-show="role === 'EXT'"
+        x-cloak
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 -translate-y-1"
+        x-transition:enter-end="opacity-100 translate-y-0"
+      >
+        <div class="mx-6 border-t border-gray-100"></div>
+        <div class="px-6 py-5 space-y-4 bg-amber-50/40">
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-amber-700">
+            Mission externe
+            <span class="normal-case font-normal text-amber-600">(obligatoire pour EXT)</span>
+          </p>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_mission_organization">
+              Organisation d'origine <span class="text-red-500">*</span>
+            </label>
+            {{ form.mission_organization }}
+            <p class="mt-1 text-xs text-gray-400">{{ form.mission_organization.help_text }}</p>
+            {% if form.mission_organization.errors %}<p class="mt-1 text-xs text-red-500">{{ form.mission_organization.errors.0 }}</p>{% endif %}
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_mission_start_date">
+                Date de début <span class="text-red-500">*</span>
+              </label>
+              {{ form.mission_start_date }}
+              {% if form.mission_start_date.errors %}<p class="mt-1 text-xs text-red-500">{{ form.mission_start_date.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_mission_end_date">
+                Date de fin
+              </label>
+              {{ form.mission_end_date }}
+              {% if form.mission_end_date.errors %}<p class="mt-1 text-xs text-red-500">{{ form.mission_end_date.errors.0 }}</p>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ── Erreurs globales ── #}
+      {% if form.non_field_errors %}
+      <div class="mx-6 mt-2 mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+        {% for error in form.non_field_errors %}
+        <p class="text-xs text-red-600">{{ error }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>{# /corps scrollable #}
+
+    {# ── Footer sticky — toujours visible ── #}
+    <div class="sticky bottom-0 border-t border-gray-100 bg-white px-6 py-4 flex items-center justify-between shrink-0">
+      <button
+        type="button"
+        @click="window.dispatchEvent(new CustomEvent('close-create-provisioning'))"
+        class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+      >
+        Annuler
+      </button>
+      <button
+        type="submit"
+        class="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-sentinel-orange to-[#C9631A] shadow-md shadow-orange-500/20 hover:shadow-lg transition-all duration-200"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        Soumettre la demande
+      </button>
+    </div>
+
+  </form>
+
+</div>

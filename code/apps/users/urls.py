@@ -37,6 +37,38 @@ urlpatterns = [
         views.AdminDashboardView.as_view(),
         name="admin-dashboard",
     ),
+    # ── Provisioning Maker/Checker (Story 6.2.0) ──
+    path(
+        "admin/provisioning/",
+        views.ProvisioningRequestListView.as_view(),
+        name="provisioning-list",
+    ),
+    path(
+        "admin/provisioning/create/",
+        views.ProvisioningRequestCreateView.as_view(),
+        name="provisioning-create",
+    ),
+    path(
+        "admin/provisioning/<uuid:pk>/approve/",
+        views.ProvisioningRequestApproveView.as_view(),
+        name="provisioning-approve",
+    ),
+    path(
+        "admin/provisioning/<uuid:pk>/reject/",
+        views.ProvisioningRequestRejectView.as_view(),
+        name="provisioning-reject",
+    ),
+    path(
+        "admin/provisioning/<uuid:pk>/cancel/",
+        views.ProvisioningRequestCancelView.as_view(),
+        name="provisioning-cancel",
+    ),
+    # ── Point d'entrée Audit — délégation is_audit_admin (Story 6.2.0 / AC5) ──
+    path(
+        "audit/admin-membres/",
+        views.AuditAdminMembersView.as_view(),
+        name="audit-admin-members",
+    ),
     path(
         "admin/organigramme/",
         views.OrganigrammeListView.as_view(),

@@ -174,6 +174,14 @@ AXES_RESET_ON_SUCCESS = True
 X_FRAME_OPTIONS = "SAMEORIGIN"
 
 # ============================================
+# Provisioning — Groupe d'approbateurs (Story 6.2.0)
+# ============================================
+# Nom du groupe Django dont les membres peuvent valider (checker)
+# les demandes de création de compte (UserProvisioningRequest).
+# Ce groupe est créé automatiquement via la migration 0009.
+PROVISIONING_APPROVER_GROUP_NAME = "Administrateurs Sentinel"
+
+# ============================================
 # Django-Q2 — Task Queue Asynchrone (ADR-05)
 # ============================================
 Q_CLUSTER = {

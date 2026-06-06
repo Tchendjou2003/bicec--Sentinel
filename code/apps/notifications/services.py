@@ -62,6 +62,56 @@ def emit_notification(
     return notif if created else None
 
 
+def notify_group(
+    *,
+    group_name: str,
+    notification_type: str,
+    title: str,
+    key_prefix: str,
+    url: str = "",
+    body: str = "",
+    is_urgent: bool = False,
+) -> list:
+    """
+    Notifie tous les membres d'un groupe Django natif (Story 6.2.0).
+
+    Boucle sur chaque membre du groupe et appelle ``emit_notification``
+    avec une clé d'idempotence unique par destinataire (``key_prefix:{member.pk}``).
+
+    Args:
+        group_name: Nom du groupe (ex. "Administrateurs Sentinel").
+        notification_type: Valeur de ``Notification.Type``.
+        title: Texte court affiché dans le dropdown.
+        key_prefix: Préfixe de la clé (le PK du membre est ajouté automatiquement).
+        url: URL relative de destination au clic.
+        body: Précision facultative.
+        is_urgent: True pour ruptures et escalades.
+
+    Returns:
+        Liste des ``Notification`` créées (None exclu — doublons ignorés).
+    """
+    from django.contrib.auth.models import Group as DjangoGroup
+    try:
+        group = DjangoGroup.objects.prefetch_related("user_set").get(name=group_name)
+    except DjangoGroup.DoesNotExist:
+        return []
+
+    results = []
+    for member in group.user_set.filter(is_active=True):
+        notif = emit_notification(
+            recipient=member,
+            notification_type=notification_type,
+            title=title,
+            idempotency_key=f"{key_prefix}:{member.pk}",
+            body=body,
+            url=url,
+            is_urgent=is_urgent,
+        )
+        if notif is not None:
+            results.append(notif)
+    return results
+
+
 def _reco_url(recommendation) -> str:
     """Helper interne pour générer l'URL de destination d'une reco."""
     if not recommendation:

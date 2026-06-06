@@ -10,11 +10,17 @@ Acceptance Criteria couverts :
     - AC3 : Hiérarchie REGION → AGENCE
     - AC4 : Création coquille vide (sans rôle, sans champ rôle)
 """
+from django.contrib.auth.models import Group
 from django.test import Client, TestCase
 from django.urls import reverse
 
 from apps.users.models import Department, OrgUnitType, User
 from apps.audit.models import AuditLog
+
+
+def _get_or_create_approvers_group():
+    group, _ = Group.objects.get_or_create(name="Administrateurs Sentinel")
+    return group
 
 
 class AdminDashboardAccessTest(TestCase):
@@ -80,17 +86,23 @@ class AdminDashboardAccessTest(TestCase):
 
 
 class OrganigrammeTest(TestCase):
-    """Tests CRUD organigramme (AC2, AC3) — accès Audit Admin (Story 3.7.b)."""
+    """
+    Tests CRUD organigramme (AC2, AC3).
+    Story 6.2.0 : vues organigramme protégées par ProvisioningApproverRequiredMixin
+    (groupe « Administrateurs Sentinel »), pas plus par AuditAdminRequiredMixin.
+    """
 
     def setUp(self):
         self.client = Client()
-        # Les vues organigramme sont désormais protégées par AuditAdminRequiredMixin
+        self.group = _get_or_create_approvers_group()
+        # Depuis Story 6.2.0 : il faut être dans le groupe pour accéder à l'organigramme
         self.audit_admin = User.objects.create_user(
             username="audit_admin",
             password="testpass123",
             role=User.Role.AUDIT,
             is_audit_admin=True,
         )
+        self.audit_admin.groups.add(self.group)
         self.client.force_login(self.audit_admin)
 
         # Fixtures OrgUnitType (seeded by migration 0006 — use get_or_create)
@@ -107,13 +119,17 @@ class OrganigrammeTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "admin_it/organigramme_list.html")
 
-    def test_organigramme_forbidden_for_admin_it(self):
-        """Un Admin IT (ADMIN role) reçoit 403 — organigramme réservé aux Audit Admins."""
-        admin_it = User.objects.create_user(
+    def test_organigramme_forbidden_for_non_group_member(self):
+        """
+        Un utilisateur hors du groupe reçoit 403 (Story 6.2.0).
+        L'organigramme est maintenant protégé par ProvisioningApproverRequiredMixin.
+        """
+        admin_it_no_group = User.objects.create_user(
             username="admin_it_test", password="testpass123",
             role=User.Role.ADMIN, is_staff=True,
         )
-        self.client.force_login(admin_it)
+        # Pas dans le groupe → 403
+        self.client.force_login(admin_it_no_group)
         response = self.client.get(reverse("auth:organigramme-list"))
         self.assertEqual(response.status_code, 403)
 
@@ -341,17 +357,22 @@ class ITUserCreationTest(TestCase):
 
 
 class DepartmentDeleteTest(TestCase):
-    """Tests de la suppression (soft-delete) de département (H4 — Code Review)."""
+    """
+    Tests de la suppression (soft-delete) de département.
+    Story 6.2.0 : vues département protégées par ProvisioningApproverRequiredMixin.
+    """
 
     def setUp(self):
         self.client = Client()
-        # Les vues organigramme (dont delete) sont protégées par AuditAdminRequiredMixin
+        self.group = _get_or_create_approvers_group()
+        # Depuis Story 6.2.0 : il faut être dans le groupe
         self.admin_user = User.objects.create_user(
             username="audit_admin_del",
             password="testpass123",
             role=User.Role.AUDIT,
             is_audit_admin=True,
         )
+        self.admin_user.groups.add(self.group)
         self.client.force_login(self.admin_user)
 
         # Fixtures OrgUnitType (seeded by migration 0006 — use get_or_create)

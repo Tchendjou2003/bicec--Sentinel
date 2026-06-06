@@ -12,6 +12,7 @@ utiliser get_or_create pour les codes existants (DG, DIRECTION…).
 """
 import uuid
 
+from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
 
@@ -19,16 +20,28 @@ from apps.audit.models import AuditLog
 from apps.users.models import OrgUnitType, User
 
 
+def _get_or_create_approvers_group():
+    """Groupe d'approbateurs requis par ProvisioningApproverRequiredMixin (Story 6.2.0)."""
+    group, _ = Group.objects.get_or_create(name="Administrateurs Sentinel")
+    return group
+
+
 class OrgUnitTypeAccessTest(TestCase):
-    """Contrôle d'accès aux vues OrgUnitType (AuditAdminRequiredMixin)."""
+    """
+    Contrôle d'accès aux vues OrgUnitType (Story 6.2.0).
+    Depuis Story 6.2.0 : protégées par ProvisioningApproverRequiredMixin (groupe IT).
+    """
 
     def setUp(self):
+        self.group = _get_or_create_approvers_group()
         self.audit_admin = User.objects.create_user(
             username="audit_admin_out",
             password="testpass123",
             role=User.Role.AUDIT,
             is_audit_admin=True,
         )
+        # Accès via le groupe (Story 6.2.0)
+        self.audit_admin.groups.add(self.group)
         self.dm_user = User.objects.create_user(
             username="dm_out",
             password="testpass123",
@@ -39,8 +52,8 @@ class OrgUnitTypeAccessTest(TestCase):
             defaults={"name": "Direction", "level": 1},
         )
 
-    def test_list_accessible_by_audit_admin(self):
-        """Un Audit Admin peut accéder à la liste des types."""
+    def test_list_accessible_by_group_member(self):
+        """Un membre du groupe « Administrateurs Sentinel » peut accéder à la liste (Story 6.2.0)."""
         self.client.force_login(self.audit_admin)
         response = self.client.get(reverse("auth:org-unit-type-list"))
         self.assertEqual(response.status_code, 200)
@@ -99,12 +112,14 @@ class OrgUnitTypeListTest(TestCase):
     """Tests de la vue liste des types d'unités."""
 
     def setUp(self):
+        self.group = _get_or_create_approvers_group()
         self.audit_admin = User.objects.create_user(
             username="audit_admin_list_out",
             password="testpass123",
             role=User.Role.AUDIT,
             is_audit_admin=True,
         )
+        self.audit_admin.groups.add(self.group)
         self.client.force_login(self.audit_admin)
         # Seeded by migration 0006 — use get_or_create
         self.type_direction, _ = OrgUnitType.objects.get_or_create(
@@ -136,12 +151,14 @@ class OrgUnitTypeCreateTest(TestCase):
     """Tests de la vue de création (HTMX)."""
 
     def setUp(self):
+        self.group = _get_or_create_approvers_group()
         self.audit_admin = User.objects.create_user(
             username="audit_admin_create_out",
             password="testpass123",
             role=User.Role.AUDIT,
             is_audit_admin=True,
         )
+        self.audit_admin.groups.add(self.group)
         self.client.force_login(self.audit_admin)
 
     def test_get_renders_form_partial(self):
@@ -208,12 +225,14 @@ class OrgUnitTypeEditTest(TestCase):
     """Tests de la vue d'édition (HTMX)."""
 
     def setUp(self):
+        self.group = _get_or_create_approvers_group()
         self.audit_admin = User.objects.create_user(
             username="audit_admin_edit_out",
             password="testpass123",
             role=User.Role.AUDIT,
             is_audit_admin=True,
         )
+        self.audit_admin.groups.add(self.group)
         self.client.force_login(self.audit_admin)
         # Type dédié aux tests d'édition (code non-seedé)
         self.org_type = OrgUnitType.objects.create(
@@ -293,12 +312,14 @@ class OrgUnitTypeToggleTest(TestCase):
     """Tests du toggle is_active (HTMX POST)."""
 
     def setUp(self):
+        self.group = _get_or_create_approvers_group()
         self.audit_admin = User.objects.create_user(
             username="audit_admin_toggle_out",
             password="testpass123",
             role=User.Role.AUDIT,
             is_audit_admin=True,
         )
+        self.audit_admin.groups.add(self.group)
         self.client.force_login(self.audit_admin)
         self.org_type = OrgUnitType.objects.create(
             code="TOGGLE_TYPE", name="Type Toggle", level=6, is_active=True,

@@ -3,7 +3,12 @@ Users App — Tests Services (Convention HackSoft)
 
 Vérifie la couche service d'habilitation : assign_role et toggle_audit_admin.
 Chaque test valide un comportement métier unique (ADR-10, FR3, FR36).
+
+Note Story 6.2.0 : assign_role utilise désormais user_is_provisioning_approver
+(appartenance au groupe « Administrateurs Sentinel ») comme garde d'autorisation.
+Les tests sont adaptés en conséquence.
 """
+from django.contrib.auth.models import Group
 from django.core.exceptions import PermissionDenied
 from django.test import TestCase
 
@@ -12,10 +17,21 @@ from apps.users.models import Department, OrgUnitType, User
 from apps.users.services import assign_role, toggle_audit_admin
 
 
+def _get_or_create_approvers_group():
+    group, _ = Group.objects.get_or_create(name="Administrateurs Sentinel")
+    return group
+
+
 class AssignRoleServiceTest(TestCase):
-    """Tests du service assign_role (FR3, ADR-10)."""
+    """
+    Tests du service assign_role (FR3, ADR-10 / Story 6.2.0).
+
+    Depuis Story 6.2.0 : le garde d'autorisation est user_is_provisioning_approver
+    (groupe « Administrateurs Sentinel »), pas can_manage_users.
+    """
 
     def setUp(self):
+        self.group = _get_or_create_approvers_group()
         self.type_direction, _ = OrgUnitType.objects.get_or_create(
             code="DIRECTION", defaults={"name": "Direction", "level": 1},
         )
@@ -23,21 +39,23 @@ class AssignRoleServiceTest(TestCase):
             name="Direction Financière", code="DFIN",
             type=self.type_direction,
         )
-        self.audit_admin = User.objects.create_user(
-            username="dir_audit", password="testpass123",
-            role=User.Role.AUDIT, is_audit_admin=True,
+        # Checker = membre du groupe (peut effectuer assign_role)
+        self.checker = User.objects.create_user(
+            username="checker_it", password="testpass123",
+            role=User.Role.ADMIN,
         )
+        self.checker.groups.add(self.group)
         self.shell_user = User.objects.create_user(
             username="coquille", password="testpass123",
         )
 
     def test_assign_role_success(self):
-        """Un audit_admin peut attribuer un rôle à une coquille vide."""
+        """Un membre du groupe peut attribuer un rôle (Story 6.2.0)."""
         result = assign_role(
             target_user=self.shell_user,
             role=User.Role.DM,
             department=self.dept,
-            performed_by=self.audit_admin,
+            performed_by=self.checker,
         )
         self.shell_user.refresh_from_db()
         self.assertEqual(result.role, User.Role.DM)
@@ -49,18 +67,18 @@ class AssignRoleServiceTest(TestCase):
             target_user=self.shell_user,
             role=User.Role.ETP,
             department=self.dept,
-            performed_by=self.audit_admin,
+            performed_by=self.checker,
         )
         log = AuditLog.objects.filter(
             content_type="User", object_id=self.shell_user.pk,
         ).first()
         self.assertIsNotNone(log)
         self.assertEqual(log.action, AuditLog.Action.UPDATE)
-        self.assertEqual(log.user, self.audit_admin)
+        self.assertEqual(log.user, self.checker)
         self.assertIn("role", log.changes)
 
-    def test_assign_role_permission_denied_for_non_admin(self):
-        """Un utilisateur sans can_manage_users est rejeté."""
+    def test_assign_role_permission_denied_for_non_group_member(self):
+        """Un utilisateur hors du groupe reçoit PermissionDenied (Story 6.2.0)."""
         dm_user = User.objects.create_user(
             username="dm_lambda", password="testpass123",
             role=User.Role.DM,
@@ -73,6 +91,20 @@ class AssignRoleServiceTest(TestCase):
                 performed_by=dm_user,
             )
 
+    def test_assign_role_audit_admin_without_group_is_denied(self):
+        """Un Audit Admin NON membre du groupe reçoit PermissionDenied (Story 6.2.0)."""
+        audit_admin_no_group = User.objects.create_user(
+            username="audit_no_group", password="testpass123",
+            role=User.Role.AUDIT, is_audit_admin=True,
+        )
+        with self.assertRaises(PermissionDenied):
+            assign_role(
+                target_user=self.shell_user,
+                role=User.Role.ETP,
+                department=self.dept,
+                performed_by=audit_admin_no_group,
+            )
+
     def test_assign_role_invalid_role_raises_value_error(self):
         """Un rôle invalide lève ValueError."""
         with self.assertRaises(ValueError):
@@ -80,7 +112,7 @@ class AssignRoleServiceTest(TestCase):
                 target_user=self.shell_user,
                 role="INEXISTANT",
                 department=self.dept,
-                performed_by=self.audit_admin,
+                performed_by=self.checker,
             )
 
     def test_assign_role_superuser_can_bootstrap(self):

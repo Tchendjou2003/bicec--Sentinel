@@ -46,11 +46,12 @@
           <span>Validation</span>
         </a>
       </li>
+      {# ── Délégation admin (auto-gouvernance Audit — Story 6.2.0 / AC5) ── #}
       {% if user.can_manage_users or user.is_superuser %}
       <li>
-        <a href="{% url 'workflow:habilitation-list' %}" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'habilitation' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
+        <a href="{% url 'auth:audit-admin-members' %}" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'audit-admin-members' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><circle cx="19" cy="11" r="2"/><path d="M19 8v1"/><path d="M19 13v1"/><path d="m21.6 9.5-.87.5"/><path d="m17.27 12-.87.5"/><path d="m21.6 12.5-.87-.5"/><path d="m17.27 10-.87-.5"/></svg>
-          <span>Habilitations</span>
+          <span>Admins Audit</span>
         </a>
       </li>
       {% endif %}
@@ -62,7 +63,8 @@
       </li>
     </ul>
 
-    {# ── Section Configuration (Audit Admin uniquement — Story 3.7.b) ── #}
+    {# ── Section Configuration (Audit Admin — Sources uniquement, Story 3.7.b) ── #}
+    {# Organigramme et Types d'unités : transférés au Support IT (Story 6.2.0) #}
     {% if user.can_manage_users or user.is_superuser %}
     <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 mt-5 mb-2">Configuration</p>
     <ul class="space-y-0.5">
@@ -70,18 +72,6 @@
         <a href="{% url 'workflow:source-list' %}" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'sources-admin' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
           <span>Sources</span>
-        </a>
-      </li>
-      <li>
-        <a href="{% url 'auth:org-unit-type-list' %}" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'org-unit-types' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
-          <span>Types d'unités</span>
-        </a>
-      </li>
-      <li>
-        <a href="{% url 'auth:organigramme-list' %}" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'organigramme' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
-          <span>Organigramme</span>
         </a>
       </li>
     </ul>

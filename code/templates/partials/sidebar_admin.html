@@ -27,6 +27,28 @@
           <span>Utilisateurs</span>
         </a>
       </li>
+      {# ── Provisioning Maker/Checker (Story 6.2.0) ── #}
+      <li>
+        <a href="{% url 'auth:provisioning-list' %}" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 {% if active_route == 'provisioning' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-lg shadow-orange-500/30{% else %}text-gray-500 hover:bg-orange-50 hover:text-sentinel-orange hover:shadow-sm{% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Provisioning</span>
+        </a>
+      </li>
+      {# ── Organigramme & Types — réservés au groupe « Administrateurs Sentinel » (Story 6.2.0) ── #}
+      {% if user_is_provisioning_approver %}
+      <li>
+        <a href="{% url 'auth:organigramme-list' %}" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 {% if active_route == 'organigramme' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-lg shadow-orange-500/30{% else %}text-gray-500 hover:bg-orange-50 hover:text-sentinel-orange hover:shadow-sm{% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="14" width="6" height="6" rx="1"/><rect x="16" y="14" width="6" height="6" rx="1"/><path d="M12 8v3m0 0H9m3 0h3m-3 0v3m-6 0v-1a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1"/></svg>
+          <span>Organigramme</span>
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'auth:org-unit-type-list' %}" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 {% if active_route == 'org-unit-types' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-lg shadow-orange-500/30{% else %}text-gray-500 hover:bg-orange-50 hover:text-sentinel-orange hover:shadow-sm{% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+          <span>Types d'unités</span>
+        </a>
+      </li>
+      {% endif %}
     </ul>
   </nav>
   <div class="p-4 border-t border-gray-100 bg-gray-50/50">

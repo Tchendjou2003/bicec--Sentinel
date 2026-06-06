@@ -131,6 +131,14 @@ class RecommendationForm(forms.ModelForm):
         controlled_dept.queryset = active_depts
         dept.queryset = active_depts
 
+        # TomSelect — sélecteurs organisationnels (Story 6.2.0)
+        for field_name in ("department", "controlled_department"):
+            widget = self.fields[field_name].widget
+            css = widget.attrs.get("class", "")
+            if "js-tomselect" not in css:
+                widget.attrs["class"] = css + " js-tomselect"
+            widget.attrs.setdefault("data-placeholder", "Rechercher un département…")
+
         # Labels en français
         self.fields["reference"].label = _("Référence de la recommandation")
         self.fields["mission_date"].label = _("Date de la mission")

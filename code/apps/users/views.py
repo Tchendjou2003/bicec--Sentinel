@@ -24,9 +24,14 @@ from django.views import View
 from django.views.generic import ListView, TemplateView
 
 from . import selectors, services
-from .mixins import AdminRequiredMixin, AuditAdminRequiredMixin
-from .models import Department, OrgUnitType, User
-from .forms import DepartmentForm, ITUserCreationForm, OrgUnitTypeForm
+from .mixins import (
+    AdminRequiredMixin,
+    AuditAdminRequiredMixin,
+    ProvisioningApproverRequiredMixin,
+    ProvisioningListAccessMixin,
+)
+from .models import Department, OrgUnitType, User, UserProvisioningRequest
+from .forms import DepartmentForm, ITUserCreationForm, OrgUnitTypeForm, UserProvisioningRequestForm
 
 
 class SentinelLoginView(LoginView):
@@ -133,7 +138,7 @@ class ExternalDashboardView(LoginRequiredMixin, TemplateView):
 # =============================================================================
 
 
-class HabilitationListView(AuditAdminRequiredMixin, ListView):
+class HabilitationListView(ProvisioningApproverRequiredMixin, ListView):
     """
     Liste des utilisateurs pour l'interface d'habilitation (FR3).
 
@@ -162,7 +167,7 @@ class HabilitationListView(AuditAdminRequiredMixin, ListView):
         return context
 
 
-class HabilitationEditView(AuditAdminRequiredMixin, View):
+class HabilitationEditView(ProvisioningApproverRequiredMixin, View):
     """
     Formulaire d'édition du rôle et département d'un utilisateur (FR3).
 
@@ -246,7 +251,9 @@ class HabilitationToggleAdminView(AuditAdminRequiredMixin, View):
             
             messages.error(request, str(e))
 
-        return redirect("workflow:habilitation-list")
+        # Rediriger vers la vue dédiée Audit (Story 6.2.0 / AC5)
+        # habilitation-list est désormais réservée au groupe IT
+        return redirect("auth:audit-admin-members")
 
 
 # =============================================================================
@@ -277,7 +284,7 @@ class AdminDashboardView(AdminRequiredMixin, TemplateView):
         return context
 
 
-class OrganigrammeListView(AuditAdminRequiredMixin, TemplateView):
+class OrganigrammeListView(ProvisioningApproverRequiredMixin, TemplateView):
     """
     Liste hiérarchique des départements (Story 1.4 / AC2, AC3).
 
@@ -317,7 +324,7 @@ class OrganigrammeListView(AuditAdminRequiredMixin, TemplateView):
         return context
 
 
-class DepartmentCreateView(AuditAdminRequiredMixin, View):
+class DepartmentCreateView(ProvisioningApproverRequiredMixin, View):
     """
     Création d'un département (HTMX — Story 1.4 / AC2, AC3).
     """
@@ -362,7 +369,7 @@ class DepartmentCreateView(AuditAdminRequiredMixin, View):
         })
 
 
-class DepartmentEditView(AuditAdminRequiredMixin, View):
+class DepartmentEditView(ProvisioningApproverRequiredMixin, View):
     """
     Modification d'un département (HTMX — Story 1.4 / AC2).
     """
@@ -409,7 +416,7 @@ class DepartmentEditView(AuditAdminRequiredMixin, View):
         })
 
 
-class DepartmentDeleteView(AuditAdminRequiredMixin, View):
+class DepartmentDeleteView(ProvisioningApproverRequiredMixin, View):
     """
     Suppression logique (soft-delete) d'un département (HTMX).
     """
@@ -447,7 +454,7 @@ class DepartmentDeleteView(AuditAdminRequiredMixin, View):
         return redirect("auth:organigramme-list")
 
 
-class DepartmentSearchView(AuditAdminRequiredMixin, View):
+class DepartmentSearchView(ProvisioningApproverRequiredMixin, View):
     """
     Recherche en temps réel (HTMX) dans l'organigramme.
     """
@@ -529,6 +536,253 @@ class ITUserCreateView(AdminRequiredMixin, View):
 
 
 # =============================================================================
+# Provisioning Maker/Checker (Story 6.2.0)
+# =============================================================================
+
+
+class ProvisioningRequestListView(ProvisioningListAccessMixin, ListView):
+    """
+    File des demandes de provisioning (Story 6.2.0).
+
+    Accessible à tous les Admin IT (makers voient leurs propres demandes ;
+    membres du groupe « Administrateurs Sentinel » voient tout).
+    Un Admin IT hors groupe voit uniquement ses propres soumissions — il
+    peut les annuler mais ne peut pas approuver/rejeter.
+    """
+
+    template_name = "admin_it/provisioning_list.html"
+    context_object_name = "requests"
+    paginate_by = 25
+
+    def get_queryset(self):
+        qs = UserProvisioningRequest.objects.select_related(
+            "requested_by", "reviewed_by", "requested_department"
+        )
+        # Les checkers (membres du groupe) voient toutes les demandes.
+        # Les makers (Admin IT hors groupe) ne voient que les leurs.
+        if not services.user_is_provisioning_approver(self.request.user):
+            qs = qs.filter(requested_by=self.request.user)
+
+        status_filter = self.request.GET.get("status", "")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["active_route"] = "provisioning"
+        context["topbar_title"] = "Provisioning des comptes"
+        context["topbar_subtitle"] = "Demandes de création — file Maker/Checker"
+        context["status_choices"] = UserProvisioningRequest.Status.choices
+        context["status_filter"] = self.request.GET.get("status", "")
+        context["is_approver"] = services.user_is_provisioning_approver(self.request.user)
+        context["pending_count"] = UserProvisioningRequest.objects.filter(
+            status=UserProvisioningRequest.Status.PENDING
+        ).count()
+        return context
+
+
+class ProvisioningRequestCreateView(AdminRequiredMixin, View):
+    """
+    Création d'une demande de provisioning par l'Admin IT (maker).
+
+    GET  : affiche la modale de création.
+    POST : crée la UserProvisioningRequest (PENDING) — aucun User créé.
+    """
+
+    def get(self, request):
+        form = UserProvisioningRequestForm()
+        return render(request, "admin_it/partials/provisioning_create_modal.html", {
+            "form": form,
+        })
+
+    def post(self, request):
+        form = UserProvisioningRequestForm(request.POST)
+        if form.is_valid():
+            try:
+                req = services.create_provisioning_request(
+                    maker=request.user,
+                    cleaned_data=form.cleaned_data,
+                    ip_address=request.META.get("REMOTE_ADDR"),
+                )
+                response = HttpResponse(status=204)
+                response["HX-Trigger"] = json.dumps({
+                    "notify": {
+                        "msg": f"Demande soumise pour « {req.requested_username} ». "
+                               f"En attente de validation.",
+                        "type": "success",
+                    },
+                    "provisioningCreated": True,
+                })
+                return response
+            except Exception as e:
+                messages.error(request, str(e))
+
+        # Construire un message d'erreur synthétique pour le toast
+        error_fields = []
+        field_labels = {
+            "requested_username": "Identifiant",
+            "requested_email": "E-mail",
+            "password": "Mot de passe",
+            "requested_role": "Rôle",
+            "requested_department": "Département",
+            "mission_organization": "Organisation",
+            "mission_start_date": "Date de début",
+        }
+        for field_name, errors in form.errors.items():
+            if field_name == "__all__":
+                continue
+            label = field_labels.get(field_name, field_name)
+            error_fields.append(label)
+
+        if error_fields:
+            error_msg = f"Champs à corriger : {', '.join(error_fields)}."
+        else:
+            error_msg = "Veuillez corriger les erreurs du formulaire."
+
+        response = render(
+            request,
+            "admin_it/partials/provisioning_create_modal.html",
+            {"form": form},
+            status=422,
+        )
+        response["HX-Trigger"] = json.dumps({
+            "notify": {"msg": error_msg, "type": "error"}
+        })
+        return response
+
+
+class ProvisioningRequestApproveView(ProvisioningApproverRequiredMixin, View):
+    """
+    Approbation d'une demande PENDING par un checker (Story 6.2.0 / AC2).
+    Crée le User atomiquement.
+    """
+
+    def post(self, request, pk):
+        req = get_object_or_404(UserProvisioningRequest, pk=pk)
+        try:
+            user = services.approve_provisioning_request(
+                request=req,
+                checker=request.user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+            response = HttpResponse(status=204)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {
+                    "msg": f"Compte « {user.username} » créé avec succès.",
+                    "type": "success",
+                },
+                "provisioningUpdated": True,
+            })
+            return response
+        except Exception as e:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(e), "type": "error"}
+            })
+            return response
+
+
+class ProvisioningRequestRejectView(ProvisioningApproverRequiredMixin, View):
+    """
+    Rejet d'une demande PENDING avec motif obligatoire (Story 6.2.0 / AC3).
+
+    GET  : affiche la sous-modale de saisie du motif.
+    POST : rejette la demande.
+    """
+
+    def get(self, request, pk):
+        req = get_object_or_404(UserProvisioningRequest, pk=pk)
+        return render(request, "admin_it/partials/provisioning_reject_modal.html", {
+            "req": req,
+        })
+
+    def post(self, request, pk):
+        req = get_object_or_404(UserProvisioningRequest, pk=pk)
+        reason = request.POST.get("rejection_reason", "").strip()
+        try:
+            services.reject_provisioning_request(
+                request=req,
+                checker=request.user,
+                reason=reason,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+            response = HttpResponse(status=204)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {
+                    "msg": f"Demande « {req.requested_username} » rejetée.",
+                    "type": "warning",
+                },
+                "provisioningUpdated": True,
+            })
+            return response
+        except Exception as e:
+            return render(
+                request,
+                "admin_it/partials/provisioning_reject_modal.html",
+                {"req": req, "error": str(e)},
+                status=422,
+            )
+
+
+class ProvisioningRequestCancelView(AdminRequiredMixin, View):
+    """
+    Annulation d'une demande PENDING par le maker (Story 6.2.0 / AC3).
+    Vérifié dans le service : seul l'auteur peut annuler.
+    """
+
+    def post(self, request, pk):
+        req = get_object_or_404(UserProvisioningRequest, pk=pk)
+        try:
+            services.cancel_provisioning_request(
+                request=req,
+                maker=request.user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+            response = HttpResponse(status=204)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {
+                    "msg": f"Demande « {req.requested_username} » annulée.",
+                    "type": "info",
+                },
+                "provisioningUpdated": True,
+            })
+            return response
+        except Exception as e:
+            response = HttpResponse(status=403)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(e), "type": "error"}
+            })
+            return response
+
+
+# Point d'entrée Audit dédié — toggle is_audit_admin (Story 6.2.0 / AC5)
+
+
+class AuditAdminMembersView(AuditAdminRequiredMixin, ListView):
+    """
+    Liste des auditeurs internes avec toggle is_audit_admin.
+
+    Accessible uniquement aux Audit Admins (auto-gouvernance exclusive Audit).
+    Découplé de la liste d'habilitation générale (passée à l'IT).
+    """
+
+    template_name = "habilitation/audit_admin_members.html"
+    context_object_name = "auditors"
+
+    def get_queryset(self):
+        return User.objects.filter(
+            role=User.Role.AUDIT
+        ).order_by("username")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["topbar_title"] = "Administrateurs Audit"
+        context["topbar_subtitle"] = "Délégation du flag is_audit_admin"
+        return context
+
+
+# =============================================================================
 # OrgUnitType Admin (Story 3.7.b / Phase B — AuditAdmin uniquement)
 # =============================================================================
 
@@ -544,7 +798,7 @@ def _render_org_unit_type_form(request, form, instance=None):
     )
 
 
-class OrgUnitTypeListView(AuditAdminRequiredMixin, ListView):
+class OrgUnitTypeListView(ProvisioningApproverRequiredMixin, ListView):
     """
     Liste des types d'unités organisationnelles paramétrables.
     Accessible uniquement aux Audit Admins (Story 3.7.b Phase B).
@@ -563,7 +817,7 @@ class OrgUnitTypeListView(AuditAdminRequiredMixin, ListView):
         return context
 
 
-class OrgUnitTypeCreateView(AuditAdminRequiredMixin, View):
+class OrgUnitTypeCreateView(ProvisioningApproverRequiredMixin, View):
     """Création d'un type d'unité organisationnelle (HTMX)."""
 
     def get(self, request):
@@ -583,7 +837,7 @@ class OrgUnitTypeCreateView(AuditAdminRequiredMixin, View):
         return _render_org_unit_type_form(request, form)
 
 
-class OrgUnitTypeEditView(AuditAdminRequiredMixin, View):
+class OrgUnitTypeEditView(ProvisioningApproverRequiredMixin, View):
     """Modification d'un type d'unité organisationnelle (HTMX)."""
 
     def get(self, request, pk):
@@ -605,7 +859,7 @@ class OrgUnitTypeEditView(AuditAdminRequiredMixin, View):
         return _render_org_unit_type_form(request, form, instance)
 
 
-class OrgUnitTypeToggleView(AuditAdminRequiredMixin, View):
+class OrgUnitTypeToggleView(ProvisioningApproverRequiredMixin, View):
     """Active ou désactive un type d'unité (POST uniquement, HTMX)."""
 
     def post(self, request, pk):

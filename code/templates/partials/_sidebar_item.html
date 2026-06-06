@@ -1,0 +1,9 @@
+{% load lucide %}
+{# Lien de nav sidebar partagé. Params : href, icon, label, route. #}
+<li>
+  <a href="{{ href }}"
+     class="group flex items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == route %}bg-sentinel-orange text-white{% else %}text-graphite-fg hover:bg-graphite-hover hover:text-graphite-fg-strong{% endif %}">
+    {% lucide icon size=18 class="shrink-0 opacity-90" %}
+    <span>{{ label }}</span>
+  </a>
+</li>

@@ -78,7 +78,7 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
 
     template_name = "workflow/recommendation_list.html"
     context_object_name = "recommendations"
-    paginate_by = 25
+    paginate_by = 20
 
     def get_queryset(self):
         filters = {

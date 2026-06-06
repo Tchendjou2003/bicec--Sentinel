@@ -98,11 +98,11 @@
   {# Pied sticky #}
   <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0 bg-white rounded-b-2xl">
     <button type="button" @click="$store.sentinel.showModal = false"
-      class="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
+      class="btn btn-secondary">
       Annuler
     </button>
     <button type="submit"
-      class="rounded-xl bg-gradient-to-r from-sentinel-orange to-[#C9631A] px-5 py-2 text-sm font-semibold text-white shadow-md shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300">
+      class="btn btn-primary">
       {% if is_edit %}Enregistrer{% else %}Créer{% endif %}
     </button>
   </div>

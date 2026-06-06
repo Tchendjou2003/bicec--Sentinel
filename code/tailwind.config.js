@@ -17,7 +17,48 @@ module.exports = {
         "sentinel-brown-light": "#6B4A3A",
         "sentinel-brown-dark": "#3A1F1A",
 
-        // Semantic Statuses
+        // ═══ SENTINEL DESIGN SYSTEM — tokens additifs (handoff Claude Design) ═══
+        // Brand — orange-darker (actif) + sarcelle/teal (secondaire calme)
+        "sentinel-orange-darker": "#A8500F",
+        "sentinel-teal": "#14746F",
+        "sentinel-teal-dark": "#0E5B57",
+        "sentinel-teal-darker": "#0A4744",
+        "sentinel-teal-tint": "#E6F2F1",
+        "sentinel-brown-tint": "#F5EDE6",
+        // Sidebar graphite (rail institutionnel — orange plat actif, sans gradient)
+        "graphite": "#211C1B",
+        "graphite-hover": "#322B29",
+        "graphite-border": "#3A332F",
+        "graphite-fg": "#CFC6BF",
+        "graphite-fg-strong": "#F3EDE7",
+        "graphite-section": "#8A7F78",
+        // Surfaces & hairlines complémentaires
+        "surface-sunken": "#F3EFEA",
+        "border-strong": "#D8CBBE",
+        // Workflow status — FSM complet + tints (Recommendation.Status)
+        "status-draft": "#968A80",        "status-draft-tint": "#F0ECE7",
+        "status-assigned": "#2B6CB0",     "status-assigned-tint": "#E8F0F8",
+        "status-in-progress-tint": "#FFF3EB",
+        "status-dm-review": "#C08A2D",    "status-dm-review-tint": "#FBF1DF",
+        "status-audit-review": "#14746F", "status-audit-review-tint": "#E6F2F1",
+        "status-closed-tint": "#E7F2EC",
+        "status-overdue-tint": "#FBEAE7",
+        // Criticité (priorité)
+        "prio-critique": "#C0392B", "prio-critique-tint": "#FBEAE7",
+        "prio-haute": "#C9631A",    "prio-haute-tint": "#FCEFE4",
+        "prio-moyenne": "#C08A2D",  "prio-moyenne-tint": "#FBF1DF",
+        "prio-faible": "#2D8B56",   "prio-faible-tint": "#E7F2EC",
+        // Sémantique — tints + danger (rouge DS calme, sans toucher l'objet HSL destructive)
+        "success-tint": "#E7F2EC",
+        "warning-tint": "#FBF1DF",
+        "destructive-tint": "#FBEAE7",
+        "info-tint": "#E8F0F8",
+        "danger": "#C0392B",
+        "danger-strong": "#991B1B",
+        "danger-tint": "#FBEAE7",
+        // ═══ fin tokens DS ═══
+
+        // Semantic Statuses (héritées — conservées pour compat ascendante)
         "status-in-progress": "#E87722",
         "status-pending": "#D4A843",
         "status-approved": "#2D8B56",
@@ -108,6 +149,7 @@ module.exports = {
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "monospace"],
+        display: ["Manrope", "system-ui", "sans-serif"],
         headline: ["Plus Jakarta Sans", "sans-serif"],
         heading: ["Manrope", "sans-serif"],
         body: ["Inter", "sans-serif"],

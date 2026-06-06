@@ -31,7 +31,7 @@
 
       <button hx-get="{% url 'auth:department-create' %}?parent_id={{ current_parent_id|default:'' }}" hx-target="#department-modal-content" hx-swap="innerHTML"
         @click="$store.sentinel.showModal = true"
-        class="shrink-0 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sentinel-orange to-[#C9631A] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300">
+        class="btn btn-primary shrink-0">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
         <span>Ajouter</span>
       </button>

@@ -58,6 +58,7 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS = [
+    "apps.ui",
     "apps.users",
     "apps.workflow",
     "apps.audit",

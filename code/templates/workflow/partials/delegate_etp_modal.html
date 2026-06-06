@@ -139,14 +139,14 @@
       <button
         type="button"
         @click="delegateModalOpen = false; $dispatch('close-delegate-modal')"
-        class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+        class="btn btn-secondary"
       >
         Annuler
       </button>
 
       <button
         type="submit"
-        class="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-sentinel-orange to-orange-600 shadow-md shadow-orange-500/20 hover:shadow-lg transition-all duration-200"
+        class="btn btn-primary"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         <span x-text="selectedAction === 'delegate_etp' ? 'Confirmer la délégation' : 'Confirmer la prise en charge'">Confirmer la délégation</span>

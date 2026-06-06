@@ -34,17 +34,7 @@ Reutilisable via HTMX refresh dans les stories suivantes.
 
         {# Statut #}
         <td class="px-4 py-3">
-          {% with status=rec.status %}
-          <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
-            {% if status == 'ASSIGNED' %}bg-blue-100 text-blue-700
-            {% elif status == 'IN_PROGRESS' %}bg-amber-100 text-amber-700
-            {% elif status == 'PENDING_DM_REVIEW' %}bg-purple-100 text-purple-700
-            {% elif status == 'PENDING_AUDIT_REVIEW' %}bg-indigo-100 text-indigo-700
-            {% elif status == 'CLOSED_RESOLVED' %}bg-green-100 text-green-700
-            {% else %}bg-gray-100 text-gray-700{% endif %}">
-            {{ rec.get_status_display }}
-          </span>
-          {% endwith %}
+          {% include "components/status_badge.html" with status=rec.status %}
         </td>
 
         {# Criticité #}

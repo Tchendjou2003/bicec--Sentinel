@@ -67,6 +67,11 @@
   * { border-color: hsl(var(--border)); }
   body { background: hsl(var(--background)); color: hsl(var(--foreground)); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
   h1, h2, h3, h4, h5, h6 { font-family: 'Manrope', sans-serif; letter-spacing: -0.02em; }
+  /* Échelle typographique DS (s'applique aux <hN> nus ; les classes utilitaires
+     text-* gardent priorité → aucune régression sur les pages existantes). */
+  h1 { font-size: 24px; line-height: 30px; font-weight: 700; }
+  h2 { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.01em; }
+  h3 { font-size: 14px; line-height: 20px; font-weight: 600; letter-spacing: -0.01em; }
   ::selection { background: hsl(var(--primary) / 0.2); color: hsl(var(--primary)); }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.2); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
@@ -89,6 +94,26 @@
     .transition-smooth { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
     .glass { background: hsl(var(--card) / 0.7); backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%); }
     .text-gradient-primary { background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+    /* ── Sentinel DS — utilitaires typographiques & états ── */
+    .eyebrow {
+        font-family: 'Inter', sans-serif;
+        font-size: 11px; line-height: 14px;
+        font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #968A80; /* text-muted DS */
+    }
+    .ref-mono {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 12px; font-weight: 500;
+        color: #6F635B; /* text-secondary DS */
+    }
+    .skeleton {
+        background: linear-gradient(90deg, #F5EDE6 25%, #EDE3D9 50%, #F5EDE6 75%);
+        background-size: 400px 100%;
+        animation: shimmer 1.4s ease-in-out infinite;
+        border-radius: 6px;
+    }
 }
 
 @layer components {
@@ -125,6 +150,45 @@
     .animate-pulse-slow {
         animation: pulseSlow 3s ease-in-out infinite;
     }
+
+    /* ══════════════════════════════════════════════════
+       Sentinel DS — composants de base (handoff Claude Design)
+       Usage : class="card", class="btn btn-primary", class="input"
+       ══════════════════════════════════════════════════ */
+    .card {
+        @apply bg-surface-card border border-border-subtle rounded-lg;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .input {
+        @apply w-full rounded-lg border border-border-strong bg-surface-card px-3 text-sm text-text-primary transition-colors;
+        height: 2.75rem;
+    }
+    .input::placeholder { color: #968A80; }
+    .input:focus {
+        @apply border-sentinel-orange outline-none;
+        box-shadow: 0 0 0 3px hsl(var(--ring) / 0.25);
+    }
+
+    /* Base bouton — à combiner avec une variante : class="btn btn-primary" */
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors;
+    }
+    .btn-primary { @apply px-4 py-2.5 bg-sentinel-orange text-white; box-shadow: var(--shadow-sm); }
+    .btn-primary:hover  { @apply bg-sentinel-orange-dark; }
+    .btn-primary:active { @apply bg-sentinel-orange-darker; }
+
+    .btn-secondary { @apply px-4 py-2.5 border border-border-strong bg-surface-card text-text-secondary; }
+    .btn-secondary:hover { @apply bg-surface-warm; }
+
+    .btn-tertiary { @apply px-3 py-2 bg-sentinel-teal-tint text-sentinel-teal-darker; }
+    .btn-tertiary:hover { filter: brightness(0.97); }
+
+    .btn-destructive { @apply px-4 py-2.5 border border-danger text-danger; }
+    .btn-destructive:hover { @apply bg-danger-tint; }
+
+    .btn-danger { @apply px-4 py-2.5 bg-danger text-white; box-shadow: var(--shadow-sm); }
+    .btn-danger:hover { @apply bg-danger-strong; }
 }
 
 /* ── Keyframes ───────────────────────────────────────── */
@@ -155,4 +219,10 @@
 @keyframes pulseSlow {
     0%, 100% { opacity: 1; }
     50%      { opacity: 0.6; }
+}
+
+/* Sentinel DS — skeleton shimmer */
+@keyframes shimmer {
+    from { background-position: -400px 0; }
+    to   { background-position: 400px 0; }
 }

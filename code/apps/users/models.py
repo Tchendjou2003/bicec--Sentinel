@@ -16,6 +16,7 @@ Les requêtes complexes sont dans selectors.py, la logique d'écriture dans serv
 import uuid
 
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -25,22 +26,82 @@ from django.utils.translation import gettext_lazy as _
 # =============================================================================
 
 
+class OrgUnitType(models.Model):
+    """
+    Type d'unité organisationnelle (paramétrable par l'Audit Admin).
+
+    Remplace l'enum statique ``Department.Type`` par un catalogue dynamique
+    permettant à l'Audit Admin de créer, renommer et désactiver les types
+    sans déploiement (Story 3.7.b / Phase B).
+
+    Le champ ``level`` est purement indicatif (aide au tri UI) — il ne
+    constitue pas une contrainte de profondeur imposée à l'organigramme.
+
+    Ref. Architecture : §7.2 — table ``users_orgunittype``
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    name = models.CharField(
+        _("Libellé"),
+        max_length=60,
+        help_text=_("Nom affiché dans l'interface (ex : Direction Générale)."),
+    )
+    code = models.CharField(
+        _("Code"),
+        max_length=20,
+        unique=True,
+        help_text=_(
+            "Code technique court unique (ex : DG). "
+            "Verrouillé après création."
+        ),
+    )
+    level = models.PositiveSmallIntegerField(
+        _("Niveau indicatif"),
+        default=0,
+        help_text=_(
+            "Indication de profondeur dans l'organigramme (0 = sommet). "
+            "Valeur indicative uniquement — ne constitue pas une contrainte."
+        ),
+    )
+    is_active = models.BooleanField(
+        _("Actif"),
+        default=True,
+        help_text=_(
+            "Désactiver plutôt que supprimer pour préserver "
+            "l'intégrité des données existantes."
+        ),
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Modifié le"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Type d'unité organisationnelle")
+        verbose_name_plural = _("Types d'unités organisationnelles")
+        ordering = ["level", "name"]
+        indexes = [
+            models.Index(fields=["code"], name="idx_orgunit_type_code"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Department(models.Model):
     """
-    Entité organisationnelle de la BICEC (Direction, Agence, Filiale).
+    Entité organisationnelle de la BICEC.
 
-    Structure hiérarchique auto-référencée permettant de modéliser
-    l'arborescence complète de l'institution. Condition sine qua non
+    Structure hiérarchique auto-référencée modélisant l'arborescence
+    complète de l'institution (DG → Direction → Sous-Direction →
+    Département → Service / Région → Agence). Condition sine qua non
     du RBAC : chaque utilisateur est rattaché à un département,
     et ne voit que les données de son périmètre (FR28).
 
     Ref. Architecture : §7.2 ERD — table ``users_department``
     """
-
-    class Type(models.TextChoices):
-        DIRECTION = "DIRECTION", _("Direction")
-        AGENCE = "AGENCE", _("Agence")
-        FILIALE = "FILIALE", _("Filiale")
 
     id = models.UUIDField(
         primary_key=True,
@@ -61,10 +122,11 @@ class Department(models.Model):
             "et les exports pour identifier rapidement le département."
         ),
     )
-    type = models.CharField(
-        _("Type"),
-        max_length=20,
-        choices=Type.choices,
+    type = models.ForeignKey(
+        OrgUnitType,
+        on_delete=models.PROTECT,
+        related_name="departments",
+        verbose_name=_("Type"),
         help_text=_("Catégorie structurelle dans l'organigramme BICEC."),
     )
     parent = models.ForeignKey(
@@ -96,7 +158,6 @@ class Department(models.Model):
         ordering = ["name"]
         indexes = [
             models.Index(fields=["parent"], name="idx_dept_parent"),
-            models.Index(fields=["type"], name="idx_dept_type"),
             models.Index(fields=["code"], name="idx_dept_code"),
         ]
 
@@ -107,7 +168,7 @@ class Department(models.Model):
 
     def get_children(self):
         """Retourne les départements enfants directs (actifs uniquement)."""
-        return self.children.filter(is_active=True)
+        return type(self).objects.filter(parent=self, is_active=True)
 
 
 # =============================================================================
@@ -137,9 +198,9 @@ class User(AbstractUser):
         ETP = "ETP", _("Employé Traitant")
         DG = "DG", _("Direction Générale")
         EXT = "EXT", _("Auditeur Externe")
-        RSSI = "RSSI", _("RSSI / Support IT")
+        ADMIN = "ADMIN", _("Admin")
 
-    id = models.UUIDField(
+    id = models.UUIDField(  
         primary_key=True,
         default=uuid.uuid4,
         editable=False,
@@ -228,3 +289,104 @@ class User(AbstractUser):
         rediriger vers la page d'attente d'activation (FR37).
         """
         return not self.has_role
+
+
+# =============================================================================
+# Mission Externe (Story 1.3 — AC4)
+# =============================================================================
+
+
+class ExternalMission(models.Model):
+    """
+    Mission d'audit externe rattachée à un auditeur (COBAC, BEAC, CAC…).
+
+    Définit l'organisation d'origine, le périmètre d'intervention et
+    les dates de la mission. Permet de tracer quel auditeur externe
+    intervient, quand, et sur quel scope.
+
+    Note : La relation M2M avec les recommandations (``external_mission_recommendations``)
+    sera implémentée dans l'Epic 2 lorsque l'application ``workflow`` sera créée.
+
+    Ref. Architecture : §7.2 ERD — table ``users_external_mission``
+    Ref. PRD : FR2 (Opening Scene COBAC)
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    auditor = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        limit_choices_to={"is_external": True, "role": User.Role.EXT},
+        related_name="external_missions",
+        verbose_name=_("Auditeur externe"),
+        help_text=_(
+            "Utilisateur externe (is_external=True) rattaché à cette mission."
+        ),
+    )
+    organization = models.CharField(
+        _("Organisation"),
+        max_length=100,
+        help_text=_(
+            "Institution d'origine de l'auditeur (ex: COBAC, BEAC, CAC)."
+        ),
+    )
+    scope_description = models.TextField(
+        _("Périmètre de la mission"),
+        blank=True,
+        default="",
+        help_text=_(
+            "Description libre du périmètre d'intervention "
+            "(ex: Audit des procédures de crédit)."
+        ),
+    )
+    start_date = models.DateField(
+        _("Date de début"),
+        help_text=_("Date de début de la mission d'audit externe."),
+    )
+    end_date = models.DateField(
+        _("Date de fin"),
+        null=True,
+        blank=True,
+        help_text=_(
+            "Date de fin prévue. Peut être NULL si la durée n'est pas "
+            "encore définie."
+        ),
+    )
+    is_active = models.BooleanField(
+        _("Active"),
+        default=True,
+        help_text=_(
+            "Indique si la mission est en cours. Désactiver en fin "
+            "de mission plutôt que supprimer."
+        ),
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Modifié le"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Mission externe")
+        verbose_name_plural = _("Missions externes")
+        ordering = ["-start_date"]
+        indexes = [
+            models.Index(fields=["auditor"], name="idx_extmission_auditor"),
+            models.Index(fields=["organization"], name="idx_extmission_org"),
+            models.Index(fields=["is_active"], name="idx_extmission_active"),
+        ]
+
+    def __str__(self):
+        auditor_name = self.auditor.username if hasattr(self, "auditor") and self.auditor else "N/A"
+        return f"{self.organization} — {auditor_name}"
+
+    def clean(self):
+        super().clean()
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValidationError(
+                {"end_date": _("La date de fin ne peut pas être antérieure à la date de début.")}
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

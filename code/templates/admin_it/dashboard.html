@@ -1,0 +1,87 @@
+{% extends "layouts/app_shell.html" %}
+
+{% block title %}Sentinel — Dashboard Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-8">
+
+  {# ── En-tête ── #}
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 font-heading">Bienvenue, {{ request.user.first_name|default:request.user.username }}</h1>
+      <p class="text-sm text-gray-500 mt-1">Panneau d'administration IT — BICEC Sentinel</p>
+    </div>
+  </div>
+
+  {# ── Indicateurs clés ── #}
+  <section aria-label="Indicateurs clés">
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+    {# Total utilisateurs #}
+    <div class="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow duration-300">
+      <div class="flex items-center gap-4">
+        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-500">Utilisateurs</p>
+          <p class="text-3xl font-extrabold text-gray-900">{{ total_users }}</p>
+        </div>
+      </div>
+      <div class="absolute -right-3 -bottom-3 h-20 w-20 rounded-full bg-blue-50/50"></div>
+    </div>
+
+    {# Coquilles vides #}
+    <div class="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow duration-300">
+      <div class="flex items-center gap-4">
+        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M10.586 1.586a2 2 0 0 1 2.828 0l7 7a2 2 0 0 1 0 2.828l-7 7a2 2 0 0 1-2.828 0l-7-7a2 2 0 0 1 0-2.828z"/><path d="M12 17h.01"/></svg>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-500">En attente d'habilitation</p>
+          <p class="text-3xl font-extrabold text-amber-600">{{ total_shell }}</p>
+        </div>
+      </div>
+      <div class="absolute -right-3 -bottom-3 h-20 w-20 rounded-full bg-amber-50/50"></div>
+    </div>
+
+    {# Départements #}
+    <div class="relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow duration-300">
+      <div class="flex items-center gap-4">
+        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-600">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-500">Départements</p>
+          <p class="text-3xl font-extrabold text-gray-900">{{ total_departments }}</p>
+        </div>
+      </div>
+      <div class="absolute -right-3 -bottom-3 h-20 w-20 rounded-full bg-green-50/50"></div>
+    </div>
+  </div>
+  </section>
+
+  {# ── Actions rapides ── #}
+  <div class="flex flex-col sm:flex-row justify-center items-stretch gap-6">
+    <a href="{% url 'auth:admin-user-create' %}" class="flex-1 max-w-sm group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm hover:shadow-md hover:border-sentinel-orange/30 transition-all duration-300">
+      <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-sentinel-orange/10 text-sentinel-orange group-hover:bg-sentinel-orange group-hover:text-white transition-colors duration-300">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+      </div>
+      <div>
+        <p class="text-sm font-semibold text-gray-900 group-hover:text-sentinel-orange transition-colors">Créer un compte</p>
+        <p class="text-xs text-gray-500">Nouveau compte coquille vide</p>
+      </div>
+    </a>
+
+    <a href="{% url 'auth:department-create' %}" class="flex-1 max-w-sm group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm hover:shadow-md hover:border-sentinel-orange/30 transition-all duration-300">
+      <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-sentinel-orange/10 text-sentinel-orange group-hover:bg-sentinel-orange group-hover:text-white transition-colors duration-300">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      </div>
+      <div>
+        <p class="text-sm font-semibold text-gray-900 group-hover:text-sentinel-orange transition-colors">Ajouter un département</p>
+        <p class="text-xs text-gray-500">Enrichir l'organigramme BICEC</p>
+      </div>
+    </a>
+  </div>
+
+</div>
+{% endblock %}

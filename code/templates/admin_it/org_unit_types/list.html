@@ -1,0 +1,156 @@
+{% extends "layouts/app_shell.html" %}
+{% load static %}
+
+{% block title %}Types d'unités organisationnelles — Sentinel{% endblock %}
+
+{% block content %}
+<div x-data="{ modalOpen: false, modalContent: '' }" class="space-y-6">
+
+  {# ── Header + Bouton Créer ── #}
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Types d'unités organisationnelles</h1>
+      <p class="text-sm text-gray-500 mt-1">Paramétrage des catégories structurelles de l'organigramme</p>
+    </div>
+    <button
+      @click="modalOpen = true"
+      hx-get="{% url 'auth:org-unit-type-create' %}"
+      hx-target="#modal-content"
+      hx-swap="innerHTML"
+      class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sentinel-orange to-[#C9631A] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-500/20 hover:shadow-lg hover:shadow-orange-500/30 transition-all duration-200 hover:-translate-y-0.5"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouveau type
+    </button>
+  </div>
+
+  {# ── Tableau des types ── #}
+  <div id="org-unit-types-table">
+    {% if org_unit_types %}
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <table class="min-w-full divide-y divide-gray-100">
+        <thead>
+          <tr class="bg-gray-50/70">
+            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Code</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Libellé</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Niveau</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Statut</th>
+            <th class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          {% for obj in org_unit_types %}
+          <tr class="hover:bg-orange-50/30 transition-colors duration-150 {% if not obj.is_active %}opacity-50{% endif %}">
+            <td class="px-6 py-4">
+              <span class="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-mono font-semibold text-gray-700">{{ obj.code }}</span>
+            </td>
+            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ obj.name }}</td>
+            <td class="px-6 py-4 text-sm text-gray-500 font-mono">{{ obj.level }}</td>
+            <td class="px-6 py-4">
+              {% if obj.is_active %}
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Actif
+              </span>
+              {% else %}
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">
+                <span class="h-1.5 w-1.5 rounded-full bg-gray-400"></span>Inactif
+              </span>
+              {% endif %}
+            </td>
+            <td class="px-6 py-4 text-right">
+              <div class="flex items-center justify-end gap-2">
+                {# Bouton Modifier #}
+                <button
+                  @click="modalOpen = true"
+                  hx-get="{% url 'auth:org-unit-type-edit' obj.pk %}"
+                  hx-target="#modal-content"
+                  hx-swap="innerHTML"
+                  class="rounded-lg p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                  title="Modifier"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                </button>
+                {# Bouton Activer/Désactiver #}
+                <button
+                  hx-post="{% url 'auth:org-unit-type-toggle' obj.pk %}"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  class="rounded-lg p-1.5 transition-colors {% if obj.is_active %}text-gray-400 hover:text-amber-600 hover:bg-amber-50{% else %}text-gray-400 hover:text-emerald-600 hover:bg-emerald-50{% endif %}"
+                  title="{% if obj.is_active %}Désactiver{% else %}Activer{% endif %}"
+                >
+                  {% if obj.is_active %}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64A9 9 0 0 1 20.77 15"/><path d="M6.16 6.16a9 9 0 1 0 12.68 12.68"/><path d="M12 2v4"/><path d="m2 2 20 20"/></svg>
+                  {% else %}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                  {% endif %}
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    {# ── État vide ── #}
+    <div class="flex flex-col items-center justify-center py-20 text-center bg-white rounded-2xl border border-gray-100 border-dashed shadow-sm">
+      <div class="h-16 w-16 bg-orange-50 rounded-full flex items-center justify-center text-sentinel-orange mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-1">Aucun type défini</h3>
+      <p class="text-sm text-gray-500 mb-6 max-w-sm">Créez les types d'unités structurelles (Direction, Service, Agence…) pour paramétrer l'organigramme.</p>
+      <button
+        @click="modalOpen = true"
+        hx-get="{% url 'auth:org-unit-type-create' %}"
+        hx-target="#modal-content"
+        hx-swap="innerHTML"
+        class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sentinel-orange to-[#C9631A] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-500/20 transition-all duration-200"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Créer le premier type
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Modale HTMX ── #}
+  <div
+    x-show="modalOpen"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+    @click.self="modalOpen = false"
+    style="display: none"
+  >
+    <div
+      x-show="modalOpen"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+      x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+      class="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-100"
+      @keydown.escape.window="modalOpen = false"
+      id="modal-content"
+    >
+    </div>
+  </div>
+
+</div>
+
+{# Listener HX-Refresh pour fermer la modale après succès #}
+<script>
+  document.body.addEventListener("htmx:responseError", function(evt) {
+    // Erreurs 422 : laisser la modale ouverte (formulaire invalide)
+  });
+  document.body.addEventListener("htmx:afterOnLoad", function(evt) {
+    if (evt.detail.xhr.status === 204) {
+      const comp = document.querySelector("[x-data]");
+      if (comp && comp._x_dataStack) {
+        comp._x_dataStack[0].modalOpen = false;
+      }
+    }
+  });
+</script>
+{% endblock %}

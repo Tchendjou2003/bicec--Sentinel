@@ -1,0 +1,39 @@
+# Sentinel — Root .gitignore
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/*.so
+
+# Environment
+**/.env
+!**/code/.env.example
+
+# Node / CSS
+**/node_modules/
+**/static/css/output.css
+
+# Django
+**/staticfiles/
+**/media/
+**/*.log
+**/db.sqlite3
+**/postgres_data/
+
+# IDE & Tools
+.vscode/
+.idea/
+.agent/
+.gemini/
+.clinerules/
+.cursor/
+pyrightconfig.json
+
+# OS
+.DS_Store
+Thumbs.db

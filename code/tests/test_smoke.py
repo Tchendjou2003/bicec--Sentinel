@@ -27,14 +27,14 @@ class AuthSmokeTest(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_login_with_valid_credentials(self):
-        """Un login valide redirige vers la page d'accueil."""
+        """Un login valide redirige vers le suivi des recommandations."""
         response = self.client.post(
             "/auth/login/",
             {"username": "testuser", "password": "testpass123!"},
             follow=True,
         )
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "home.html")
+        self.assertTemplateUsed(response, "workflow/recommendation_list.html")
 
     def test_login_with_invalid_credentials(self):
         """Un login invalide reste sur la page de login."""

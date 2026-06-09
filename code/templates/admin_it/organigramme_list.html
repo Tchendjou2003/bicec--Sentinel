@@ -1,0 +1,82 @@
+{% extends "layouts/app_shell.html" %}
+
+{% block title %}Sentinel — Organigramme{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+
+  {# ── Recherche & En-tête ── #}
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 font-heading">Organigramme BICEC</h1>
+      <p class="text-sm text-gray-500 mt-1">{{ total_departments }} département{{ total_departments|pluralize:"x" }} actif{{ total_departments|pluralize:"s" }}</p>
+    </div>
+    
+    <div class="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+      {# Barre de recherche HTMX #}
+      <div class="relative w-full sm:w-64 md:w-80" x-data="{ query: '' }" @click.outside="query = ''">
+        <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" name="q" placeholder="Rechercher une structure..." 
+               class="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-sentinel-orange focus:border-transparent outline-none transition-all shadow-sm"
+               x-model="query"
+               hx-get="{% url 'auth:department-search' %}" 
+               hx-trigger="keyup changed delay:300ms, search" 
+               hx-target="#search-results">
+        
+        {# Dropdown des résultats #}
+        <div id="search-results" class="absolute z-50 top-full mt-2 right-0 w-full sm:w-[400px] bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden" x-show="query.length > 1" style="display:none">
+          {# Le fragment HTMX search_results.html s'injectera ici #}
+        </div>
+      </div>
+
+      <button hx-get="{% url 'auth:department-create' %}?parent_id={{ current_parent_id|default:'' }}" hx-target="#department-modal-content" hx-swap="innerHTML"
+        @click="$store.sentinel.showModal = true"
+        class="shrink-0 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sentinel-orange to-[#C9631A] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        <span>Ajouter</span>
+      </button>
+    </div>
+  </div>
+
+  {# ── Contenu Drill-down ── #}
+  <div id="organigramme-content" class="min-h-[400px]">
+    {% include "admin_it/partials/organigramme_drilldown.html" %}
+  </div>
+
+  {# ── Modal HTMX (département form) ── #}
+  <div x-show="$store.sentinel.showModal"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-md"
+    @click.self="$store.sentinel.showModal = false" style="display:none">
+    <div
+      x-show="$store.sentinel.showModal"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+      x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+      x-transition:leave-end="opacity-0 scale-95 translate-y-2"
+      class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[88vh]"
+      @click.stop>
+      <div id="department-modal-content" class="flex flex-col overflow-hidden flex-1 min-h-0">
+        {# Contenu chargé dynamiquement via HTMX #}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Initialise le state modal dans le store Alpine
+  document.addEventListener('alpine:init', () => {
+    Alpine.store('sentinel').showModal = false;
+  });
+</script>
+{% endblock %}

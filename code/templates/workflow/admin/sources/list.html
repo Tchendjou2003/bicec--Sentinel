@@ -1,0 +1,175 @@
+{% extends "layouts/app_shell.html" %}
+{% load static %}
+
+{% block title %}Sources de recommandation — Sentinel{% endblock %}
+
+{% block content %}
+<div x-data="{ modalOpen: false, modalContent: '' }" class="space-y-6">
+
+  {# ── Header + Bouton Créer ── #}
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Sources de recommandation</h1>
+      <p class="text-sm text-gray-500 mt-1">Paramétrage des sources internes et externes</p>
+    </div>
+    <button
+      @click="modalOpen = true"
+      hx-get="{% url 'workflow:source-create' %}"
+      hx-target="#modal-content"
+      hx-swap="innerHTML"
+      class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sentinel-orange to-[#C9631A] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-500/20 hover:shadow-lg hover:shadow-orange-500/30 transition-all duration-200 hover:-translate-y-0.5"
+      id="btn-new-source"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouvelle source
+    </button>
+  </div>
+
+  {# ── Tableau des sources ── #}
+  <div id="sources-table">
+    {% if sources %}
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left">
+          <thead>
+            <tr class="bg-gray-50/80 border-b border-gray-100">
+              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Code</th>
+              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Libellé</th>
+              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Type</th>
+              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Statut</th>
+              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Créée le</th>
+              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500 w-24">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            {% for source in sources %}
+            <tr class="group hover:bg-orange-50/30 transition-colors duration-150" id="source-row-{{ source.pk }}">
+              <td class="px-4 py-3.5">
+                <span class="text-sm font-semibold text-gray-900 font-mono">{{ source.code }}</span>
+              </td>
+              <td class="px-4 py-3.5">
+                <span class="text-sm text-gray-700">{{ source.label }}</span>
+              </td>
+              <td class="px-4 py-3.5">
+                {% if source.is_external %}
+                <span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">Externe</span>
+                {% else %}
+                <span class="inline-flex items-center rounded-md bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 ring-1 ring-inset ring-purple-600/20">Interne</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3.5">
+                {% if source.is_active %}
+                <span class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+                  Active
+                </span>
+                {% else %}
+                <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+                  Inactive
+                </span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3.5">
+                <span class="text-xs text-gray-500">{{ source.created_at|date:"d/m/Y" }}</span>
+              </td>
+              <td class="px-4 py-3.5">
+                <div class="flex items-center gap-2">
+                  {# Bouton Modifier #}
+                  <button
+                    @click="modalOpen = true"
+                    hx-get="{% url 'workflow:source-edit' source.pk %}"
+                    hx-target="#modal-content"
+                    hx-swap="innerHTML"
+                    class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-sentinel-orange transition-colors"
+                    title="Modifier"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                  </button>
+                  {# Bouton Activer/Désactiver #}
+                  <button
+                    hx-post="{% url 'workflow:source-toggle' source.pk %}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    class="rounded-lg p-1.5 transition-colors {% if source.is_active %}text-green-500 hover:bg-red-50 hover:text-red-500{% else %}text-gray-400 hover:bg-green-50 hover:text-green-500{% endif %}"
+                    title="{% if source.is_active %}Désactiver{% else %}Activer{% endif %}"
+                  >
+                    {% if source.is_active %}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="7"/><circle cx="16" cy="12" r="3" fill="currentColor"/></svg>
+                    {% else %}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="7"/><circle cx="8" cy="12" r="3" fill="currentColor"/></svg>
+                    {% endif %}
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    {# ── Empty State ── #}
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 px-8 text-center">
+      <div class="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange">
+          <path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Z"/><path d="M12 12h.01"/>
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-gray-900 mb-2">Aucune source configurée</h3>
+      <p class="text-sm text-gray-500 mb-8 max-w-md mx-auto">Créez les sources de recommandations utilisées dans votre organisation.</p>
+      <button
+        @click="modalOpen = true"
+        hx-get="{% url 'workflow:source-create' %}"
+        hx-target="#modal-content"
+        hx-swap="innerHTML"
+        class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sentinel-orange to-[#C9631A] px-6 py-3 text-sm font-semibold text-white shadow-md shadow-orange-500/20 hover:shadow-lg hover:shadow-orange-500/30 transition-all duration-200 hover:-translate-y-0.5"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Créer ma première source
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Modale formulaire (Alpine.js + HTMX) ── #}
+  {% csrf_token %}
+  <template x-teleport="body">
+    <div
+      x-show="modalOpen"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      style="display:none"
+      @keydown.escape.window="modalOpen = false"
+    >
+      <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" @click="modalOpen = false"></div>
+      <div
+        x-show="modalOpen"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 scale-95"
+        x-transition:enter-end="opacity-100 scale-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100 scale-100"
+        x-transition:leave-end="opacity-0 scale-95"
+        class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4"
+        id="modal-content"
+      >
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+</div>
+
+{# ── Script HTMX : fermer modale + rafraîchir tableau ── #}
+<script>
+  document.body.addEventListener('closeModal', function() {
+    const modal = document.querySelector('[x-data]');
+    if (modal) Alpine.evaluate(modal, 'modalOpen = false');
+  });
+</script>
+{% endblock %}

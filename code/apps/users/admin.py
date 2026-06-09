@@ -2,12 +2,12 @@
 Users App — Admin Configuration
 
 Configuration du Django Admin pour les modèles Department et User.
-Le RSSI utilise cette interface pour gérer l'organigramme et créer
+L'Admin utilise cette interface pour gérer l'organigramme et créer
 les comptes « coquilles vides » (ADR-10, FR35).
 
 Sécurité (ADR-10) :
     - Le champ ``role`` est en lecture seule dans le Django Admin
-      pour empêcher le RSSI d'attribuer des rôles métiers.
+      pour empêcher l'Admin d'attribuer des rôles métiers.
     - Le champ ``is_audit_admin`` est masqué du Django Admin
       (géré uniquement par l'interface dédiée Audit).
 """
@@ -15,7 +15,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 
-from .models import Department, User
+from .models import Department, ExternalMission, User
 
 
 # =============================================================================
@@ -45,7 +45,7 @@ class UserAdmin(BaseUserAdmin):
     Admin Sentinel aligné sur le modèle User personnalisé.
 
     Protection ADR-10 : le champ ``role`` est en lecture seule
-    pour les utilisateurs non-superuser (le RSSI ne peut pas
+    pour les utilisateurs non-superuser (l'Admin ne peut pas
     attribuer de rôles métiers via le Django Admin).
     """
 
@@ -75,7 +75,7 @@ class UserAdmin(BaseUserAdmin):
         ),
     )
 
-    # Formulaire de création — le RSSI crée les comptes sans rôle
+    # Formulaire de création — l'Admin crée les comptes sans rôle
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
         (
             _("Rattachement"),
@@ -112,3 +112,47 @@ class UserAdmin(BaseUserAdmin):
         if not request.user.is_superuser:
             exclude.append("is_audit_admin")
         return exclude
+
+
+# =============================================================================
+# ExternalMission Admin — Missions Externes (Story 1.3)
+# =============================================================================
+
+
+@admin.register(ExternalMission)
+class ExternalMissionAdmin(admin.ModelAdmin):
+    """
+    Admin pour la gestion des missions d'audit externe (FR2, Story 1.3).
+
+    Permet à l'Admin ou superuser de créer et gérer les missions
+    d'audit externe (COBAC, BEAC, CAC).
+    """
+
+    list_display = (
+        "organization",
+        "auditor",
+        "start_date",
+        "end_date",
+        "is_active",
+    )
+    list_filter = ("organization", "is_active")
+    search_fields = ("organization", "auditor__username", "scope_description")
+    list_select_related = ("auditor",)
+    date_hierarchy = "start_date"
+    ordering = ("-start_date",)
+
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": ("auditor", "organization", "scope_description"),
+            },
+        ),
+        (
+            _("Période d'intervention"),
+            {
+                "fields": ("start_date", "end_date", "is_active"),
+            },
+        ),
+    )
+

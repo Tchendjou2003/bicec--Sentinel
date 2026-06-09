@@ -19,31 +19,31 @@
 {% block main %}
 <!-- Ambient Background Lighting -->
 <div class="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden z-0">
-    <div class="absolute -top-40 -left-40 w-96 h-96 bg-primary-fixed opacity-20 rounded-full blur-3xl mix-blend-multiply"></div>
-    <div class="absolute bottom-[-10%] right-[-5%] w-[45rem] h-[45rem] bg-secondary-fixed opacity-25 rounded-full blur-[100px] mix-blend-multiply"></div>
-    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50rem] h-[50rem] bg-surface-bright rounded-full blur-3xl opacity-50 mix-blend-overlay"></div>
+    <div class="absolute -top-40 -left-40 w-96 h-96 bg-primary opacity-30 rounded-full blur-[80px]"></div>
+    <div class="absolute bottom-[-10%] right-[-5%] w-[45rem] h-[45rem] bg-sentinel-orange opacity-20 rounded-full blur-[100px]"></div>
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50rem] h-[50rem] bg-surface-bright rounded-full blur-[100px] opacity-80"></div>
     
     <!-- Decorative Watermark -->
-    <div class="absolute top-1/2 right-[5%] -translate-y-1/2 w-[800px] h-[800px] opacity-[0.03] mix-blend-multiply flex items-center justify-center grayscale">
+    <div class="absolute top-1/2 right-[5%] -translate-y-1/2 w-[800px] h-[800px] opacity-10 flex items-center justify-center grayscale">
         <img alt="Watermark" aria-hidden="true" class="w-full h-full object-contain opacity-50" src="{% static 'img/logo.jpeg' %}"/>
     </div>
     
     <!-- Decorative Dots Bottom Right -->
-    <div class="absolute bottom-[15%] right-[10%] grid grid-cols-5 gap-3 opacity-20">
+    <div class="absolute bottom-[15%] right-[10%] grid grid-cols-5 gap-3 opacity-40">
         {% for i in "123456789012345"|make_list %}
         <div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
         {% endfor %}
     </div>
     
     <!-- Decorative Dots Middle Left -->
-    <div class="absolute top-[45%] left-[5%] grid grid-cols-4 gap-3 opacity-20">
+    <div class="absolute top-[45%] left-[5%] grid grid-cols-4 gap-3 opacity-40">
         {% for i in "12345678"|make_list %}
         <div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
         {% endfor %}
     </div>
 </div>
 
-<main class="flex-grow flex flex-col items-center justify-center relative z-10 px-4 py-12 min-h-screen bg-surface font-body text-on-surface antialiased">
+<main class="flex-grow flex flex-col items-center justify-center relative z-10 px-4 py-12 min-h-screen font-body text-on-surface antialiased">
     <!-- Welcome Message -->
     <div class="text-center mb-8">
         <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface-container-low border border-outline-variant/30 text-xs font-medium text-on-surface-variant mb-6 shadow-sm">

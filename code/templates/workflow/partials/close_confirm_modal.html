@@ -1,0 +1,76 @@
+{# Modale de confirmation de clôture définitive — Story 3.8 (AC2, FR20) #}
+{% load static %}
+
+<div class="bg-white rounded-2xl shadow-2xl p-6 animate-fade-in">
+
+  {# ── Header ── #}
+  <div class="flex items-center gap-3 mb-5">
+    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    </div>
+    <div>
+      <h3 class="text-lg font-semibold text-gray-900">Clôturer définitivement</h3>
+      <p class="text-sm text-gray-500">Réf. : <span class="font-medium text-gray-700">{{ recommendation.reference }}</span></p>
+    </div>
+  </div>
+
+  {# ── Avertissement irréversibilité ── #}
+  <div class="rounded-xl bg-amber-50 border border-amber-200 p-4 mb-5">
+    <div class="flex items-start gap-3">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600 mt-0.5 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <p class="text-sm text-amber-800">
+        ⚠️ Cette action est <strong>irréversible</strong>. Le dossier sera scellé et
+        ne pourra plus être modifié (FR20). Aucune action métier ne sera possible après clôture.
+      </p>
+    </div>
+  </div>
+
+  {# ── Récapitulatif ── #}
+  <div class="rounded-xl bg-gray-50 border border-gray-200 p-4 mb-5 space-y-2 text-sm">
+    <div class="flex justify-between">
+      <span class="text-gray-500">Référence</span>
+      <span class="font-medium text-gray-900">{{ recommendation.reference }}</span>
+    </div>
+    {% if recommendation.mission_label %}
+    <div class="flex justify-between">
+      <span class="text-gray-500">Mission</span>
+      <span class="font-medium text-gray-900">{{ recommendation.mission_label|truncatewords:8 }}</span>
+    </div>
+    {% endif %}
+    {% if recommendation.assigned_dm %}
+    <div class="flex justify-between">
+      <span class="text-gray-500">DM assigné</span>
+      <span class="font-medium text-gray-900">{{ recommendation.assigned_dm.get_full_name }}</span>
+    </div>
+    {% endif %}
+    {% if last_accepted_submission %}
+    <div class="flex justify-between">
+      <span class="text-gray-500">Dernière soumission</span>
+      <span class="font-medium text-gray-900">{{ last_accepted_submission.created_at|date:"d/m/Y" }}</span>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Actions ── #}
+  <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
+    <button
+      type="button"
+      @click="closeConfirmModalOpen = false"
+      class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+    >
+      Annuler
+    </button>
+    <button
+      type="button"
+      hx-post="{% url 'workflow:recommendation-close-audit' recommendation.pk %}"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      hx-target="#close-confirm-modal-container"
+      hx-swap="innerHTML"
+      class="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-700 shadow-md shadow-green-500/20 hover:shadow-lg transition-all duration-200"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      Confirmer la clôture
+    </button>
+  </div>
+
+</div>

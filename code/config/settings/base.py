@@ -83,6 +83,7 @@ MIDDLEWARE = [
     "axes.middleware.AxesMiddleware",
     "apps.users.middleware.IdleTimeoutMiddleware",  # NFR-SEC-02
     "apps.users.middleware.RoleRequiredMiddleware", # ADR-10 / FR37
+    "apps.users.middleware.ExternalIsolationMiddleware", # Story 1.3 / AC1+AC3
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -101,6 +102,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.users.context_processors.sidebar_context",
             ],
         },
     },
@@ -199,6 +201,9 @@ STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
@@ -209,7 +214,7 @@ STORAGES = {
 # ============================================
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
-FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024  # 15 Mo (FR15/NFR-SCA-01)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024  # 6 Mo (FR15/NFR-SCA-01)
 
 # ============================================
 # Email — SMTP BICEC (ADR-03)

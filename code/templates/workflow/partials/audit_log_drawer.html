@@ -1,0 +1,102 @@
+{# Contenu du slide-over "Historique complet" — Story ergonomie #}
+{# Chargé en HTMX lazy au premier clic sur "Voir tout l'historique" #}
+
+<div class="flex flex-col h-full">
+
+  {# ── Header ── #}
+  <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-600"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+      </div>
+      <div>
+        <h2 class="text-base font-semibold text-gray-900">Historique complet</h2>
+        <p class="text-xs text-gray-500">{{ recommendation.reference }} — {{ audit_logs|length }} action{{ audit_logs|length|pluralize }}</p>
+      </div>
+    </div>
+    <button
+      @click="historyDrawerOpen = false"
+      class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+      aria-label="Fermer"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  {# ── Corps scrollable ── #}
+  <div class="flex-1 overflow-y-auto px-6 py-5">
+    {% if audit_logs %}
+    <div class="space-y-1">
+      {% for log in audit_logs %}
+      <div class="flex gap-3 group py-2">
+        {# Icône + connecteur vertical #}
+        <div class="flex flex-col items-center shrink-0">
+          <div class="flex h-7 w-7 items-center justify-center rounded-full shrink-0
+            {% if log.action == 'CREATE' %}bg-green-100 text-green-600
+            {% elif log.action == 'UPDATE' %}bg-blue-100 text-blue-600
+            {% elif log.action == 'DELETE' %}bg-red-100 text-red-600
+            {% elif log.action == 'TRANSITION' %}bg-purple-100 text-purple-600
+            {% elif log.action == 'EXTENSION_REQUESTED' %}bg-amber-100 text-amber-600
+            {% elif log.action == 'EXTENSION_APPROVED' %}bg-green-100 text-green-600
+            {% elif log.action == 'EXTENSION_REJECTED' %}bg-red-100 text-red-600
+            {% else %}bg-gray-100 text-gray-600
+            {% endif %}">
+            {% if log.action == 'CREATE' %}
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            {% elif log.action == 'UPDATE' %}
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+            {% elif log.action == 'DELETE' %}
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
+            {% elif log.action == 'TRANSITION' %}
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M4.22 4.22l2.12 2.12m11.32 11.32 2.12 2.12M2 12h3m14 0h3M4.22 19.78l2.12-2.12M18.66 5.34l-2.12 2.12"/></svg>
+            {% elif log.action == 'EXTENSION_REQUESTED' %}
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            {% elif log.action == 'EXTENSION_APPROVED' %}
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            {% elif log.action == 'EXTENSION_REJECTED' %}
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            {% else %}
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+            {% endif %}
+          </div>
+          {% if not forloop.last %}
+          <div class="w-px flex-1 bg-gray-150 mt-1 min-h-[12px]" style="background-color:#e5e7eb"></div>
+          {% endif %}
+        </div>
+
+        {# Contenu #}
+        <div class="flex-1 pb-2 min-w-0">
+          <p class="text-sm text-gray-800 leading-snug">{{ log.description|default:log.get_action_display }}</p>
+          <div class="flex items-center gap-2 mt-1 flex-wrap">
+            <span class="text-xs text-gray-400">{{ log.created_at|date:"d/m/Y à H:i" }}</span>
+            {% if log.user %}
+            <span class="text-gray-300">·</span>
+            <span class="text-xs font-medium text-gray-500">{{ log.user.get_full_name|default:log.user.username }}</span>
+            {% endif %}
+            <span class="inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-medium
+              {% if log.action == 'CREATE' %}bg-green-50 text-green-700
+              {% elif log.action == 'UPDATE' %}bg-blue-50 text-blue-700
+              {% elif log.action == 'DELETE' %}bg-red-50 text-red-700
+              {% elif log.action == 'TRANSITION' %}bg-purple-50 text-purple-700
+              {% elif log.action == 'EXTENSION_REQUESTED' %}bg-amber-50 text-amber-700
+              {% elif log.action == 'EXTENSION_APPROVED' %}bg-green-50 text-green-700
+              {% elif log.action == 'EXTENSION_REJECTED' %}bg-red-50 text-red-700
+              {% else %}bg-gray-50 text-gray-600
+              {% endif %}">
+              {{ log.get_action_display }}
+            </span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="flex flex-col items-center justify-center h-40 text-center">
+      <div class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 mb-3">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+      </div>
+      <p class="text-sm text-gray-400 italic">Aucun historique disponible.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>

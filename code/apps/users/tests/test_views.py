@@ -24,12 +24,12 @@ class SentinelLoginViewTest(TestCase):
             email="shell@bicec.cm",
         )
         
-        # Utilisateur RSSI
-        self.rssi_user = User.objects.create_user(
-            username="rssi",
+        # Utilisateur Admin
+        self.admin_user = User.objects.create_user(
+            username="admin_user",
             password="testpass123",
-            email="rssi@bicec.cm",
-            role=User.Role.RSSI,
+            email="admin@bicec.cm",
+            role=User.Role.ADMIN,
             is_staff=True,
         )
         
@@ -64,22 +64,21 @@ class SentinelLoginViewTest(TestCase):
         })
         self.assertRedirects(response, reverse("auth:pending"))
 
-    def test_login_redirect_rssi_to_admin(self):
-        """Le RSSI est redirigé vers le Django Admin."""
+    def test_login_redirect_admin_to_dashboard(self):
+        """L'Admin est redirigé vers le dashboard Admin IT (Story 1.4 / AC1)."""
         response = self.client.post(self.login_url, {
-            "username": "rssi",
+            "username": "admin_user",
             "password": "testpass123"
         })
-        self.assertRedirects(response, reverse("admin:index"))
+        self.assertRedirects(response, reverse("auth:admin-dashboard"))
 
     def test_login_redirect_dm_to_home(self):
-        """Un compte avec rôle (ex: DM) est redirigé vers la home par défaut."""
+        """Un compte avec rôle (ex: DM) est redirigé vers le suivi des recommandations."""
         response = self.client.post(self.login_url, {
             "username": "dm",
             "password": "testpass123"
         })
-        # Par défaut, LOGIN_REDIRECT_URL est "/"
-        self.assertRedirects(response, "/")
+        self.assertRedirects(response, reverse("workflow:recommendation-list"))
 
 
 class PendingActivationViewTest(TestCase):

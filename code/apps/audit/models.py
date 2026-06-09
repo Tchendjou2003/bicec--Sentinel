@@ -33,6 +33,10 @@ class AuditLog(models.Model):
         TRANSITION = "TRANSITION", _("Transition FSM")
         SYSTEM = "SYSTEM", _("Action système")
         EXPORT = "EXPORT", _("Export")
+        # Story 3.6 — Demandes de report d'échéance (FR13, FR14, FR34)
+        EXTENSION_REQUESTED = "EXTENSION_REQUESTED", _("Demande de report soumise")
+        EXTENSION_APPROVED  = "EXTENSION_APPROVED",  _("Demande de report approuvée")
+        EXTENSION_REJECTED  = "EXTENSION_REJECTED",  _("Demande de report rejetée")
 
     id = models.UUIDField(
         primary_key=True,

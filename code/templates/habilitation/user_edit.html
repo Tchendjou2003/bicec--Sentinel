@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "layouts/app_shell.html" %}
 {% load static %}
 
 {% block title %}Éditer le profil de {{ target_user.username }} — Sentinel{% endblock %}
@@ -8,7 +8,7 @@
 
     {# ── Header ── #}
     <div class="flex items-center gap-4">
-        <a href="{% url 'auth:habilitation-list' %}"
+        <a href="{% url 'workflow:habilitation-list' %}"
            class="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-border-subtle hover:bg-gray-50 transition-colors"
            title="Retour à la liste">
             <svg class="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -91,7 +91,7 @@
 
             {# Actions #}
             <div class="flex items-center justify-end gap-3 pt-2">
-                <a href="{% url 'auth:habilitation-list' %}"
+                <a href="{% url 'workflow:habilitation-list' %}"
                    class="px-4 py-2.5 text-sm font-medium text-text-secondary border border-border-subtle rounded-lg hover:bg-gray-50 transition-colors">
                     Annuler
                 </a>

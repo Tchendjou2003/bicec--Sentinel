@@ -1,0 +1,99 @@
+{# Modale de validation DM → Audit — Story 3.5 (AC4) #}
+{% load static %}
+
+<div class="bg-white rounded-2xl shadow-2xl p-6 animate-fade-in">
+
+  {# ── Header ── #}
+  <div class="flex items-center gap-3 mb-5">
+    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    </div>
+    <div>
+      <h3 class="text-lg font-semibold text-gray-900">Valider et envoyer à l'Audit</h3>
+      <p class="text-sm text-gray-500">Réf. : <span class="font-medium text-gray-700">{{ recommendation.reference }}</span></p>
+    </div>
+  </div>
+
+  {# ── Résumé de la soumission ── #}
+  {% if submission %}
+  <div class="rounded-xl bg-gray-50 border border-gray-200 p-4 mb-4">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Soumission ETP</span>
+      <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+        {{ submission.files.count }} fichier{{ submission.files.count|pluralize }}
+      </span>
+    </div>
+    {% if submission.comment %}
+    <p class="text-sm text-gray-700 italic">"{{ submission.comment|truncatewords:30 }}"</p>
+    {% else %}
+    <p class="text-sm text-gray-400 italic">Aucun commentaire ETP.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Formulaire ── #}
+  <form
+    hx-post="{% url 'workflow:evidence-approve' recommendation.pk submission_id %}"
+    hx-target="#approve-modal-container"
+    hx-swap="innerHTML"
+    hx-encoding="multipart/form-data"
+    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+  >
+
+    {# ── PV de Recette (FR19) — uploadé par le DM ── #}
+    <div class="mb-4">
+      <label for="{{ form.pv_recette.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1.5">
+        {{ form.pv_recette.label }}
+        <span class="text-gray-400 text-xs ml-1">(optionnel)</span>
+      </label>
+      <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
+        {{ form.pv_recette }}
+      </div>
+      <p class="text-xs text-gray-400 mt-1">{{ form.pv_recette.help_text }}</p>
+      {% if form.pv_recette.errors %}
+      <p class="text-xs text-red-500 mt-1">{{ form.pv_recette.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    {# ── Bandeau info PV de Recette (exemption FR19) ── #}
+    <div class="rounded-xl bg-blue-50 border border-blue-200 p-3 mb-4">
+      <div class="flex items-start gap-2.5">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600 mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <p class="text-xs text-blue-800">
+          Si vous joignez un <strong>PV de Recette</strong>, le commentaire ci-dessous devient optionnel. Sinon, il est <strong>requis</strong>.
+        </p>
+      </div>
+    </div>
+
+    {# ── Commentaire DM ── #}
+    <div class="mb-5">
+      <label for="{{ form.comment.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1.5">
+        {{ form.comment.label }}
+        <span class="text-gray-400 text-xs ml-1">(requis sans PV de Recette)</span>
+      </label>
+      {{ form.comment }}
+      {% if form.comment.errors %}
+      <p class="text-xs text-red-500 mt-1">{{ form.comment.errors.0 }}</p>
+      {% endif %}
+      <p class="text-xs text-gray-400 mt-1.5">{{ form.comment.help_text }}</p>
+    </div>
+
+    {# ── Actions ── #}
+    <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
+      <button
+        type="button"
+        @click="approveModalOpen = false"
+        class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+      >
+        Annuler
+      </button>
+      <button
+        type="submit"
+        class="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-green-700 shadow-md shadow-green-500/20 hover:shadow-lg transition-all duration-200"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Valider vers l'Audit
+      </button>
+    </div>
+  </form>
+</div>

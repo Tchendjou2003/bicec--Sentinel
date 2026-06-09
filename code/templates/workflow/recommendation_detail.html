@@ -1,0 +1,1022 @@
+{% extends "layouts/app_shell.html" %}
+{% load static %}
+
+{% block title %}{{ recommendation.reference }} — Sentinel{% endblock %}
+
+{% block content %}
+  <div x-data="{ slideOverOpen: false, assignModalOpen: false, delegateModalOpen: false, submitEvidenceModalOpen: false, rejectModalOpen: false, approveModalOpen: false, historyDrawerOpen: false, extensionRequestModalOpen: false, extensionReviewModalOpen: false, dgSubmitPanelOpen: false, closeConfirmModalOpen: false, rejectAuditModalOpen: false }" @close-modal.window="assignModalOpen = false" @close-delegate-modal.window="delegateModalOpen = false">
+
+  {# ── Fil d'Ariane ── #}
+  <nav class="flex items-center gap-2 text-sm text-gray-500" aria-label="Breadcrumb">
+    <a href="{% url 'workflow:recommendation-list' %}" class="hover:text-sentinel-orange transition-colors">Recommandations</a>
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    <span class="font-medium text-gray-900">{{ recommendation.reference }}</span>
+  </nav>
+
+  {# ── Bandeau de clôture définitive (Story 3.8 — AC8) ── #}
+  {% if is_closed %}
+  {% include "workflow/partials/closure_banner.html" %}
+  {% endif %}
+
+  {# ── Barre d'actions sticky ── #}
+  <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-md rounded-xl border border-gray-100 shadow-sm px-5 py-3 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      {# Statut badge #}
+      {% with status=recommendation.status %}
+      <span class="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold
+        {% if status == 'DRAFT' %}bg-gray-100 text-gray-700
+        {% elif status == 'ASSIGNED' %}bg-blue-100 text-blue-700
+        {% elif status == 'IN_PROGRESS' %}bg-amber-100 text-amber-700
+        {% elif status == 'PENDING_DM_REVIEW' %}bg-purple-100 text-purple-700
+        {% elif status == 'PENDING_AUDIT_REVIEW' %}bg-indigo-100 text-indigo-700
+        {% elif status == 'CLOSED_RESOLVED' %}bg-green-100 text-green-700
+        {% endif %}
+      ">{{ recommendation.get_status_display }}</span>
+      {% endwith %}
+
+      {% if recommendation.is_overdue %}
+      <span class="inline-flex items-center gap-1 text-xs font-semibold text-red-600">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        En retard
+      </span>
+      {% endif %}
+
+      <span class="text-xs text-gray-400">{{ recommendation.get_priority_display }}</span>
+    </div>
+
+    <div class="flex items-center gap-2">
+
+      {# ── Boutons Audit : Clôture / Rejet (Story 3.8 — AC1) ── #}
+      {% if can_close_by_audit %}
+        <button
+          @click="closeConfirmModalOpen = true"
+          hx-get="{% url 'workflow:recommendation-close-audit' recommendation.pk %}"
+          hx-target="#close-confirm-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-green-600 to-green-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Clôturer définitivement
+        </button>
+      {% endif %}
+      {% if can_reject_by_audit %}
+        <button
+          @click="rejectAuditModalOpen = true"
+          hx-get="{% url 'workflow:recommendation-reject-audit' recommendation.pk %}"
+          hx-target="#reject-audit-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-red-600 to-red-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          Rejeter
+        </button>
+      {% endif %}
+
+      {# ── Autres actions métier — masquées si CLOSED_RESOLVED (AC7 Story 3.8) ── #}
+      {% if not is_closed %}
+
+      {# Bouton Assigner (Story 2.5 — AC1, AC3) #}
+      {% if recommendation.status == 'DRAFT' %}
+        {% if recommendation.department %}
+        <button
+          @click="assignModalOpen = true"
+          hx-get="{% url 'workflow:recommendation-assign' recommendation.pk %}"
+          hx-target="#assign-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          Assigner
+        </button>
+        {% else %}
+        <button disabled class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-gray-400 bg-gray-100 cursor-not-allowed" title="Veuillez d'abord renseigner la Direction concernée">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          Assigner
+        </button>
+        {% endif %}
+      {% endif %}
+
+      {# Bouton Déléguer (Story 3.2 — AC3) #}
+      {% if recommendation.status == 'ASSIGNED' and user == recommendation.assigned_dm %}
+        <button
+          @click="delegateModalOpen = true"
+          hx-get="{% url 'workflow:recommendation-delegate' recommendation.pk %}"
+          hx-target="#delegate-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-sentinel-orange to-orange-600 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Déléguer
+        </button>
+      {% endif %}
+
+      {# Bouton Soumettre Preuves (Story 3.3 — AC5, AC6) #}
+      {% if can_submit_evidence %}
+        <button
+          @click="submitEvidenceModalOpen = true"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-green-600 to-green-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Soumettre preuves
+        </button>
+      {% endif %}
+
+      {# Bouton Valider vers l'Audit (Story 3.5 — AC3) #}
+      {% if can_approve_evidence and pending_submission %}
+        <button
+          @click="approveModalOpen = true"
+          hx-get="{% url 'workflow:evidence-approve' recommendation.pk pending_submission.pk %}"
+          hx-target="#approve-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-green-600 to-green-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Valider → Audit
+        </button>
+      {% endif %}
+
+      {# Bouton Rejeter Preuves (Story 3.4 — AC3) #}
+      {% if can_reject_evidence %}
+        <button
+          @click="rejectModalOpen = true"
+          hx-get="{% url 'workflow:evidence-reject' recommendation.pk pending_submission.pk %}"
+          hx-target="#reject-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-red-600 to-red-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          Rejeter
+        </button>
+      {% endif %}
+
+      {# Bouton Demander un Report (Story 3.6 — AC1, AC3) #}
+      {% if can_request_extension %}
+        <button
+          @click="extensionRequestModalOpen = true"
+          hx-get="{% url 'workflow:extension-request' recommendation.pk %}"
+          hx-target="#extension-request-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-sentinel-orange to-orange-600 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Demander un report
+        </button>
+      {% elif recommendation.assigned_dm_id == user.pk and pending_extension %}
+        {# Bouton désactivé : demande déjà en attente (AC6) #}
+        <button disabled
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 cursor-not-allowed"
+          title="Une demande de report est déjà en attente"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Report en attente…
+        </button>
+      {% endif %}
+
+      {# Boutons Approuver / Rejeter le report (Story 3.6 — AC4, AC5, AC7) #}
+      {% if can_review_extension %}
+        <button
+          @click="extensionReviewModalOpen = true"
+          hx-get="{% url 'workflow:extension-approve' recommendation.pk pending_extension.pk %}"
+          hx-target="#extension-review-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-green-600 to-green-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Approuver report
+        </button>
+        <button
+          @click="extensionReviewModalOpen = true"
+          hx-get="{% url 'workflow:extension-reject' recommendation.pk pending_extension.pk %}"
+          hx-target="#extension-review-modal-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-white bg-gradient-to-r from-red-600 to-red-700 shadow-sm hover:shadow-md transition-all"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          Rejeter report
+        </button>
+      {% endif %}
+
+      {# Bouton Soumettre directement à l'Audit — DG assigné uniquement (Story 3.7 — AC1, AC6) #}
+      {% if can_submit_dg %}
+        <button
+          @click="dgSubmitPanelOpen = true"
+          hx-get="{% url 'workflow:evidence-submit-dg' recommendation.pk %}"
+          hx-target="#dg-submit-evidence-panel-container"
+          hx-swap="innerHTML"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Soumettre preuves
+        </button>
+      {% endif %}
+
+      {% if recommendation.status == 'DRAFT' %}
+      {# Bouton Modifier #}
+      <button
+        @click="slideOverOpen = true"
+        hx-get="{% url 'workflow:recommendation-update' recommendation.pk %}"
+        hx-target="#stepper-container"
+        hx-swap="innerHTML"
+        class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        Modifier
+      </button>
+
+      {# Bouton Supprimer #}
+      <button
+        x-data
+        @click="$dispatch('open-delete', { url: '{% url 'workflow:recommendation-delete' recommendation.pk %}', ref: '{{ recommendation.reference }}' })"
+        class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+        Supprimer
+      </button>
+      {% endif %}
+
+      {% endif %}{# /if not is_closed #}
+    </div>
+  </div>
+
+  {# ── Layout Split 60/40 ── #}
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+    {# ── Colonne gauche (60%) ── #}
+    <div class="lg:col-span-3 space-y-5">
+
+      {# Contexte Mission #}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <span class="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-blue-600">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </span>
+          Contexte Mission
+        </h3>
+        <dl class="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <dt class="text-gray-500 text-xs font-medium mb-1">Date de la mission</dt>
+            <dd class="text-gray-900 font-medium">{{ recommendation.mission_date|date:"d/m/Y"|default:"—" }}</dd>
+          </div>
+          <div>
+            <dt class="text-gray-500 text-xs font-medium mb-1">Source</dt>
+            <dd class="text-gray-900 font-medium">{{ recommendation.source.label }}</dd>
+          </div>
+          <div>
+            <dt class="text-gray-500 text-xs font-medium mb-1">Libellé de la mission</dt>
+            <dd class="text-gray-900 font-medium">{{ recommendation.mission_label|default:"—" }}</dd>
+          </div>
+          <div>
+            <dt class="text-gray-500 text-xs font-medium mb-1">Direction contrôlée</dt>
+            <dd class="text-gray-900 font-medium">{{ recommendation.controlled_department.name|default:"—" }}</dd>
+          </div>
+          <div>
+            <dt class="text-gray-500 text-xs font-medium mb-1">Direction concernée</dt>
+            <dd class="text-gray-900 font-medium">{{ recommendation.department.name|default:"—" }}</dd>
+          </div>
+          <div>
+            <dt class="text-gray-500 text-xs font-medium mb-1">Criticité</dt>
+            <dd>
+              {% with prio=recommendation.priority %}
+              <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold
+                {% if prio == 'CRITIQUE' %}bg-red-100 text-red-700
+                {% elif prio == 'HAUTE' %}bg-orange-100 text-orange-700
+                {% elif prio == 'MOYENNE' %}bg-yellow-100 text-yellow-700
+                {% elif prio == 'FAIBLE' %}bg-green-100 text-green-700
+                {% endif %}
+              ">{{ recommendation.get_priority_display }}</span>
+              {% endwith %}
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      {# Observations #}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="flex h-6 w-6 items-center justify-center rounded-md bg-amber-50 text-amber-600">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          </span>
+          Observations
+        </h3>
+        <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ recommendation.observations|default:"Aucune observation." }}</p>
+      </div>
+
+      {# Texte de la recommandation #}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="flex h-6 w-6 items-center justify-center rounded-md bg-green-50 text-green-600">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </span>
+          Texte de la recommandation
+        </h3>
+        <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ recommendation.description }}</p>
+      </div>
+
+      {# Dossiers en anomalies #}
+      {% if recommendation.anomalous_dossiers %}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="flex h-6 w-6 items-center justify-center rounded-md bg-red-50 text-red-600">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </span>
+          Dossiers en anomalies
+        </h3>
+        <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ recommendation.anomalous_dossiers }}</p>
+      </div>
+      {% endif %}
+
+      {# ── Bandeau rejet (Story 3.4/3.8 — cuisine interne : visible porteurs ETP/DM/DG) ── #}
+      {% if show_rejection_banner %}
+      <div class="rounded-xl bg-red-50 border border-red-200 p-4">
+        <div class="flex items-start gap-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-red-900">Votre soumission a été rejetée</p>
+            <p class="text-xs text-red-700 mt-0.5">
+              Par <strong>{{ rejected_submission.reviewed_by.get_full_name|default:rejected_submission.reviewed_by.username }}</strong>
+              le {{ rejected_submission.reviewed_at|date:"d/m/Y à H:i" }}
+            </p>
+            <div class="mt-2 rounded-lg bg-white border border-red-200 px-3 py-2">
+              <p class="text-xs font-semibold text-red-700 mb-1">Motif :</p>
+              <p class="text-sm text-red-900 whitespace-pre-line">{{ rejected_submission.review_comment }}</p>
+            </div>
+            <p class="text-xs text-red-600 mt-2 font-medium">
+              Veuillez corriger votre dossier et re-soumettre vos preuves.
+            </p>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# ── Bannières statut report d'échéance (Story 3.6 — AC6) ── #}
+      {% if pending_extension %}
+      <div class="rounded-xl bg-amber-50 border border-amber-200 p-4">
+        <div class="flex items-start gap-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-amber-900">⏳ Demande de report en attente</p>
+            <p class="text-xs text-amber-700 mt-0.5">
+              Par <strong>{{ pending_extension.requested_by.get_full_name|default:pending_extension.requested_by.username }}</strong>
+              le {{ pending_extension.created_at|date:"d/m/Y à H:i" }}
+            </p>
+            <div class="mt-2 rounded-lg bg-white border border-amber-200 px-3 py-2 grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <p class="font-semibold text-amber-700 mb-0.5">Nouvelle date souhaitée</p>
+                <p class="text-amber-900 font-bold">{{ pending_extension.requested_date|date:"d/m/Y" }}</p>
+              </div>
+              <div>
+                <p class="font-semibold text-amber-700 mb-0.5">Motif</p>
+                <p class="text-amber-900 italic">{{ pending_extension.reason|truncatewords:20 }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Historique des reports d'échéance (APPROVED / REJECTED) #}
+      {% for ext in extension_history %}
+      {% if ext.status == 'APPROVED' %}
+      <div class="rounded-xl bg-green-50 border border-green-200 p-4">
+        <div class="flex items-start gap-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-green-900">✅ Report d'échéance approuvé</p>
+            <p class="text-xs text-green-700 mt-0.5">
+              Par <strong>{{ ext.reviewed_by.get_full_name|default:ext.reviewed_by.username }}</strong>
+              le {{ ext.reviewed_at|date:"d/m/Y à H:i" }}
+            </p>
+            <div class="mt-2 rounded-lg bg-white border border-green-200 px-3 py-2 text-xs">
+              <p class="font-semibold text-green-700 mb-0.5">Nouvelle échéance accordée</p>
+              <p class="text-green-900 font-bold">{{ ext.requested_date|date:"d/m/Y" }}</p>
+              {% if ext.audit_comment %}
+              <p class="mt-1 text-green-800 italic">{{ ext.audit_comment|truncatewords:30 }}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% elif ext.status == 'REJECTED' %}
+      <div class="rounded-xl bg-red-50 border border-red-200 p-4">
+        <div class="flex items-start gap-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-red-900">❌ Demande de report refusée</p>
+            <p class="text-xs text-red-700 mt-0.5">
+              Par <strong>{{ ext.reviewed_by.get_full_name|default:ext.reviewed_by.username }}</strong>
+              le {{ ext.reviewed_at|date:"d/m/Y à H:i" }}
+            </p>
+            <div class="mt-2 rounded-lg bg-white border border-red-200 px-3 py-2 text-xs">
+              <p class="font-semibold text-red-700 mb-0.5">Motif du refus</p>
+              <p class="text-red-900 italic">{{ ext.audit_comment }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+
+      {# ── Preuves actives (DRAFT / PENDING / ACCEPTED) — Story 3.3/3.4 ── #}
+      {% if active_submissions %}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <span class="flex h-6 w-6 items-center justify-center rounded-md bg-green-50 text-green-600">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          </span>
+          Preuves déposées
+          <span class="text-xs font-normal text-gray-400 ml-auto">{{ active_submissions|length }} soumission{{ active_submissions|length|pluralize }}</span>
+        </h3>
+
+        <div class="space-y-5">
+          {% for submission in active_submissions %}
+          <div class="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+            {# En-tête de la soumission #}
+            <div class="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <p class="text-sm font-semibold text-gray-900">
+                  {{ submission.submitted_by.get_full_name|default:submission.submitted_by.username }}
+                </p>
+                <p class="text-xs text-gray-400">{{ submission.created_at|date:"d/m/Y à H:i" }}</p>
+              </div>
+              <span class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
+                Soumission #{{ forloop.revcounter }}
+              </span>
+            </div>
+
+            {# Commentaire de résolution #}
+            <div class="bg-white rounded-lg border border-gray-200 p-3 mb-3">
+              <p class="text-xs font-semibold text-gray-500 mb-1">Commentaire de résolution</p>
+              <p class="text-sm text-gray-700 whitespace-pre-line">{{ submission.comment }}</p>
+            </div>
+
+            {# Liste des fichiers #}
+            {% if submission.files.all %}
+            <div class="space-y-2">
+              {% for ef in submission.files.all %}
+              <div class="flex items-center gap-3 rounded-lg bg-white border border-gray-200 px-3 py-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 shrink-0"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-gray-900 truncate">{{ ef.original_filename }}</p>
+                  <p class="text-xs text-gray-400">{{ ef.file_size|filesizeformat }}</p>
+                </div>
+                <span class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold
+                  {% if ef.tag == 'JUSTIFICATIF' %}bg-blue-100 text-blue-700
+                  {% elif ef.tag == 'PV_RECETTE' %}bg-purple-100 text-purple-700
+                  {% elif ef.tag == 'RAPPORT' %}bg-amber-100 text-amber-700
+                  {% else %}bg-gray-100 text-gray-600
+                  {% endif %}">
+                  {{ ef.get_tag_display }}
+                </span>
+                <a
+                  href="{% url 'workflow:evidence-download' recommendation.pk ef.pk %}"
+                  class="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-sentinel-orange hover:text-orange-700 transition-colors"
+                  download
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Télécharger
+                </a>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {# ── Accordéon : soumissions rejetées (cuisine interne) ── #}
+      {% if rejected_submissions %}
+      <div x-data="{ rejectHistoryOpen: false }" class="bg-white rounded-xl border border-red-100 shadow-sm overflow-hidden">
+
+        {# Header cliquable #}
+        <button
+          type="button"
+          @click="rejectHistoryOpen = !rejectHistoryOpen"
+          class="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-red-50/40 transition-colors"
+        >
+          <div class="flex items-center gap-2.5">
+            <span class="flex h-6 w-6 items-center justify-center rounded-md bg-red-50 text-red-500">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+            </span>
+            <span class="text-sm font-medium text-red-700">
+              Historique des rejets
+              <span class="ml-1 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">{{ rejected_submissions|length }}</span>
+            </span>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               class="text-red-400 transition-transform duration-200"
+               :class="rejectHistoryOpen ? 'rotate-180' : ''">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {# Corps de l'accordéon — animation native Alpine (plugin x-collapse non chargé) #}
+        <div x-show="rejectHistoryOpen"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 -translate-y-1"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 translate-y-0"
+             x-transition:leave-end="opacity-0 -translate-y-1"
+             class="border-t border-red-100 px-5 py-4 space-y-4"
+             style="display:none">
+          {% for submission in rejected_submissions %}
+          <div class="rounded-xl border border-red-200 bg-red-50/30 p-4">
+            <div class="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <p class="text-sm font-semibold text-gray-900">
+                  {{ submission.submitted_by.get_full_name|default:submission.submitted_by.username }}
+                </p>
+                <p class="text-xs text-gray-400">Soumise le {{ submission.created_at|date:"d/m/Y à H:i" }}</p>
+              </div>
+              <span class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700">
+                Rejetée
+              </span>
+            </div>
+
+            {# Motif de rejet #}
+            {% if submission.review_comment %}
+            <div class="bg-white rounded-lg border border-red-200 px-3 py-2 mb-3">
+              <p class="text-xs font-semibold text-red-600 mb-1">Motif de rejet</p>
+              <p class="text-sm text-red-900 whitespace-pre-line">{{ submission.review_comment }}</p>
+            </div>
+            {% endif %}
+
+            {# Fichiers soumis — téléchargeables #}
+            {% if submission.files.all %}
+            <div class="space-y-1.5">
+              {% for ef in submission.files.all %}
+              <div class="flex items-center gap-2 rounded-lg bg-white border border-red-100 px-3 py-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 shrink-0"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-medium text-gray-700 truncate">{{ ef.original_filename }}</p>
+                  <p class="text-xs text-gray-400">{{ ef.file_size|filesizeformat }}</p>
+                </div>
+                <span class="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold
+                  {% if ef.tag == 'JUSTIFICATIF' %}bg-blue-100 text-blue-700
+                  {% elif ef.tag == 'PV_RECETTE' %}bg-purple-100 text-purple-700
+                  {% elif ef.tag == 'RAPPORT' %}bg-amber-100 text-amber-700
+                  {% else %}bg-gray-100 text-gray-600
+                  {% endif %}">
+                  {{ ef.get_tag_display }}
+                </span>
+                <a
+                  href="{% url 'workflow:evidence-download' recommendation.pk ef.pk %}"
+                  class="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-sentinel-orange transition-colors"
+                  download
+                  title="Télécharger {{ ef.original_filename }}"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </a>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    {# ── Colonne droite (40%) ── #}
+    <div class="lg:col-span-2 space-y-5">
+
+      {# Barre d'avancement #}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-3">Avancement</h3>
+        <div class="flex items-center gap-3">
+          <div class="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+            <div x-data x-bind:style="'width:' + {{ progress|default:0 }} + '%'" class="h-full rounded-full transition-all duration-500 {% if progress >= 100 %}bg-green-500{% elif progress >= 50 %}bg-amber-500{% else %}bg-sentinel-orange{% endif %}"></div>
+          </div>
+          <span class="text-sm font-bold text-gray-900 tabular-nums">{{ progress }}%</span>
+        </div>
+        <div class="mt-2 flex justify-between text-xs text-gray-500">
+          <span>Échéance : {{ recommendation.due_date|date:"d/m/Y" }}</span>
+          <span>Orig. : {{ recommendation.original_due_date|date:"d/m/Y" }}</span>
+        </div>
+      </div>
+
+      {# Checklist Livrables #}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50 text-purple-600">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </span>
+          Livrables attendus
+          <span class="text-xs font-normal text-gray-400 ml-auto">{{ deliverables.count }} élément{{ deliverables.count|pluralize }}</span>
+        </h3>
+
+        {% if deliverables %}
+        <ul class="space-y-2">
+          {% for del in deliverables %}
+          <li class="flex items-center gap-3 rounded-lg px-3 py-2 {% if del.is_completed %}bg-green-50/50{% else %}bg-gray-50/50{% endif %} transition-colors">
+            {% if del.is_completed %}
+            <span class="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            <span class="text-sm text-green-700 line-through">{{ del.label }}</span>
+            {% else %}
+            <span class="flex h-5 w-5 items-center justify-center rounded-full border-2 border-gray-300 shrink-0"></span>
+            <span class="text-sm text-gray-700">{{ del.label }}</span>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-sm text-gray-400 italic">Aucun livrable défini.</p>
+        {% endif %}
+      </div>
+
+      {# Timeline AuditLog — 5 entrées + "Voir tout" slide-over #}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <span class="flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-gray-600">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+          </span>
+          Historique
+          {% if audit_log_total_count %}
+          <span class="text-xs font-normal text-gray-400 ml-auto">{{ audit_log_total_count }} action{{ audit_log_total_count|pluralize }}</span>
+          {% endif %}
+        </h3>
+
+        {% if audit_logs %}
+        <div class="space-y-3">
+          {% for log in audit_logs %}
+          <div class="flex gap-3 group">
+            <div class="flex flex-col items-center">
+              <div class="flex h-7 w-7 items-center justify-center rounded-full shrink-0
+                {% if log.action == 'CREATE' %}bg-green-100 text-green-600
+                {% elif log.action == 'UPDATE' %}bg-blue-100 text-blue-600
+                {% elif log.action == 'DELETE' %}bg-red-100 text-red-600
+                {% elif log.action == 'TRANSITION' %}bg-purple-100 text-purple-600
+                {% elif log.action == 'EXTENSION_REQUESTED' %}bg-amber-100 text-amber-600
+                {% elif log.action == 'EXTENSION_APPROVED' %}bg-green-100 text-green-600
+                {% elif log.action == 'EXTENSION_REJECTED' %}bg-red-100 text-red-600
+                {% else %}bg-gray-100 text-gray-600
+                {% endif %}">
+                {% if log.action == 'CREATE' %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                {% elif log.action == 'UPDATE' %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                {% elif log.action == 'DELETE' %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
+                {% elif log.action == 'TRANSITION' %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M4.22 4.22l2.12 2.12m11.32 11.32 2.12 2.12M2 12h3m14 0h3M4.22 19.78l2.12-2.12M18.66 5.34l-2.12 2.12"/></svg>
+                {% elif log.action == 'EXTENSION_REQUESTED' %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                {% elif log.action == 'EXTENSION_APPROVED' %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                {% elif log.action == 'EXTENSION_REJECTED' %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                {% else %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+                {% endif %}
+              </div>
+              {% if not forloop.last %}<div class="w-px flex-1 bg-gray-200 mt-1"></div>{% endif %}
+            </div>
+            <div class="pb-3">
+              <p class="text-sm text-gray-700">{{ log.description|default:log.get_action_display }}</p>
+              <p class="text-xs text-gray-400 mt-0.5">
+                {{ log.created_at|date:"d/m/Y H:i" }}
+                {% if log.user %} — {{ log.user.get_full_name|default:log.user.username }}{% endif %}
+              </p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        {# Bouton "Voir tout" — affiché uniquement si plus de 5 entrées #}
+        {% if audit_log_total_count > 5 %}
+        <div class="mt-4 pt-3 border-t border-gray-100">
+          <button
+            type="button"
+            @click="historyDrawerOpen = true"
+            hx-get="{% url 'workflow:recommendation-audit-log' recommendation.pk %}"
+            hx-target="#history-drawer-content"
+            hx-swap="innerHTML"
+            hx-trigger="click once"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 hover:border-gray-300 transition-all duration-150"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+            Voir tout l'historique
+            <span class="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-700">{{ audit_log_total_count }}</span>
+          </button>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <p class="text-sm text-gray-400 italic">Aucun historique.</p>
+        {% endif %}
+      </div>
+
+      {# Métadonnées #}
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-3">Informations</h3>
+        <dl class="space-y-2 text-sm">
+          <div class="flex justify-between">
+            <dt class="text-gray-500">Créé par</dt>
+            <dd class="text-gray-900 font-medium">{{ recommendation.created_by.get_full_name|default:recommendation.created_by.username }}</dd>
+          </div>
+          <div class="flex justify-between">
+            <dt class="text-gray-500">Créé le</dt>
+            <dd class="text-gray-900">{{ recommendation.created_at|date:"d/m/Y H:i" }}</dd>
+          </div>
+          <div class="flex justify-between">
+            <dt class="text-gray-500">Modifié le</dt>
+            <dd class="text-gray-900">{{ recommendation.updated_at|date:"d/m/Y H:i" }}</dd>
+          </div>
+          {% if recommendation.assigned_dm %}
+          <div class="flex justify-between">
+            <dt class="text-gray-500">DM assigné</dt>
+            <dd class="text-gray-900 font-medium">{{ recommendation.assigned_dm.get_full_name|default:recommendation.assigned_dm.username }}</dd>
+          </div>
+          {% endif %}
+          {% if recommendation.assigned_etp %}
+          <div class="flex justify-between">
+            <dt class="text-gray-500">ETP délégué</dt>
+            <dd class="text-gray-900 font-medium">{{ recommendation.assigned_etp.get_full_name|default:recommendation.assigned_etp.username }}</dd>
+          </div>
+          {% elif recommendation.status == 'IN_PROGRESS' and recommendation.assigned_dm %}
+          <div class="flex justify-between">
+            <dt class="text-gray-500">Porteur</dt>
+            <dd class="inline-flex items-center gap-1 text-gray-900 font-medium">
+              <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700">DM Porteur</span>
+            </dd>
+          </div>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  {# ── Slide-over Stepper (Alpine.js) ── #}
+  <template x-teleport="body">
+    <div x-show="slideOverOpen" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-[100]" style="display:none" @keydown.escape.window="slideOverOpen = false">
+      {# Overlay #}
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="slideOverOpen = false"></div>
+      {# Panel #}
+      <div x-show="slideOverOpen" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full" class="absolute inset-y-0 right-0 w-full max-w-2xl bg-white shadow-2xl overflow-y-auto rounded-tl-3xl" id="stepper-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale d'assignation (Story 2.5) ── #}
+  <template x-teleport="body">
+    <div x-show="assignModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="assignModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="assignModalOpen = false"></div>
+      <div class="relative w-full max-w-md mx-4" id="assign-modal-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de délégation (Story 3.2) ── #}
+  <template x-teleport="body">
+    <div x-show="delegateModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="delegateModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="delegateModalOpen = false"></div>
+      <div class="relative w-full max-w-md mx-4" id="delegate-modal-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de rejet de preuves (Story 3.4) ── #}
+  <template x-teleport="body">
+    <div x-show="rejectModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="rejectModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="rejectModalOpen = false"></div>
+      <div class="relative w-full max-w-md mx-4" id="reject-modal-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de validation DM → Audit (Story 3.5) ── #}
+  <template x-teleport="body">
+    <div x-show="approveModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="approveModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="approveModalOpen = false"></div>
+      <div class="relative w-full max-w-lg mx-4" id="approve-modal-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Slideover de soumission de preuves (Story 3.3) ── #}
+  <template x-teleport="body">
+    <div x-show="submitEvidenceModalOpen"
+         x-effect="document.body.classList.toggle('overflow-hidden', submitEvidenceModalOpen)"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[100]"
+         style="display:none"
+         @keydown.escape.window="submitEvidenceModalOpen = false">
+
+      {# Backdrop — style inline pour contourner la purge Tailwind JIT #}
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="submitEvidenceModalOpen = false">
+      </div>
+
+      {# Panneau latéral droit — 25% de largeur, glisse depuis la droite #}
+      <div x-show="submitEvidenceModalOpen"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="translate-x-full"
+           x-transition:enter-end="translate-x-0"
+           x-transition:leave="transition ease-in duration-200"
+           x-transition:leave-start="translate-x-0"
+           x-transition:leave-end="translate-x-full"
+           class="absolute inset-y-0 right-0 h-full bg-white shadow-2xl rounded-tl-3xl flex flex-col overflow-hidden"
+           style="width: 35%; min-width: 480px; max-width: 640px">
+        <div id="submit-evidence-modal-container"
+             class="flex-1 flex flex-col min-h-0 h-full overflow-hidden"
+             {% if can_submit_evidence %}
+             hx-get="{% url 'workflow:recommendation-submit-evidence' recommendation.pk %}"
+             hx-trigger="load"
+             hx-swap="innerHTML"
+             {% endif %}>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  {# ── Slide-over Historique complet (HTMX lazy) ── #}
+  <template x-teleport="body">
+    <div x-show="historyDrawerOpen"
+         x-effect="document.body.classList.toggle('overflow-hidden', historyDrawerOpen)"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[100]"
+         style="display:none"
+         @keydown.escape.window="historyDrawerOpen = false">
+
+      {# Backdrop #}
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="historyDrawerOpen = false"></div>
+
+      {# Panneau droit #}
+      <div x-show="historyDrawerOpen"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="translate-x-full"
+           x-transition:enter-end="translate-x-0"
+           x-transition:leave="transition ease-in duration-200"
+           x-transition:leave-start="translate-x-0"
+           x-transition:leave-end="translate-x-full"
+           class="absolute inset-y-0 right-0 bg-white shadow-2xl rounded-tl-3xl flex flex-col overflow-hidden"
+           style="width: 30%; min-width: 420px; max-width: 560px">
+        <div id="history-drawer-content" class="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
+          {# Contenu injecté par HTMX au premier clic #}
+          <div class="flex items-center justify-center h-full">
+            <svg class="animate-spin h-6 w-6 text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de demande de report d'échéance (Story 3.6 — AC1, AC2, AC3) ── #}
+  <template x-teleport="body">
+    <div x-show="extensionRequestModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="extensionRequestModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="extensionRequestModalOpen = false"></div>
+      <div class="relative w-full max-w-md mx-4" id="extension-request-modal-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de décision Audit sur un report (Story 3.6 — AC4, AC5, AC7) ── #}
+  <template x-teleport="body">
+    <div x-show="extensionReviewModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="extensionReviewModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="extensionReviewModalOpen = false"></div>
+      <div class="relative w-full max-w-lg mx-4" id="extension-review-modal-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Slide-over Soumission Directe DG (Story 3.7 — FR33) ── #}
+  <template x-teleport="body">
+    <div x-show="dgSubmitPanelOpen"
+         x-effect="document.body.classList.toggle('overflow-hidden', dgSubmitPanelOpen)"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[100]"
+         style="display:none"
+         @keydown.escape.window="dgSubmitPanelOpen = false">
+
+      {# Backdrop #}
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="dgSubmitPanelOpen = false"></div>
+
+      {# Panneau droit — glisse depuis la droite #}
+      <div x-show="dgSubmitPanelOpen"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="translate-x-full"
+           x-transition:enter-end="translate-x-0"
+           x-transition:leave="transition ease-in duration-200"
+           x-transition:leave-start="translate-x-0"
+           x-transition:leave-end="translate-x-full"
+           class="absolute inset-y-0 right-0 bg-white shadow-2xl rounded-tl-3xl flex flex-col overflow-hidden"
+           style="width: 30%; min-width: 420px; max-width: 560px">
+        <div id="dg-submit-evidence-panel-container"
+             class="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
+          {# Contenu injecté par HTMX via le bouton "Soumettre directement à l'Audit" #}
+        </div>
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de clôture définitive Audit (Story 3.8 — AC2, FR20) ── #}
+  <template x-teleport="body">
+    <div x-show="closeConfirmModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="closeConfirmModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="closeConfirmModalOpen = false"></div>
+      <div class="relative w-full max-w-md mx-4" id="close-confirm-modal-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de rejet Audit vers DM (Story 3.8 — AC3, AC4) ── #}
+  <template x-teleport="body">
+    <div x-show="rejectAuditModalOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none" @keydown.escape.window="rejectAuditModalOpen = false">
+      <div class="absolute inset-0"
+           style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           @click="rejectAuditModalOpen = false"></div>
+      <div class="relative w-full max-w-md mx-4" id="reject-audit-modal-container">
+        {# Contenu injecté par HTMX #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Modale de suppression (réutilisée) ── #}
+  {% csrf_token %}
+  <div x-data="{ deleteOpen: false, deleteUrl: '', deleteRef: '' }" @open-delete.window="deleteOpen = true; deleteUrl = $event.detail.url; deleteRef = $event.detail.ref">
+    <div x-show="deleteOpen" x-transition class="fixed inset-0 z-[60] flex items-center justify-center" style="display:none">
+      <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" @click="deleteOpen = false"></div>
+      <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 animate-fade-in">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900">Supprimer la recommandation</h3>
+            <p class="text-sm text-gray-500">Réf. : <span x-text="deleteRef" class="font-medium text-gray-700"></span></p>
+          </div>
+        </div>
+        <p class="text-sm text-gray-600 mb-6">Cette action est réversible (suppression logique). La recommandation ne sera plus visible.</p>
+        <div class="flex justify-end gap-3">
+          <button @click="deleteOpen = false" class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">Annuler</button>
+          <button @click="htmx.ajax('POST', deleteUrl, {swap:'none', headers:{'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value}}); deleteOpen = false" class="rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 shadow-sm transition-colors">Confirmer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

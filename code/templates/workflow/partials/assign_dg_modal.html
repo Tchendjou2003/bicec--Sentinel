@@ -1,0 +1,126 @@
+{# Modale d'assignation DG directe — Story 3.x | Toggle DM ↔ DG #}
+{% load static %}
+
+<div class="bg-white rounded-2xl shadow-2xl p-6 animate-fade-in">
+
+  {# ── Toggle DM / DG ── #}
+  <div class="flex gap-1 p-1 bg-gray-100 rounded-xl mb-5">
+    <button
+      hx-get="{% url 'workflow:recommendation-assign' recommendation.pk %}"
+      hx-target="#assign-modal-container"
+      hx-swap="innerHTML"
+      class="flex-1 text-center py-1.5 text-sm font-medium rounded-lg text-gray-500 hover:text-gray-700 transition-colors"
+    >
+      Directeur Métier
+    </button>
+    <span class="flex-1 text-center py-1.5 text-sm font-semibold rounded-lg bg-white shadow text-gray-800 cursor-default">
+      Directeur Général
+    </span>
+  </div>
+
+  {# ── Header ── #}
+  <div class="flex items-center gap-3 mb-5">
+    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-600"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div>
+      <h3 class="text-lg font-semibold text-gray-900">Assigner à un Directeur Général</h3>
+      <p class="text-sm text-gray-500">Réf. : <span class="font-medium text-gray-700">{{ recommendation.reference }}</span></p>
+    </div>
+  </div>
+
+  {# ── Bandeau info — circuit DG ── #}
+  <div class="rounded-xl bg-blue-50 border border-blue-200 p-4 mb-5">
+    <div class="flex items-start gap-3">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600 mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div>
+        <p class="text-sm font-semibold text-blue-800">Circuit Directeur Général</p>
+        <p class="text-xs text-blue-700 mt-1">
+          La recommandation passera directement en <strong>IN_PROGRESS</strong>.
+          Le DG n'a pas de phase d'acceptation — il agit immédiatement sur le dossier.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  {# ── Aucun DG disponible ── #}
+  {% if not has_dgs %}
+  <div class="rounded-xl bg-amber-50 border border-amber-200 p-4 mb-5">
+    <div class="flex items-start gap-3">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600 mt-0.5 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div>
+        <p class="text-sm font-semibold text-amber-800">Aucun Directeur Général actif</p>
+        <p class="text-xs text-amber-700 mt-1">
+          Aucun compte utilisateur ayant le rôle <strong>DG</strong> n'est actif dans le système.
+          Veuillez contacter l'Administrateur IT.
+        </p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Informations contextuelles ── #}
+  <div class="rounded-xl bg-gray-50 p-4 mb-5">
+    <dl class="space-y-2 text-sm">
+      <div class="flex justify-between">
+        <dt class="text-gray-500">Direction concernée</dt>
+        <dd class="text-gray-900 font-medium">{{ recommendation.department.name|default:"—" }}</dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-gray-500">Criticité</dt>
+        <dd>
+          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold
+            {% if recommendation.priority == 'CRITIQUE' %}bg-red-100 text-red-700
+            {% elif recommendation.priority == 'HAUTE' %}bg-orange-100 text-orange-700
+            {% elif recommendation.priority == 'MOYENNE' %}bg-yellow-100 text-yellow-700
+            {% elif recommendation.priority == 'FAIBLE' %}bg-green-100 text-green-700
+            {% endif %}
+          ">{{ recommendation.get_priority_display }}</span>
+        </dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-gray-500">Échéance</dt>
+        <dd class="text-gray-900 font-medium">{{ recommendation.due_date|date:"d/m/Y" }}</dd>
+      </div>
+    </dl>
+  </div>
+
+  {# ── Formulaire ── #}
+  <form
+    hx-post="{% url 'workflow:recommendation-assign-dg' recommendation.pk %}"
+    hx-target="#assign-modal-container"
+    hx-swap="innerHTML"
+    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+  >
+    <div class="mb-5">
+      <label for="{{ form.dg.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1.5">
+        {{ form.dg.label }} <span class="text-red-500">*</span>
+      </label>
+      {{ form.dg }}
+      {% if form.dg.errors %}
+      <p class="text-xs text-red-500 mt-1">{{ form.dg.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    {# ── Actions ── #}
+    <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
+      <button
+        type="button"
+        @click="assignModalOpen = false; $dispatch('close-modal')"
+        class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+      >
+        Annuler
+      </button>
+
+      {% if has_dgs %}
+      <button
+        type="submit"
+        class="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 shadow-sm hover:shadow-md transition-all duration-200"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Confirmer l'assignation DG
+      </button>
+      {% endif %}
+    </div>
+  </form>
+</div>

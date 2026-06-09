@@ -73,8 +73,8 @@
           id="filter-source"
         >
           <option value="">Toutes les sources</option>
-          {% for value, label in sources %}
-          <option value="{{ value }}" {% if value == current_source %}selected{% endif %}>{{ label }}</option>
+          {% for src in sources %}
+          <option value="{{ src.pk }}" {% if src.pk|stringformat:'s' == current_source %}selected{% endif %}>{{ src.label }}</option>
           {% endfor %}
         </select>
 

@@ -12,7 +12,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.core.exceptions import ValidationError
 
-from .models import Department, User
+from .models import Department, OrgUnitType, User
 
 
 # ── Style Tailwind partagé ────────────────────────────────────────────
@@ -55,6 +55,33 @@ class ITUserCreationForm(UserCreationForm):
             field.widget.attrs.update({"class": _INPUT_CLASS})
 
 
+class OrgUnitTypeForm(forms.ModelForm):
+    """
+    Formulaire de création/modification d'un type d'unité organisationnelle.
+
+    Le ``code`` est verrouillé en édition (immuable après création).
+    Seuls ``name`` et ``level`` sont modifiables.
+    """
+
+    class Meta:
+        model = OrgUnitType
+        fields = ("code", "name", "level")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Verrouiller le code en édition
+        if self.instance and not self.instance._state.adding:
+            self.fields["code"].disabled = True
+            self.fields["code"].help_text = "Le code est immuable après création."
+
+        self.fields["name"].widget.attrs["placeholder"] = "Ex: Direction Générale"
+        self.fields["code"].widget.attrs["placeholder"] = "Ex: DG"
+        self.fields["level"].widget.attrs["placeholder"] = "0"
+
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": _INPUT_CLASS})
+
+
 class DepartmentForm(forms.ModelForm):
     """
     Formulaire de création/modification d'un département.
@@ -86,6 +113,11 @@ class DepartmentForm(forms.ModelForm):
 
         # Labels hiérarchiques pour le champ parent
         self.fields["parent"].label_from_instance = self._parent_label  # type: ignore
+
+        # Queryset type : types actifs seulement, triés par niveau
+        self.fields["type"].queryset = OrgUnitType.objects.filter(  # type: ignore
+            is_active=True
+        ).order_by("level", "name")
 
         self.fields["is_active"].initial = True
         self.fields["is_active"].required = False

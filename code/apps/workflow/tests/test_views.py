@@ -16,8 +16,8 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.users.models import Department, User
-from apps.workflow.models import EvidenceFile, EvidenceSubmission, Recommendation
+from apps.users.models import Department, OrgUnitType, User
+from apps.workflow.models import EvidenceFile, EvidenceSubmission, Recommendation, RecommendationSource
 from apps.workflow.services import create_recommendation
 
 
@@ -26,10 +26,13 @@ class ViewTestMixin:
 
     @classmethod
     def setUpTestData(cls):
+        cls.type_direction, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION", defaults={"name": "Direction", "level": 1},
+        )
         cls.department = Department.objects.create(
             name="Direction Vue Test",
             code="DVT",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
         cls.audit_user = User.objects.create_user(
             username="audit_view",
@@ -66,12 +69,31 @@ class ViewTestMixin:
             first_name="DG",
             last_name="View",
         )
+        # Second DG user (simule le DGA BICEC) — Subtask 7.0 (Story 3.7)
+        cls.dga_user = User.objects.create_user(
+            username="dga_view",
+            password="TestPass123!",
+            role=User.Role.DG,
+            first_name="DGA",
+            last_name="View",
+        )
         cls.dg_user.department = cls.department
         cls.dg_user.save()
+        cls.dga_user.department = cls.department
+        cls.dga_user.save()
         cls.dm_user.department = cls.department
         cls.dm_user.save()
         cls.etp_user.department = cls.department
         cls.etp_user.save()
+        # Story 3.7.b — sources FK (seeded par migration 0011)
+        cls.source_interne, _ = RecommendationSource.objects.get_or_create(
+            code="INTERNE",
+            defaults={"label": "Audit Interne", "is_external": False},
+        )
+        cls.source_cobac, _ = RecommendationSource.objects.get_or_create(
+            code="COBAC",
+            defaults={"label": "COBAC", "is_external": True},
+        )
 
     def _login_as(self, user):
         self.client.force_login(user)
@@ -86,7 +108,7 @@ class ViewTestMixin:
                 "observations": "Obs test",
                 "anomalous_dossiers": "",
                 "description": "Desc test",
-                "source": Recommendation.Source.INTERNE,
+                "source": self.source_interne,  # Story 3.7.b — FK instance
                 "priority": Recommendation.Priority.MOYENNE,
                 "department": self.department,
                 "due_date": timezone.now().date() + timedelta(days=30),
@@ -129,7 +151,8 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         own_rec = self._create_draft_recommendation()
         Recommendation.all_objects.filter(pk=own_rec.pk).update(status=Recommendation.Status.ASSIGNED)
         
-        other_dept = Department.objects.create(name="Other", code="OTH", type=Department.Type.DIRECTION)
+        type_dir, _ = OrgUnitType.objects.get_or_create(code="DIRECTION", defaults={"name": "Direction", "level": 1})
+        other_dept = Department.objects.create(name="Other", code="OTH", type=type_dir)
         other_rec = self._create_draft_recommendation()
         Recommendation.all_objects.filter(pk=other_rec.pk).update(
             status=Recommendation.Status.ASSIGNED, department=other_dept
@@ -140,10 +163,14 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         self.assertNotContains(response, other_rec.reference)
 
     def test_dg_can_access_list(self):
-        """Le DG peut accéder à la liste et voir les recos de son périmètre."""
+        """Le DG voit uniquement les recos qui lui sont personnellement assignées (Task 8 / Story 3.7)."""
         self._login_as(self.dg_user)
         rec = self._create_draft_recommendation()
-        Recommendation.all_objects.filter(pk=rec.pk).update(status=Recommendation.Status.ASSIGNED)
+        # Story 3.x : assignation DG → status IN_PROGRESS (bypass ASSIGNED)
+        Recommendation.all_objects.filter(pk=rec.pk).update(
+            status=Recommendation.Status.IN_PROGRESS,
+            assigned_dm=self.dg_user,
+        )
         response = self.client.get(reverse("workflow:recommendation-list"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, rec.reference)
@@ -206,14 +233,16 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         """Le statut d'import est préservé lors du filtrage croisé (hx-include)."""
         self._login_as(self.audit_user)
         rec_hist = self._create_draft_recommendation()
-        Recommendation.all_objects.filter(pk=rec_hist.pk).update(import_tag="IMPORTED", source=Recommendation.Source.COBAC)
-        
+        Recommendation.all_objects.filter(pk=rec_hist.pk).update(
+            import_tag="IMPORTED", source=self.source_cobac  # Story 3.7.b — FK instance
+        )
+
         response = self.client.get(
             reverse("workflow:recommendation-list"),
-            {"import_status": "historical", "source": Recommendation.Source.COBAC}
+            {"import_status": "historical", "source": str(self.source_cobac.pk)}
         )
         self.assertEqual(response.context["current_import_status"], "historical")
-        self.assertEqual(response.context["current_source"], Recommendation.Source.COBAC)
+        self.assertEqual(response.context["current_source"], str(self.source_cobac.pk))
         self.assertContains(response, rec_hist.reference)
 
     def test_pagination_preserves_import_status(self):
@@ -264,7 +293,7 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         rec = self._create_draft_recommendation()
         response = self.client.get(
             reverse("workflow:recommendation-list"),
-            {"source": Recommendation.Source.INTERNE},
+            {"source": str(self.source_interne.pk)},  # Story 3.7.b
         )
         self.assertContains(response, rec.reference)
 
@@ -274,7 +303,7 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         self._create_draft_recommendation()
         response = self.client.get(
             reverse("workflow:recommendation-list"),
-            {"source": Recommendation.Source.COBAC},
+            {"source": str(self.source_cobac.pk)},  # Story 3.7.b
         )
         self.assertEqual(response.status_code, 200)
 
@@ -321,7 +350,7 @@ class RecommendationCreateViewTest(ViewTestMixin, TestCase):
                 "observations": "Observations test",
                 "anomalous_dossiers": "",
                 "description": "Description test",
-                "source": Recommendation.Source.INTERNE,
+                "source": str(self.source_interne.pk),  # Piège 4 — str(pk) pour client.post
                 "priority": Recommendation.Priority.MOYENNE,
                 "department": str(self.department.pk),
                 "due_date": due_date,
@@ -368,7 +397,7 @@ class RecommendationCreateViewTest(ViewTestMixin, TestCase):
                 "controlled_department": str(self.department.pk),
                 "observations": "Obs",
                 "description": "Desc",
-                "source": Recommendation.Source.INTERNE,
+                "source": str(self.source_interne.pk),  # Piège 4 — str(pk) pour client.post
                 "priority": Recommendation.Priority.HAUTE,
                 "department": str(self.department.pk),
                 "due_date": due_date,
@@ -437,6 +466,36 @@ class RecommendationDetailViewTest(ViewTestMixin, TestCase):
             reverse("workflow:recommendation-detail", args=[rec.pk])
         )
         self.assertEqual(response.status_code, 404)
+
+    def test_dg_assigned_is_not_considered_dm_porteur(self):
+        """Non-régression — un DG assigné (stored in assigned_dm) ne doit pas
+        déclencher le chemin DM porteur dans le contexte de la vue détail.
+
+        Avant le fix de Story 3.7, is_dm_porteur était True pour le DG assigné,
+        ce qui lui affichait les boutons DM à tort.
+        """
+        rec = self._create_draft_recommendation()
+        Recommendation.all_objects.filter(pk=rec.pk).update(
+            status=Recommendation.Status.IN_PROGRESS,
+            assigned_dm=self.dg_user,
+        )
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+
+        self._login_as(self.dg_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-detail", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        # Le DG ne doit pas voir is_dm_porteur=True — sinon il voit les boutons DM
+        self.assertFalse(
+            response.context.get("is_dm_porteur", False),
+            "is_dm_porteur doit être False pour un DG — seul un DM peut être porteur.",
+        )
+        # En revanche, can_submit_dg doit être True (c'est son circuit)
+        self.assertTrue(
+            response.context.get("can_submit_dg", False),
+            "can_submit_dg doit être True pour le DG assigné en IN_PROGRESS.",
+        )
 
 
 class RecommendationDeleteViewTest(ViewTestMixin, TestCase):
@@ -516,8 +575,9 @@ class RecommendationAssignViewTest(ViewTestMixin, TestCase):
         # Depending on how the context is passed or rendered, we can check content
         # Or we can just ensure 200 works for an empty department
         # Let's create another rec with a department that has NO dms
-        from apps.users.models import Department
-        empty_dept = Department.objects.create(name="Empty", code="EMP", type=Department.Type.DIRECTION)
+        from apps.users.models import Department, OrgUnitType
+        type_dir, _ = OrgUnitType.objects.get_or_create(code="DIRECTION", defaults={"name": "Direction", "level": 1})
+        empty_dept = Department.objects.create(name="Empty", code="EMP", type=type_dir)
         rec_empty = self._create_draft_recommendation()
         rec_empty.department = empty_dept
         rec_empty.save(update_fields=["department"])
@@ -601,7 +661,7 @@ class DelegationTestMixin(ViewTestMixin):
         cls.other_department = Department.objects.create(
             name="Direction Autre Test",
             code="DAT",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
         # ETP d'un autre département
         cls.etp_other_dept = User.objects.create_user(
@@ -1980,7 +2040,7 @@ class ExtensionRequestViewTest(EvidenceSubmissionTestMixin, TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
-        # AUDIT et ADMIN_IT → 403
+        # AUDIT et ADMIN_IT → 403 (visible mais non autorisé)
         for user in [self.audit_user, self.admin_user]:
             with self.subTest(role=user.role):
                 self._login_as(user)
@@ -2179,7 +2239,11 @@ class ExtensionRequestViewTest(EvidenceSubmissionTestMixin, TestCase):
     # 7.11 — DG non assigné obtient 403 (pas de hiérarchie de département)
     # ─────────────────────────────────────────────────────────────
     def test_dg_not_assigned_cannot_request_extension(self):
-        """FR34 — Le DG non assigné personnellement obtient 403."""
+        """FR34 — Le DG non assigné obtient 404 (information hiding via queryset RBAC — Task 8 / Story 3.7).
+
+        Note : Avant Task 8, le DG voyait toutes les recos de son département → 403.
+        Après Task 8, la reco n'est pas dans le queryset du DG non-assigné → 404.
+        """
         from apps.workflow.models import ExtensionRequest
 
         # Reco assignée au DM, pas au DG
@@ -2194,7 +2258,7 @@ class ExtensionRequestViewTest(EvidenceSubmissionTestMixin, TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
         self.assertFalse(ExtensionRequest.objects.filter(recommendation=rec).exists())
 
     # ─────────────────────────────────────────────────────────────
@@ -2256,3 +2320,807 @@ class ExtensionRequestViewTest(EvidenceSubmissionTestMixin, TestCase):
         ext.refresh_from_db()
         self.assertEqual(ext.status, ExtensionRequest.Status.APPROVED)
         self.assertEqual(ext.audit_comment, "")
+
+
+class DGDirectSubmitViewTest(EvidenceSubmissionTestMixin, TestCase):
+    """Tests pour EvidenceDGDirectSubmitView — Soumission Directe DG (Story 3.7 / FR33).
+
+    Couvre :
+      - AC2 : bypass DM Review → PENDING_AUDIT_REVIEW
+      - AC3 : contenu requis (fichier OU commentaire)
+      - AC4 : AuditLog avec submitted_by_dg=True
+      - AC5 : seul le DG assigned_dm peut soumettre
+      - AC6 : idempotence — double soumission rejetée
+      - AC8 : AUDIT voit la soumission DG
+      - AC9 : second user DG (DGA) ne supplée pas le DG
+    """
+
+    def _create_recommendation_for_dg(self, status=Recommendation.Status.IN_PROGRESS):
+        """Crée une reco avec assigned_dm=dg_user dans l'état donné.
+
+        Utilise un update direct (bypass FSM role-check qui exige role=DM)
+        pour simuler l'assignation DG à la manière dont le service Audit le ferait.
+        Note : refresh_from_db() est interdit par django-fsm ; on récupère une
+        nouvelle instance via Recommendation.all_objects.get().
+        Default : IN_PROGRESS (Story 3.x — le DG n'a pas de phase ASSIGNED).
+        """
+        rec = self._create_draft_recommendation()
+        Recommendation.all_objects.filter(pk=rec.pk).update(
+            status=status,
+            assigned_dm=self.dg_user,
+        )
+        # Ne pas utiliser refresh_from_db() — django-fsm lève AttributeError
+        # sur modification directe du champ status.
+        return Recommendation.all_objects.get(pk=rec.pk)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.1 — DG avec draft pré-rempli → POST → 204 (AC2)
+    # ─────────────────────────────────────────────────────────────
+    def test_dg_can_submit_directly_to_audit(self):
+        """AC2 — DG assigné avec draft pré-rempli → POST → 204 + HX-Refresh."""
+        rec = self._create_recommendation_for_dg()
+        self._create_draft_and_upload(rec, self.dg_user)
+        self._login_as(self.dg_user)
+        response = self.client.post(
+            reverse("workflow:evidence-submit-dg", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.get("HX-Refresh"), "true")
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.2 — FSM state = PENDING_AUDIT_REVIEW après POST (AC2)
+    # ─────────────────────────────────────────────────────────────
+    def test_recommendation_goes_to_pending_audit_review(self):
+        """AC2 — La recommandation passe en PENDING_AUDIT_REVIEW après soumission DG."""
+        rec = self._create_recommendation_for_dg()
+        self._create_draft_and_upload(rec, self.dg_user)
+        self._login_as(self.dg_user)
+        self.client.post(reverse("workflow:evidence-submit-dg", args=[rec.pk]))
+        # Ne pas utiliser refresh_from_db() — django-fsm interdit la modification directe du status
+        rec_updated = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec_updated.status, Recommendation.Status.PENDING_AUDIT_REVIEW)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.3 — draft.status = ACCEPTED + reviewed_by = DG (AC2)
+    # ─────────────────────────────────────────────────────────────
+    def test_evidence_submission_status_becomes_accepted(self):
+        """AC2 — Le draft EvidenceSubmission passe en ACCEPTED et reviewed_by = DG."""
+        rec = self._create_recommendation_for_dg()
+        draft, _ = self._create_draft_and_upload(rec, self.dg_user)
+        self._login_as(self.dg_user)
+        self.client.post(reverse("workflow:evidence-submit-dg", args=[rec.pk]))
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, EvidenceSubmission.SubmissionStatus.ACCEPTED)
+        self.assertEqual(draft.reviewed_by, self.dg_user)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.4 — Draft vide (ni fichier ni commentaire) → 422 (AC3)
+    # ─────────────────────────────────────────────────────────────
+    def test_empty_draft_returns_422(self):
+        """AC3 — DG sans fichier ET sans commentaire → HTTP 422."""
+        rec = self._create_recommendation_for_dg()
+        self._login_as(self.dg_user)
+        response = self.client.post(
+            reverse("workflow:evidence-submit-dg", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 422)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.5 — Commentaire seul (sans fichier) → 204 (AC3)
+    # ─────────────────────────────────────────────────────────────
+    def test_comment_only_submission_accepted(self):
+        """AC3 — Un commentaire seul (sans fichier) est suffisant pour soumettre."""
+        from apps.workflow import services as svc
+        rec = self._create_recommendation_for_dg()
+        draft, _ = svc.get_or_create_draft_submission(
+            recommendation=rec, user=self.dg_user
+        )
+        svc.save_draft_comment(
+            submission=draft, comment="Mesures correctives appliquées.", user=self.dg_user
+        )
+        self._login_as(self.dg_user)
+        response = self.client.post(
+            reverse("workflow:evidence-submit-dg", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 204)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.6 — AuditLog créé avec action=TRANSITION + submitted_by_dg=True (AC4)
+    # ─────────────────────────────────────────────────────────────
+    def test_audit_log_created_with_content_type_recommendation(self):
+        """AC4 — Un AuditLog TRANSITION avec submitted_by_dg=True est créé."""
+        from apps.audit.models import AuditLog
+        rec = self._create_recommendation_for_dg()
+        self._create_draft_and_upload(rec, self.dg_user)
+        self._login_as(self.dg_user)
+        self.client.post(reverse("workflow:evidence-submit-dg", args=[rec.pk]))
+        log = AuditLog.objects.filter(
+            action=AuditLog.Action.TRANSITION,
+            content_type="Recommendation",
+            object_id=rec.pk,
+        ).last()
+        self.assertIsNotNone(log)
+        self.assertTrue(log.changes.get("submitted_by_dg"))
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.7 — DG non assigné → 404 information hiding (AC5)
+    # ─────────────────────────────────────────────────────────────
+    def test_non_assigned_dg_cannot_submit(self):
+        """AC5 — Un DG non assigné reçoit 404 (information hiding via queryset RBAC)."""
+        rec = self._create_recommendation_for_dg()  # assigned_dm = dg_user
+        self._login_as(self.dga_user)              # second DG, pas assigned_dm
+        response = self.client.post(
+            reverse("workflow:evidence-submit-dg", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.8 — DM ne peut pas utiliser l'endpoint DG → 403 (AC5)
+    # ─────────────────────────────────────────────────────────────
+    def test_dm_role_cannot_use_dg_endpoint(self):
+        """AC5 — Un DM (rôle insuffisant) tente le endpoint DG → 403."""
+        rec = self._create_recommendation_for_dg()
+        self._login_as(self.dm_user)
+        response = self.client.post(
+            reverse("workflow:evidence-submit-dg", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 403)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.9 — Reco déjà PENDING_AUDIT_REVIEW → 422 (AC6)
+    # ─────────────────────────────────────────────────────────────
+    def test_already_pending_audit_review_rejected(self):
+        """AC6 — Reco déjà en PENDING_AUDIT_REVIEW → ValueError → HTTP 422."""
+        rec = self._create_recommendation_for_dg(
+            status=Recommendation.Status.PENDING_AUDIT_REVIEW
+        )
+        self._login_as(self.dg_user)
+        response = self.client.post(
+            reverse("workflow:evidence-submit-dg", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 422)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.10 — AUDIT voit la soumission DG dans la page de détail (AC8)
+    # ─────────────────────────────────────────────────────────────
+    def test_audit_sees_dg_submission(self):
+        """AC8 — L'AUDIT peut consulter la page de détail après soumission DG."""
+        rec = self._create_recommendation_for_dg()
+        self._create_draft_and_upload(rec, self.dg_user)
+        self._login_as(self.dg_user)
+        self.client.post(reverse("workflow:evidence-submit-dg", args=[rec.pk]))
+        # Audit vérifie la page de détail — doit voir la reco en PENDING_AUDIT_REVIEW
+        self._login_as(self.audit_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-detail", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.11 — DraftUploadFileView accepte ASSIGNED pour DG (Subtask 2.2)
+    # ─────────────────────────────────────────────────────────────
+    def test_dg_can_upload_files_in_assigned_state(self):
+        """Subtask 2.2 — DraftUploadFileView n'a pas de garde de statut : DG peut uploader depuis ASSIGNED."""
+        from apps.workflow import services as svc
+        rec = self._create_recommendation_for_dg(status=Recommendation.Status.ASSIGNED)
+        # Créer le draft avant l'upload (DraftUploadFileView exige un draft existant)
+        svc.get_or_create_draft_submission(recommendation=rec, user=self.dg_user)
+        pdf_content = b"%PDF-1.4 " + b"A" * 100
+        pdf_file = SimpleUploadedFile("test.pdf", pdf_content, content_type="application/pdf")
+        self._login_as(self.dg_user)
+        response = self.client.post(
+            reverse("workflow:draft-upload", args=[rec.pk]),
+            {"file": pdf_file},
+        )
+        self.assertEqual(response.status_code, 200)
+
+    # ─────────────────────────────────────────────────────────────
+    # 7.12 — Second user DG (DGA) ne peut pas soumettre pour reco du DG (AC9)
+    # ─────────────────────────────────────────────────────────────
+    def test_second_dg_user_cannot_submit_for_first_dg_recommendation(self):
+        """AC9 — Le DGA (second user DG) ne peut pas soumettre pour une reco du DG (pas de suppléance MVP)."""
+        rec = self._create_recommendation_for_dg()  # assigned_dm = dg_user
+        self._login_as(self.dga_user)               # DGA ne voit pas la reco via queryset
+        response = self.client.post(
+            reverse("workflow:evidence-submit-dg", args=[rec.pk])
+        )
+        # Information hiding : 404 (la reco n'est pas dans le queryset du DGA)
+        self.assertEqual(response.status_code, 404)
+
+
+# =============================================================================
+# Story 3.x — Assignation directe Audit → DG
+# =============================================================================
+
+
+class RecommendationAssignDGViewTest(ViewTestMixin, TestCase):
+    """Tests pour RecommendationAssignDGView — Assignation directe DG (Story 3.x).
+
+    Couvre :
+      - GET modal → 200 (Audit peut ouvrir la modale DG)
+      - POST → 204 + HX-Refresh (assignation réussie, statut IN_PROGRESS)
+      - AuditLog TRANSITION créé avec assigned_by_dg_direct=True
+      - Reco non-DRAFT → 422 (ou 403 selon garde)
+      - Non-Audit (DM) tente → 403
+      - Aucun DG disponible → has_dgs=False dans le contexte
+    """
+
+    # ─────────────────────────────────────────────────────────────
+    # GET : l'Audit peut ouvrir la modale DG
+    # ─────────────────────────────────────────────────────────────
+    def test_audit_can_get_assign_dg_modal(self):
+        """GET → 200 contenant le formulaire d'assignation DG."""
+        rec = self._create_draft_recommendation()
+        self._login_as(self.audit_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-assign-dg", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+    # ─────────────────────────────────────────────────────────────
+    # POST : assignation réussie → 204, statut IN_PROGRESS
+    # ─────────────────────────────────────────────────────────────
+    def test_audit_can_assign_recommendation_to_dg(self):
+        """POST valide → 204 + HX-Refresh, reco status=IN_PROGRESS, assigned_dm=dg_user."""
+        rec = self._create_draft_recommendation()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-assign-dg", args=[rec.pk]),
+            data={"dg": str(self.dg_user.pk)},
+        )
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.get("HX-Refresh"), "true")
+
+        rec_updated = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(rec_updated.status, Recommendation.Status.IN_PROGRESS)
+        self.assertEqual(rec_updated.assigned_dm, self.dg_user)
+
+    # ─────────────────────────────────────────────────────────────
+    # AuditLog créé après assignation DG
+    # ─────────────────────────────────────────────────────────────
+    def test_audit_log_created_on_dg_assignment(self):
+        """Un AuditLog TRANSITION avec assigned_by_dg_direct=True est créé."""
+        from apps.audit.models import AuditLog
+        rec = self._create_draft_recommendation()
+        self._login_as(self.audit_user)
+        self.client.post(
+            reverse("workflow:recommendation-assign-dg", args=[rec.pk]),
+            data={"dg": str(self.dg_user.pk)},
+        )
+        log = AuditLog.objects.filter(
+            content_type="Recommendation",
+            object_id=rec.pk,
+            action=AuditLog.Action.TRANSITION,
+        ).last()
+        self.assertIsNotNone(log)
+        self.assertTrue(log.changes.get("assigned_by_dg_direct"))
+        self.assertEqual(log.changes.get("status"), ["DRAFT", "IN_PROGRESS"])
+
+    # ─────────────────────────────────────────────────────────────
+    # Reco non-DRAFT → garde backend
+    # ─────────────────────────────────────────────────────────────
+    def test_non_draft_returns_403_on_post(self):
+        """POST sur une reco qui n'est plus DRAFT → 403 (garde backend)."""
+        rec = self._create_draft_recommendation()
+        Recommendation.all_objects.filter(pk=rec.pk).update(
+            status=Recommendation.Status.IN_PROGRESS,
+            assigned_dm=self.dg_user,
+        )
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-assign-dg", args=[rec.pk]),
+            data={"dg": str(self.dg_user.pk)},
+        )
+        self.assertEqual(response.status_code, 403)
+
+    # ─────────────────────────────────────────────────────────────
+    # Non-Audit → 403
+    # ─────────────────────────────────────────────────────────────
+    def test_non_audit_cannot_assign_dg(self):
+        """Un DM ne peut pas accéder à l'endpoint d'assignation DG → 403."""
+        rec = self._create_draft_recommendation()
+        self._login_as(self.dm_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-assign-dg", args=[rec.pk]),
+            data={"dg": str(self.dg_user.pk)},
+        )
+        self.assertEqual(response.status_code, 403)
+
+    # ─────────────────────────────────────────────────────────────
+    # Aucun DG disponible → has_dgs=False
+    # ─────────────────────────────────────────────────────────────
+    def test_no_dg_available_shows_warning(self):
+        """Si aucun DG actif n'existe, has_dgs=False et la modale l'indique."""
+        from apps.users.models import User as UserModel
+        rec = self._create_draft_recommendation()
+        self._login_as(self.audit_user)
+        # Désactiver temporairement tous les DG
+        dg_pks = list(
+            UserModel.objects.filter(role=UserModel.Role.DG, is_active=True)
+            .values_list("pk", flat=True)
+        )
+        UserModel.objects.filter(pk__in=dg_pks).update(is_active=False)
+        try:
+            response = self.client.get(
+                reverse("workflow:recommendation-assign-dg", args=[rec.pk])
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Aucun Directeur Général actif")
+        finally:
+            # Restaurer
+            UserModel.objects.filter(pk__in=dg_pks).update(is_active=True)
+
+
+# =============================================================================
+# Story 3.8 — Tests Vues : Clôture Définitive et Rejet Audit (FR20)
+# =============================================================================
+
+
+class AuditClosureViewTestMixin(EvidenceSubmissionTestMixin):
+    """
+    Mixin pour les tests de vues Story 3.8.
+
+    Fournit _create_pending_audit_reco() pour créer rapidement une
+    recommandation PENDING_AUDIT_REVIEW via update direct DB (comme
+    EvidenceVisibilityRBACTest._create_accepted_submission()).
+    """
+
+    def _create_pending_audit_reco(self):
+        """
+        Crée une reco PENDING_AUDIT_REVIEW avec soumission ACCEPTED.
+
+        Utilise la même technique que EvidenceVisibilityRBACTest pour
+        contourner la protection django-fsm protected=True en tests.
+        """
+        rec = self._create_in_progress_recommendation_etp()
+        draft, _ = self._create_draft_and_upload(
+            rec, self.etp_user, "Actions correctives appliquees."
+        )
+        from apps.workflow import services as svc
+        svc.submit_evidence_for_recommendation(
+            recommendation=rec, performed_by=self.etp_user,
+        )
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        # Passer la soumission PENDING → ACCEPTED
+        sub = rec.evidence_submissions.filter(
+            status=EvidenceSubmission.SubmissionStatus.PENDING,
+        ).first()
+        if sub:
+            sub.status = EvidenceSubmission.SubmissionStatus.ACCEPTED
+            sub.save(update_fields=["status"])
+        # Avancer le FSM manuellement (technique standard dans les tests)
+        Recommendation.all_objects.filter(pk=rec.pk).update(
+            status=Recommendation.Status.PENDING_AUDIT_REVIEW,
+        )
+        return Recommendation.all_objects.get(pk=rec.pk)
+
+
+class RecommendationCloseByAuditViewTest(AuditClosureViewTestMixin, TestCase):
+    """
+    Tests de RecommendationCloseByAuditView — Story 3.8 (AC1, AC2, AC5, AC6).
+    """
+
+    def test_audit_can_get_close_modal(self):
+        """AC1 — GET modale cloture : Audit reçoit 200."""
+        rec = self._create_pending_audit_reco()
+        self._login_as(self.audit_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-close-audit", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_audit_can_close_recommendation(self):
+        """AC2 — Audit POST → 204 + HX-Refresh + status CLOSED_RESOLVED."""
+        rec = self._create_pending_audit_reco()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-close-audit", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.get("HX-Refresh"), "true")
+        updated = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(updated.status, Recommendation.Status.CLOSED_RESOLVED)
+        self.assertIsNotNone(updated.closed_at)
+        self.assertEqual(updated.closed_by, self.audit_user)
+
+    def test_close_modal_unauthorized_for_dm(self):
+        """AC5 — DM tente GET → 403."""
+        rec = self._create_pending_audit_reco()
+        self._login_as(self.dm_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-close-audit", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_close_post_unauthorized_for_dm(self):
+        """AC5 — DM tente POST → 403."""
+        rec = self._create_pending_audit_reco()
+        self._login_as(self.dm_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-close-audit", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_close_unavailable_for_in_progress_status(self):
+        """AC6 — POST sur reco IN_PROGRESS → 422."""
+        rec = self._create_in_progress_recommendation_dm_porteur()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-close-audit", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_close_get_modal_unavailable_for_wrong_status(self):
+        """Garde GET — modale clôture inatteignable hors PENDING_AUDIT_REVIEW → 409."""
+        rec = self._create_in_progress_recommendation_dm_porteur()
+        self._login_as(self.audit_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-close-audit", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 409)
+
+    def test_close_context_can_close_by_audit_true_only_for_audit_in_pending_audit_review(self):
+        """AC1 — can_close_by_audit=True uniquement pour AUDIT en PENDING_AUDIT_REVIEW."""
+        rec = self._create_pending_audit_reco()
+        self._login_as(self.audit_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-detail", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context.get("can_close_by_audit"))
+        self.assertTrue(response.context.get("can_reject_by_audit"))
+
+        # Vérification DM : can_close_by_audit = False
+        self._login_as(self.dm_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-detail", args=[rec.pk])
+        )
+        self.assertFalse(response.context.get("can_close_by_audit"))
+
+
+class RecommendationRejectByAuditViewTest(AuditClosureViewTestMixin, TestCase):
+    """
+    Tests de RecommendationRejectByAuditView — Story 3.8 (AC1, AC3, AC4, AC5).
+    """
+
+    VALID_REASON = "Preuves insuffisantes — les pieces jointes ne couvrent pas toutes les anomalies."
+
+    def test_audit_can_get_reject_modal(self):
+        """AC1 — GET modale rejet : Audit reçoit 200."""
+        rec = self._create_pending_audit_reco()
+        self._login_as(self.audit_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-reject-audit", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_reject_get_modal_unavailable_for_wrong_status(self):
+        """Garde GET — modale rejet inatteignable hors PENDING_AUDIT_REVIEW → 409."""
+        rec = self._create_in_progress_recommendation_dm_porteur()
+        self._login_as(self.audit_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-reject-audit", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 409)
+
+    def test_audit_can_reject_with_valid_reason(self):
+        """AC3 — Audit POST motif valide → 204 + HX-Refresh + status IN_PROGRESS."""
+        rec = self._create_pending_audit_reco()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-reject-audit", args=[rec.pk]),
+            {"reason": self.VALID_REASON},
+        )
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.get("HX-Refresh"), "true")
+        updated = Recommendation.all_objects.get(pk=rec.pk)
+        self.assertEqual(updated.status, Recommendation.Status.IN_PROGRESS)
+
+    def test_reject_short_reason_returns_422(self):
+        """AC4 — Motif < 10 chars → 422."""
+        rec = self._create_pending_audit_reco()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-reject-audit", args=[rec.pk]),
+            {"reason": "court"},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_reject_empty_reason_returns_422(self):
+        """AC4 — Motif vide → 422."""
+        rec = self._create_pending_audit_reco()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-reject-audit", args=[rec.pk]),
+            {"reason": ""},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_dm_cannot_reject_audit(self):
+        """AC5 — DM tente POST → 403."""
+        rec = self._create_pending_audit_reco()
+        self._login_as(self.dm_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-reject-audit", args=[rec.pk]),
+            {"reason": self.VALID_REASON},
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_reject_updates_submission_to_rejected_by_audit(self):
+        """AC3 — La soumission ACCEPTED passe à REJECTED_BY_AUDIT après rejet."""
+        rec = self._create_pending_audit_reco()
+        self._login_as(self.audit_user)
+        self.client.post(
+            reverse("workflow:recommendation-reject-audit", args=[rec.pk]),
+            {"reason": self.VALID_REASON},
+        )
+        submission = rec.evidence_submissions.filter(
+            status=EvidenceSubmission.SubmissionStatus.REJECTED_BY_AUDIT,
+        ).first()
+        self.assertIsNotNone(submission)
+        self.assertEqual(submission.review_comment, self.VALID_REASON)
+
+
+class ImmutabilityAfterClosureTest(AuditClosureViewTestMixin, TestCase):
+    """
+    Tests d'immutabilité apres cloture CLOSED_RESOLVED — Story 3.8 (AC7).
+
+    Chaque vue mutante doit retourner HTTP 422 avec message "cloture".
+    La vue de lecture (GET detail, GET list) reste accessible.
+    """
+
+    def _create_closed_reco(self):
+        """Crée une reco CLOSED_RESOLVED via clôture réelle du service."""
+        from apps.workflow import services as svc
+        rec = self._create_pending_audit_reco()
+        svc.close_recommendation_by_audit(
+            recommendation=rec, performed_by=self.audit_user,
+        )
+        return Recommendation.all_objects.get(pk=rec.pk)
+
+    def test_close_audit_blocked_after_closure(self):
+        """POST close-audit sur reco déjà CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-close-audit", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_reject_audit_blocked_after_closure(self):
+        """POST reject-audit sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-reject-audit", args=[rec.pk]),
+            {"reason": "Motif de test non applicable car cloture."},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_draft_upload_blocked_after_closure(self):
+        """POST draft-upload sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        # Forcer le statut ETP assigné pour bypasser le RBAC HTMX
+        rec.assigned_etp = self.etp_user
+        rec.save(update_fields=["assigned_etp"])
+        self._login_as(self.etp_user)
+        pdf = SimpleUploadedFile("t.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+        response = self.client.post(
+            reverse("workflow:draft-upload", args=[rec.pk]),
+            {"file": pdf},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_draft_save_comment_blocked_after_closure(self):
+        """POST draft-save-comment sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        rec.assigned_etp = self.etp_user
+        rec.save(update_fields=["assigned_etp"])
+        self._login_as(self.etp_user)
+        response = self.client.post(
+            reverse("workflow:draft-save-comment", args=[rec.pk]),
+            {"comment": "tentative modification"},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_detail_view_still_accessible_after_closure(self):
+        """GET detail reco CLOSED_RESOLVED reste accessible (AC7 lecture OK)."""
+        rec = self._create_closed_reco()
+        self._login_as(self.audit_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-detail", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_list_view_includes_closed_recommendations(self):
+        """La liste inclut bien les recos CLOSED_RESOLVED (AC7 lecture OK)."""
+        rec = self._create_closed_reco()
+        self._login_as(self.audit_user)
+        response = self.client.get(reverse("workflow:recommendation-list"))
+        self.assertEqual(response.status_code, 200)
+        # La reco clôturée doit figurer dans le queryset
+        pks_in_qs = [str(r.pk) for r in response.context["recommendations"]]
+        self.assertIn(str(rec.pk), pks_in_qs)
+
+    def test_is_closed_context_variable_set_for_closed_reco(self):
+        """Le contexte detail a is_closed=True pour une reco CLOSED_RESOLVED."""
+        rec = self._create_closed_reco()
+        self._login_as(self.audit_user)
+        response = self.client.get(
+            reverse("workflow:recommendation-detail", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context.get("is_closed"))
+
+    # ── Endpoints mutants supplémentaires (AC7 — couverture complète) ──
+
+    def test_assign_dm_blocked_after_closure(self):
+        """POST assign sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-assign", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_assign_dg_blocked_after_closure(self):
+        """POST assign-dg sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-assign-dg", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_update_blocked_after_closure(self):
+        """POST update sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-update", args=[rec.pk]),
+            {"reference": "X"},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_delegate_blocked_after_closure(self):
+        """POST delegate sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        self._login_as(self.dm_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-delegate", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_submit_evidence_blocked_after_closure(self):
+        """POST submit-evidence sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        self._login_as(self.etp_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-submit-evidence", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_dm_validate_blocked_after_closure(self):
+        """POST evidence-approve sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        submission = rec.evidence_submissions.first()
+        self._login_as(self.dm_user)
+        response = self.client.post(
+            reverse("workflow:evidence-approve", args=[rec.pk, submission.pk]),
+            {"comment": "tentative"},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_dm_reject_blocked_after_closure(self):
+        """POST evidence-reject sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        submission = rec.evidence_submissions.first()
+        self._login_as(self.dm_user)
+        response = self.client.post(
+            reverse("workflow:evidence-reject", args=[rec.pk, submission.pk]),
+            {"reason": "tentative de rejet apres cloture"},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_extension_request_blocked_after_closure(self):
+        """POST extension-request sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        self._login_as(self.dm_user)
+        response = self.client.post(
+            reverse("workflow:extension-request", args=[rec.pk]),
+            {"requested_date": "2030-01-01", "reason": "tentative"},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_extension_approve_blocked_after_closure(self):
+        """POST extension-approve sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        from apps.workflow.models import ExtensionRequest
+        rec = self._create_closed_reco()
+        ext = ExtensionRequest.objects.create(
+            recommendation=rec,
+            requested_by=self.dm_user,
+            requested_date=rec.due_date + timedelta(days=30),
+            reason="Demande historique avant cloture.",
+            status=ExtensionRequest.Status.PENDING,
+        )
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:extension-approve", args=[rec.pk, ext.pk]),
+            {"audit_comment": ""},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_extension_reject_blocked_after_closure(self):
+        """POST extension-reject sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        from apps.workflow.models import ExtensionRequest
+        rec = self._create_closed_reco()
+        ext = ExtensionRequest.objects.create(
+            recommendation=rec,
+            requested_by=self.dm_user,
+            requested_date=rec.due_date + timedelta(days=30),
+            reason="Demande historique avant cloture.",
+            status=ExtensionRequest.Status.PENDING,
+        )
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:extension-reject", args=[rec.pk, ext.pk]),
+            {"audit_comment": "motif de rejet apres cloture"},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_recommendation_delete_blocked_after_closure(self):
+        """POST delete sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        self._login_as(self.audit_user)
+        response = self.client.post(
+            reverse("workflow:recommendation-delete", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_dg_direct_submit_blocked_after_closure(self):
+        """POST submit-dg sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        # Le DG doit être assigned_dm pour passer le guard dispatch()
+        Recommendation.all_objects.filter(pk=rec.pk).update(assigned_dm=self.dg_user)
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        self._login_as(self.dg_user)
+        response = self.client.post(
+            reverse("workflow:evidence-submit-dg", args=[rec.pk])
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_draft_delete_file_blocked_after_closure(self):
+        """DELETE draft-delete-file sur reco CLOSED_RESOLVED → 422 (AC7)."""
+        rec = self._create_closed_reco()
+        evidence_file = EvidenceFile.objects.filter(
+            submission__recommendation=rec
+        ).first()
+        self.assertIsNotNone(evidence_file)
+        self._login_as(self.etp_user)
+        response = self.client.delete(
+            reverse("workflow:draft-delete-file", args=[rec.pk, evidence_file.pk])
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_toggle_deliverable_blocked_after_closure(self):
+        """POST draft-toggle-deliverable sur reco CLOSED_RESOLVED → 422 (AC7).
+
+        Test critique : sans le verrou, un ETP encore assigné pouvait
+        modifier l'avancement d'un dossier scellé (trou d'immutabilité).
+        """
+        from apps.workflow.models import Deliverable
+        rec = self._create_closed_reco()
+        deliverable = Deliverable.objects.create(
+            recommendation=rec, label="Livrable test cloture", order=1,
+        )
+        self._login_as(self.etp_user)
+        response = self.client.post(
+            reverse(
+                "workflow:draft-toggle-deliverable",
+                args=[rec.pk, deliverable.pk],
+            )
+        )
+        self.assertEqual(response.status_code, 422)
+        # Le livrable ne doit pas avoir été modifié
+        deliverable.refresh_from_db()
+        self.assertFalse(deliverable.is_completed)

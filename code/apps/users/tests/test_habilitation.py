@@ -10,7 +10,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.audit.models import AuditLog
-from apps.users.models import Department, User
+from apps.users.models import Department, OrgUnitType, User
 
 
 class HabilitationAccessTest(TestCase):
@@ -98,9 +98,12 @@ class HabilitationEditTest(TestCase):
     """Tests du formulaire d'édition de rôle (FR3)."""
 
     def setUp(self):
+        self.type_direction, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION", defaults={"name": "Direction", "level": 1},
+        )
         self.dept = Department.objects.create(
             name="Direction RH", code="DRH",
-            type=Department.Type.DIRECTION,
+            type=self.type_direction,
         )
         self.audit_admin = User.objects.create_user(
             username="dir_audit", password="testpass123",

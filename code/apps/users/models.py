@@ -26,6 +26,70 @@ from django.utils.translation import gettext_lazy as _
 # =============================================================================
 
 
+class OrgUnitType(models.Model):
+    """
+    Type d'unité organisationnelle (paramétrable par l'Audit Admin).
+
+    Remplace l'enum statique ``Department.Type`` par un catalogue dynamique
+    permettant à l'Audit Admin de créer, renommer et désactiver les types
+    sans déploiement (Story 3.7.b / Phase B).
+
+    Le champ ``level`` est purement indicatif (aide au tri UI) — il ne
+    constitue pas une contrainte de profondeur imposée à l'organigramme.
+
+    Ref. Architecture : §7.2 — table ``users_orgunittype``
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    name = models.CharField(
+        _("Libellé"),
+        max_length=60,
+        help_text=_("Nom affiché dans l'interface (ex : Direction Générale)."),
+    )
+    code = models.CharField(
+        _("Code"),
+        max_length=20,
+        unique=True,
+        help_text=_(
+            "Code technique court unique (ex : DG). "
+            "Verrouillé après création."
+        ),
+    )
+    level = models.PositiveSmallIntegerField(
+        _("Niveau indicatif"),
+        default=0,
+        help_text=_(
+            "Indication de profondeur dans l'organigramme (0 = sommet). "
+            "Valeur indicative uniquement — ne constitue pas une contrainte."
+        ),
+    )
+    is_active = models.BooleanField(
+        _("Actif"),
+        default=True,
+        help_text=_(
+            "Désactiver plutôt que supprimer pour préserver "
+            "l'intégrité des données existantes."
+        ),
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Modifié le"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Type d'unité organisationnelle")
+        verbose_name_plural = _("Types d'unités organisationnelles")
+        ordering = ["level", "name"]
+        indexes = [
+            models.Index(fields=["code"], name="idx_orgunit_type_code"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Department(models.Model):
     """
     Entité organisationnelle de la BICEC.
@@ -38,15 +102,6 @@ class Department(models.Model):
 
     Ref. Architecture : §7.2 ERD — table ``users_department``
     """
-
-    class Type(models.TextChoices):
-        DG = "DG", _("Direction Générale")
-        DIRECTION = "DIRECTION", _("Direction")
-        SOUS_DIRECTION = "SOUS_DIRECTION", _("Sous-Direction")
-        DEPARTEMENT = "DEPARTEMENT", _("Département")
-        SERVICE = "SERVICE", _("Service")
-        REGION = "REGION", _("Direction Régionale")
-        AGENCE = "AGENCE", _("Agence")
 
     id = models.UUIDField(
         primary_key=True,
@@ -67,10 +122,11 @@ class Department(models.Model):
             "et les exports pour identifier rapidement le département."
         ),
     )
-    type = models.CharField(
-        _("Type"),
-        max_length=20,
-        choices=Type.choices,
+    type = models.ForeignKey(
+        OrgUnitType,
+        on_delete=models.PROTECT,
+        related_name="departments",
+        verbose_name=_("Type"),
         help_text=_("Catégorie structurelle dans l'organigramme BICEC."),
     )
     parent = models.ForeignKey(
@@ -102,7 +158,6 @@ class Department(models.Model):
         ordering = ["name"]
         indexes = [
             models.Index(fields=["parent"], name="idx_dept_parent"),
-            models.Index(fields=["type"], name="idx_dept_type"),
             models.Index(fields=["code"], name="idx_dept_code"),
         ]
 

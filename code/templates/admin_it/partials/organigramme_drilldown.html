@@ -21,16 +21,20 @@
        hx-get="{% url 'auth:organigramme-list' %}?parent_id={{ dept.pk }}" hx-target="#organigramme-content">
        
     <div class="flex items-start justify-between mb-4">
+      {# Badge couleur par niveau indicatif — générique (non lié aux codes BICEC) #}
+      {% with level=dept.type.level %}
       <div class="inline-flex items-center rounded-md px-2 py-1 text-xs font-bold
-        {% if dept.type == 'DG' %}bg-purple-100 text-purple-700
-        {% elif dept.type == 'DIRECTION' %}bg-blue-100 text-blue-700
-        {% elif dept.type == 'S_DIRECTION' %}bg-indigo-100 text-indigo-700
-        {% elif dept.type == 'DEPARTEMENT' %}bg-teal-100 text-teal-700
-        {% elif dept.type == 'SERVICE' %}bg-amber-100 text-amber-700
-        {% elif dept.type == 'REGION' %}bg-emerald-100 text-emerald-700
-        {% else %}bg-gray-100 text-gray-700{% endif %}">
-        {{ dept.get_type_display }}
+        {% if level == 0 %}bg-purple-100 text-purple-700
+        {% elif level == 1 %}bg-blue-100 text-blue-700
+        {% elif level == 2 %}bg-indigo-100 text-indigo-700
+        {% elif level == 3 %}bg-teal-100 text-teal-700
+        {% elif level == 4 %}bg-amber-100 text-amber-700
+        {% elif level == 5 %}bg-emerald-100 text-emerald-700
+        {% elif level == 6 %}bg-rose-100 text-rose-700
+        {% else %}bg-gray-100 text-gray-600{% endif %}">
+        {{ dept.type.name }}
       </div>
+      {% endwith %}
       
       {# Actions Rapides (Hover) #}
       <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

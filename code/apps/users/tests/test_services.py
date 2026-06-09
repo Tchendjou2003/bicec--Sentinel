@@ -8,7 +8,7 @@ from django.core.exceptions import PermissionDenied
 from django.test import TestCase
 
 from apps.audit.models import AuditLog
-from apps.users.models import Department, User
+from apps.users.models import Department, OrgUnitType, User
 from apps.users.services import assign_role, toggle_audit_admin
 
 
@@ -16,9 +16,12 @@ class AssignRoleServiceTest(TestCase):
     """Tests du service assign_role (FR3, ADR-10)."""
 
     def setUp(self):
+        self.type_direction, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION", defaults={"name": "Direction", "level": 1},
+        )
         self.dept = Department.objects.create(
             name="Direction Financière", code="DFIN",
-            type=Department.Type.DIRECTION,
+            type=self.type_direction,
         )
         self.audit_admin = User.objects.create_user(
             username="dir_audit", password="testpass123",

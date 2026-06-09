@@ -25,8 +25,8 @@ from django.views.generic import ListView, TemplateView
 
 from . import selectors, services
 from .mixins import AdminRequiredMixin, AuditAdminRequiredMixin
-from .models import Department, User
-from .forms import DepartmentForm, ITUserCreationForm
+from .models import Department, OrgUnitType, User
+from .forms import DepartmentForm, ITUserCreationForm, OrgUnitTypeForm
 
 
 class SentinelLoginView(LoginView):
@@ -277,7 +277,7 @@ class AdminDashboardView(AdminRequiredMixin, TemplateView):
         return context
 
 
-class OrganigrammeListView(AdminRequiredMixin, TemplateView):
+class OrganigrammeListView(AuditAdminRequiredMixin, TemplateView):
     """
     Liste hiérarchique des départements (Story 1.4 / AC2, AC3).
 
@@ -317,7 +317,7 @@ class OrganigrammeListView(AdminRequiredMixin, TemplateView):
         return context
 
 
-class DepartmentCreateView(AdminRequiredMixin, View):
+class DepartmentCreateView(AuditAdminRequiredMixin, View):
     """
     Création d'un département (HTMX — Story 1.4 / AC2, AC3).
     """
@@ -362,7 +362,7 @@ class DepartmentCreateView(AdminRequiredMixin, View):
         })
 
 
-class DepartmentEditView(AdminRequiredMixin, View):
+class DepartmentEditView(AuditAdminRequiredMixin, View):
     """
     Modification d'un département (HTMX — Story 1.4 / AC2).
     """
@@ -409,7 +409,7 @@ class DepartmentEditView(AdminRequiredMixin, View):
         })
 
 
-class DepartmentDeleteView(AdminRequiredMixin, View):
+class DepartmentDeleteView(AuditAdminRequiredMixin, View):
     """
     Suppression logique (soft-delete) d'un département (HTMX).
     """
@@ -447,7 +447,7 @@ class DepartmentDeleteView(AdminRequiredMixin, View):
         return redirect("auth:organigramme-list")
 
 
-class DepartmentSearchView(AdminRequiredMixin, View):
+class DepartmentSearchView(AuditAdminRequiredMixin, View):
     """
     Recherche en temps réel (HTMX) dans l'organigramme.
     """
@@ -527,3 +527,94 @@ class ITUserCreateView(AdminRequiredMixin, View):
             "topbar_subtitle": "Création d'un compte coquille vide",
         })
 
+
+# =============================================================================
+# OrgUnitType Admin (Story 3.7.b / Phase B — AuditAdmin uniquement)
+# =============================================================================
+
+
+def _render_org_unit_type_form(request, form, instance=None):
+    """Helper : rendu du formulaire modal OrgUnitType avec gestion des erreurs."""
+    status = 422 if form.errors else 200
+    return render(
+        request,
+        "admin_it/org_unit_types/_form_modal.html",
+        {"form": form, "org_unit_type": instance},
+        status=status,
+    )
+
+
+class OrgUnitTypeListView(AuditAdminRequiredMixin, ListView):
+    """
+    Liste des types d'unités organisationnelles paramétrables.
+    Accessible uniquement aux Audit Admins (Story 3.7.b Phase B).
+    """
+    template_name = "admin_it/org_unit_types/list.html"
+    context_object_name = "org_unit_types"
+
+    def get_queryset(self):
+        return selectors.get_all_org_unit_types()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["active_route"] = "org-unit-types"
+        context["topbar_title"] = "Types d'unités org."
+        context["topbar_subtitle"] = "Paramétrage des types structurels"
+        return context
+
+
+class OrgUnitTypeCreateView(AuditAdminRequiredMixin, View):
+    """Création d'un type d'unité organisationnelle (HTMX)."""
+
+    def get(self, request):
+        return _render_org_unit_type_form(request, OrgUnitTypeForm())
+
+    def post(self, request):
+        form = OrgUnitTypeForm(request.POST)
+        if form.is_valid():
+            services.create_org_unit_type(
+                form=form,
+                performed_by=request.user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+            response = HttpResponse(status=204)
+            response["HX-Refresh"] = "true"
+            return response
+        return _render_org_unit_type_form(request, form)
+
+
+class OrgUnitTypeEditView(AuditAdminRequiredMixin, View):
+    """Modification d'un type d'unité organisationnelle (HTMX)."""
+
+    def get(self, request, pk):
+        instance = get_object_or_404(OrgUnitType, pk=pk)
+        return _render_org_unit_type_form(request, OrgUnitTypeForm(instance=instance), instance)
+
+    def post(self, request, pk):
+        instance = get_object_or_404(OrgUnitType, pk=pk)
+        form = OrgUnitTypeForm(request.POST, instance=instance)
+        if form.is_valid():
+            services.update_org_unit_type(
+                form=form,
+                performed_by=request.user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+            response = HttpResponse(status=204)
+            response["HX-Refresh"] = "true"
+            return response
+        return _render_org_unit_type_form(request, form, instance)
+
+
+class OrgUnitTypeToggleView(AuditAdminRequiredMixin, View):
+    """Active ou désactive un type d'unité (POST uniquement, HTMX)."""
+
+    def post(self, request, pk):
+        instance = get_object_or_404(OrgUnitType, pk=pk)
+        services.toggle_org_unit_type(
+            instance=instance,
+            performed_by=request.user,
+            ip_address=request.META.get("REMOTE_ADDR"),
+        )
+        response = HttpResponse(status=204)
+        response["HX-Refresh"] = "true"
+        return response

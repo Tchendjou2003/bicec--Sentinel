@@ -11,9 +11,9 @@ from datetime import timedelta
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.users.models import Department
+from apps.users.models import Department, OrgUnitType
 from apps.workflow.forms import DeliverableFormSet, RecommendationForm
-from apps.workflow.models import Recommendation
+from apps.workflow.models import Recommendation, RecommendationSource
 
 
 class RecommendationFormTest(TestCase):
@@ -21,17 +21,25 @@ class RecommendationFormTest(TestCase):
 
     @classmethod
     def setUpTestData(cls):
+        cls.type_direction, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION", defaults={"name": "Direction", "level": 1},
+        )
         cls.department = Department.objects.create(
             name="Direction Form Test",
             code="DFT",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
             is_active=True,
         )
         cls.inactive_dept = Department.objects.create(
             name="Direction Inactive",
             code="DIN",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
             is_active=False,
+        )
+        # Story 3.7.b — source FK
+        cls.source_interne, _ = RecommendationSource.objects.get_or_create(
+            code="INTERNE",
+            defaults={"label": "Audit Interne", "is_external": False},
         )
 
     def _valid_data(self, **overrides):
@@ -43,7 +51,7 @@ class RecommendationFormTest(TestCase):
             "observations": "Obs Form",
             "anomalous_dossiers": "",
             "description": "Desc Form",
-            "source": Recommendation.Source.INTERNE,
+            "source": str(self.source_interne.pk),  # Piège 4 — ModelChoiceField attend str(pk)
             "priority": Recommendation.Priority.HAUTE,
             "department": self.department.pk,
             "due_date": timezone.now().date() + timedelta(days=30),
@@ -136,16 +144,18 @@ class AssignDMFormTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         from apps.users.models import User
-        
+        cls.type_direction, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION_FDM", defaults={"name": "Direction FDM", "level": 1},
+        )
         cls.department = Department.objects.create(
             name="Direction Form DM",
             code="DFD",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
         cls.other_department = Department.objects.create(
             name="Autre Direction",
             code="AUD",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
         
         cls.dm_user = User.objects.create_user(
@@ -196,16 +206,18 @@ class GetAvailableDMsForDepartmentTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         from apps.users.models import User
-        
+        cls.type_direction, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION_SDM", defaults={"name": "Direction SDM", "level": 1},
+        )
         cls.department = Department.objects.create(
             name="Direction Selector DM",
             code="DSD",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
         cls.other_department = Department.objects.create(
             name="Autre Direction Selector",
             code="ADS",
-            type=Department.Type.DIRECTION,
+            type=cls.type_direction,
         )
         
         cls.dm_active = User.objects.create_user(

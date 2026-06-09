@@ -19,7 +19,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from ..audit.models import AuditLog
-from .models import Deliverable, EvidenceFile, EvidenceSubmission, Recommendation
+from .models import Deliverable, EvidenceFile, EvidenceSubmission, Recommendation, RecommendationSource
 from .validators import (
     compute_sha256,
     detect_mime_type,
@@ -80,7 +80,14 @@ def create_recommendation(
             object_id=recommendation.pk,
             changes={
                 "reference": recommendation.reference,
-                "source": recommendation.source,
+                # Piège 3 (Story 3.7.b) : après bascule FK, source est une instance
+                # RecommendationSource → utiliser .code pour rester JSON-safe.
+                # Avant bascule : source est encore un CharField (string) → pas de .code.
+                "source": (
+                    recommendation.source.code
+                    if hasattr(recommendation.source, "code")
+                    else recommendation.source
+                ),
                 "priority": recommendation.priority,
                 "status": recommendation.status,
                 "deliverables_count": len(deliverables),
@@ -295,6 +302,80 @@ def assign_recommendation_to_dm(
             description=(
                 f"Assignation de {recommendation.reference} "
                 f"au DM {dm_display} par {performed_by.username}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return recommendation
+
+
+def assign_recommendation_to_dg(
+    *,
+    recommendation: Recommendation,
+    dg,
+    performed_by,
+    ip_address: str | None = None,
+) -> Recommendation:
+    """
+    Assigne une recommandation DRAFT directement à un Directeur Général (Story 3.x).
+
+    Contrairement au circuit DM (DRAFT → ASSIGNED), le DG n'a pas de phase
+    d'acceptation intermédiaire : la transition FSM est DRAFT → IN_PROGRESS.
+    Le champ ``assigned_dm`` est réutilisé pour stocker le DG assigné.
+
+    Args:
+        recommendation: L'instance en état DRAFT.
+        dg: L'utilisateur cible (role=DG).
+        performed_by: L'auditeur interne effectuant l'assignation.
+        ip_address: Adresse IP du client.
+
+    Returns:
+        Recommendation: L'instance avec status=IN_PROGRESS et assigned_dm=dg.
+
+    Raises:
+        ValidationError: Si le rôle DG est invalide ou la direction absente.
+        TransitionNotAllowed: Si la recommandation n'est plus en DRAFT.
+    """
+    with transaction.atomic():
+        # Verrouiller pour concurrence (ADR-07 §5.4)
+        recommendation = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        if recommendation.is_deleted:
+            raise ValueError("Impossible d'assigner une recommandation supprimée.")
+
+        # Capturer la valeur initiale (avant la transition FSM)
+        previous_assigned_dm = (
+            str(recommendation.assigned_dm_id)
+            if recommendation.assigned_dm_id
+            else None
+        )
+
+        # Transition FSM : DRAFT → IN_PROGRESS (bypass de ASSIGNED)
+        recommendation.assign_to_dg(dg)
+        recommendation.save(update_fields=["status", "assigned_dm", "updated_at"])
+
+        # Nom lisible pour l'audit trail (pérennité réglementaire)
+        dg_display = dg.get_full_name() or dg.username
+
+        # Audit Log (NFR-SEC-05 — traçabilité complète)
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=recommendation.pk,
+            changes={
+                "status": ["DRAFT", "IN_PROGRESS"],
+                "assigned_dm": [previous_assigned_dm, str(dg.pk)],
+                "assigned_by_dg_direct": True,
+            },
+            description=(
+                f"Assignation directe de {recommendation.reference} "
+                f"au DG {dg_display} par {performed_by.username} "
+                f"(bypass ASSIGNED — circuit DG)"
             ),
             ip_address=ip_address,
         )
@@ -1445,3 +1526,423 @@ def reject_extension(
         )
 
     return ext
+
+
+# =============================================================================
+# Soumission Directe DG (Story 3.7 — FR33)
+# =============================================================================
+
+
+def submit_evidence_by_dg(
+    *,
+    recommendation,
+    performed_by,
+    ip_address=None,
+):
+    """
+    Soumet directement des preuves à l'Audit Interne au nom du DG assigné (FR33).
+
+    Bypass complet du circuit DM Review : la recommandation passe de ASSIGNED/IN_PROGRESS
+    directement à PENDING_AUDIT_REVIEW sans transiter par PENDING_DM_REVIEW.
+
+    Args:
+        recommendation: La recommandation cible (doit être ASSIGNED ou IN_PROGRESS).
+        performed_by: L'utilisateur DG effectuant la soumission.
+        ip_address: L'adresse IP du client (pour l'AuditLog).
+
+    Returns:
+        Recommendation: La recommandation mise à jour (status=PENDING_AUDIT_REVIEW).
+
+    Raises:
+        PermissionDenied: Si performed_by n'a pas le rôle DG ou n'est pas assigned_dm.
+        ValueError: Si l'état FSM ne permet pas la soumission directe (AC6),
+                    ou si le draft est vide (AC3).
+
+    ACs couverts : AC2, AC3, AC4, AC5, AC6.
+    """
+    from apps.users.models import User
+
+    # Guard RBAC pré-transaction (AC5) — rôle DG obligatoire
+    if performed_by.role != User.Role.DG:
+        raise PermissionDenied(
+            "Endpoint réservé au rôle DG."
+        )
+    # Guard RBAC pré-transaction (AC5) — DG doit être assigned_dm
+    if recommendation.assigned_dm_id != performed_by.pk:
+        raise PermissionDenied(
+            "Vous n'êtes pas le DG assigné à cette recommandation."
+        )
+
+    with transaction.atomic():
+        rec = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        # Re-vérification RBAC sur instance fraîche (parade TOCTOU)
+        if rec.assigned_dm_id != performed_by.pk:
+            raise PermissionDenied(
+                "Vous n'êtes plus le DG assigné à cette recommandation."
+            )
+
+        # Guard FSM (AC6) — soumission directe impossible hors ASSIGNED/IN_PROGRESS
+        if rec.status not in (
+            Recommendation.Status.ASSIGNED,
+            Recommendation.Status.IN_PROGRESS,
+        ):
+            raise ValueError(
+                f"Soumission directe impossible depuis l'état « {rec.status} »."
+            )
+
+        # Récupérer ou créer le draft DG (AC2 — réutilise get_or_create_draft_submission)
+        draft, _ = get_or_create_draft_submission(recommendation=rec, user=performed_by)
+
+        # Guard contenu (AC3) — au moins un fichier OU un commentaire non vide
+        if not draft.files.exists() and not draft.comment.strip():
+            raise ValueError(
+                "Veuillez joindre au moins un fichier ou saisir un commentaire."
+            )
+
+        source_status = rec.status
+
+        # Valider le draft directement (AC2) — bypass DM Review
+        draft.status = EvidenceSubmission.SubmissionStatus.ACCEPTED
+        draft.reviewed_by = performed_by
+        draft.reviewed_at = timezone.now()
+        draft.save()
+
+        # Transition FSM directe (AC2)
+        rec.submit_directly_to_audit()
+        rec.save()
+
+        # AuditLog (AC4 — NFR-SEC-05 append-only)
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=rec.pk,
+            changes={
+                "status": [source_status, Recommendation.Status.PENDING_AUDIT_REVIEW],
+                "submitted_by_dg": True,
+            },
+            description=(
+                f"Soumission directe DG {performed_by.get_full_name()} "
+                f"pour {rec.reference}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return rec
+
+
+# =============================================================================
+# Clôture Définitive par l'Audit Interne (Story 3.8 — FR20)
+# =============================================================================
+
+
+def close_recommendation_by_audit(
+    *,
+    recommendation: Recommendation,
+    performed_by,
+    ip_address: str | None = None,
+) -> Recommendation:
+    """
+    Clôture définitivement une recommandation par l'Audit Interne (FR20).
+
+    Transition FSM : PENDING_AUDIT_REVIEW → CLOSED_RESOLVED.
+    Renseigne ``closed_at`` et ``closed_by`` pour permettre à Story 3.10
+    (HMAC-SHA256) de retrouver le moment exact de clôture et l'identité
+    du responsable sans dépendre du parsing AuditLog.
+
+    Args:
+        recommendation: L'instance Recommendation en PENDING_AUDIT_REVIEW.
+        performed_by: Auditeur Interne (role=AUDIT) effectuant la clôture.
+        ip_address: Adresse IP du client pour l'AuditLog.
+
+    Returns:
+        Recommendation: L'instance avec status=CLOSED_RESOLVED.
+
+    Raises:
+        PermissionDenied: Si performed_by n'a pas le rôle AUDIT (AC5 / FR20).
+        ValueError: Si la recommandation n'est pas en PENDING_AUDIT_REVIEW (AC6).
+
+    Refs: AC2, AC5, AC6 / FR20 — Story 3.8.
+    """
+    from apps.users.models import User
+
+    # Guard RBAC pré-transaction (AC5)
+    if performed_by.role != User.Role.AUDIT:
+        raise PermissionDenied(
+            "Seul l'Audit Interne peut clôturer définitivement une recommandation."
+        )
+
+    with transaction.atomic():
+        rec = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        # Guard FSM (AC6)
+        if rec.status != Recommendation.Status.PENDING_AUDIT_REVIEW:
+            raise ValueError(
+                f"La clôture est impossible depuis l'état « {rec.status} »."
+            )
+
+        source_status = rec.status
+
+        # Transition FSM : PENDING_AUDIT_REVIEW → CLOSED_RESOLVED
+        rec.close_by_audit()
+        rec.closed_at = timezone.now()
+        rec.closed_by = performed_by
+        rec.save(update_fields=["status", "closed_at", "closed_by", "updated_at"])
+
+        performed_by_display = performed_by.get_full_name() or performed_by.username
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=rec.pk,
+            changes={
+                "status": [source_status, Recommendation.Status.CLOSED_RESOLVED],
+                "closed_by_audit": True,
+            },
+            description=(
+                f"Clôture définitive {rec.reference} par {performed_by_display}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return rec
+
+
+def reject_recommendation_by_audit(
+    *,
+    recommendation: Recommendation,
+    reason: str,
+    performed_by,
+    ip_address: str | None = None,
+) -> Recommendation:
+    """
+    Rejette les preuves soumises et retourne la recommandation en IN_PROGRESS.
+
+    Transition FSM : PENDING_AUDIT_REVIEW → IN_PROGRESS.
+    La dernière EvidenceSubmission ACCEPTED passe à REJECTED_BY_AUDIT.
+    Le draft DM existant est conservé (AC3 — décision 2026-05-28).
+
+    Args:
+        recommendation: L'instance Recommendation en PENDING_AUDIT_REVIEW.
+        reason: Motif de rejet obligatoire (min 10 caractères après strip).
+        performed_by: Auditeur Interne (role=AUDIT) effectuant le rejet.
+        ip_address: Adresse IP du client pour l'AuditLog.
+
+    Returns:
+        Recommendation: L'instance avec status=IN_PROGRESS.
+
+    Raises:
+        PermissionDenied: Si performed_by n'a pas le rôle AUDIT (AC5).
+        ValueError: Si le motif est trop court (AC4) ou si la reco n'est
+                    pas en PENDING_AUDIT_REVIEW (AC6).
+
+    Refs: AC3, AC4, AC5, AC6 — Story 3.8.
+    """
+    from apps.users.models import User
+
+    # Guard RBAC pré-transaction (AC5)
+    if performed_by.role != User.Role.AUDIT:
+        raise PermissionDenied(
+            "Seul l'Audit Interne peut rejeter une soumission."
+        )
+
+    # Guard motif (AC4)
+    if not reason or len(reason.strip()) < 10:
+        raise ValueError("Le motif doit comporter au moins 10 caractères.")
+
+    with transaction.atomic():
+        rec = (
+            Recommendation.all_objects
+            .select_for_update()
+            .get(pk=recommendation.pk)
+        )
+
+        # Guard FSM (AC6)
+        if rec.status != Recommendation.Status.PENDING_AUDIT_REVIEW:
+            raise ValueError(
+                f"Le rejet est impossible depuis l'état « {rec.status} »."
+            )
+
+        source_status = rec.status
+        clean_reason = reason.strip()
+
+        # Mettre à jour la dernière soumission ACCEPTED → REJECTED_BY_AUDIT (AC3)
+        last_submission = (
+            rec.evidence_submissions
+            .filter(status=EvidenceSubmission.SubmissionStatus.ACCEPTED)
+            .order_by("-created_at")
+            .first()
+        )
+        if last_submission is not None:
+            last_submission.status = EvidenceSubmission.SubmissionStatus.REJECTED_BY_AUDIT
+            last_submission.review_comment = clean_reason
+            last_submission.reviewed_by = performed_by
+            last_submission.reviewed_at = timezone.now()
+            last_submission.save(update_fields=[
+                "status", "review_comment", "reviewed_by", "reviewed_at", "updated_at"
+            ])
+
+        # Transition FSM : PENDING_AUDIT_REVIEW → IN_PROGRESS
+        rec.reject_by_audit()
+        rec.save(update_fields=["status", "updated_at"])
+
+        performed_by_display = performed_by.get_full_name() or performed_by.username
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="Recommendation",
+            object_id=rec.pk,
+            changes={
+                "status": [source_status, Recommendation.Status.IN_PROGRESS],
+                "rejected_by_audit": True,
+                "reason": clean_reason,
+            },
+            description=(
+                f"Rejet Audit {rec.reference} par {performed_by_display} "
+                f"— motif : {clean_reason[:80]}{'...' if len(clean_reason) > 80 else ''}"
+            ),
+            ip_address=ip_address,
+        )
+
+    return rec
+
+
+# =============================================================================
+# Services Sources de recommandation (Story 3.7.b — Phase A)
+# =============================================================================
+
+
+def create_recommendation_source(
+    *,
+    code: str,
+    label: str,
+    is_external: bool,
+    performed_by,
+    ip_address: str | None = None,
+) -> RecommendationSource:
+    """
+    Crée une nouvelle source de recommandation.
+
+    Args:
+        code: Identifiant technique unique (ex: MINFI). Immuable après création.
+        label: Libellé affiché dans l'UI.
+        is_external: True = autorité externe, False = audit interne.
+        performed_by: Audit Admin effectuant la création (is_audit_admin=True).
+        ip_address: Adresse IP du client.
+
+    Returns:
+        RecommendationSource: L'instance créée.
+    """
+    with transaction.atomic():
+        source = RecommendationSource(
+            code=code.strip().upper(),
+            label=label.strip(),
+            is_external=is_external,
+            is_active=True,
+            created_by=performed_by,
+        )
+        source.full_clean()
+        source.save()
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.CREATE,
+            user=performed_by,
+            content_type="RecommendationSource",
+            object_id=source.pk,
+            changes={
+                "code": source.code,
+                "label": source.label,
+                "is_external": source.is_external,
+                "is_active": True,
+            },
+            description=f"Création de la source '{source.code}' ({source.label})",
+            ip_address=ip_address,
+        )
+
+    return source
+
+
+def update_recommendation_source(
+    *,
+    source: RecommendationSource,
+    label: str,
+    is_external: bool,
+    performed_by,
+    ip_address: str | None = None,
+) -> RecommendationSource:
+    """
+    Met à jour le libellé et/ou le flag is_external d'une source.
+
+    Piège 2 (Story 3.7.b Dev Notes) : ModelForm._post_clean() mute l'instance
+    AVANT l'appel au service → on recharge depuis la DB avec select_for_update()
+    pour comparer le vrai état pré-form.
+    """
+    with transaction.atomic():
+        # Recharger depuis DB (piège 2 : form._post_clean a peut-être déjà muté `source`)
+        fresh = RecommendationSource.objects.select_for_update().get(pk=source.pk)
+
+        delta = {}
+        new_label = label.strip()
+        if fresh.label != new_label:
+            delta["label"] = [fresh.label, new_label]
+            fresh.label = new_label
+        if fresh.is_external != is_external:
+            delta["is_external"] = [fresh.is_external, is_external]
+            fresh.is_external = is_external
+
+        if delta:
+            fresh.save(update_fields=["label", "is_external"])
+            AuditLog.objects.create(
+                action=AuditLog.Action.UPDATE,
+                user=performed_by,
+                content_type="RecommendationSource",
+                object_id=fresh.pk,
+                changes=delta,
+                description=f"Modification de la source '{fresh.code}' : {list(delta.keys())}",
+                ip_address=ip_address,
+            )
+
+    return fresh
+
+
+def toggle_recommendation_source(
+    *,
+    source: RecommendationSource,
+    performed_by,
+    ip_address: str | None = None,
+) -> RecommendationSource:
+    """
+    Bascule l'état is_active d'une source (activation / désactivation).
+
+    Une source désactivée disparaît du formulaire de création de recommandation
+    mais reste visible sur les recommandations historiques.
+    """
+    with transaction.atomic():
+        fresh = RecommendationSource.objects.select_for_update().get(pk=source.pk)
+        old_state = fresh.is_active
+        fresh.is_active = not old_state
+        fresh.save(update_fields=["is_active"])
+
+        action_word = "Activation" if fresh.is_active else "Désactivation"
+        AuditLog.objects.create(
+            action=AuditLog.Action.UPDATE,
+            user=performed_by,
+            content_type="RecommendationSource",
+            object_id=fresh.pk,
+            changes={"is_active": [old_state, fresh.is_active]},
+            description=f"{action_word} de la source '{fresh.code}' ({fresh.label})",
+            ip_address=ip_address,
+        )
+
+    return fresh

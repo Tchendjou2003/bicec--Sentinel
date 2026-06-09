@@ -70,6 +70,78 @@ class ImmutableManager(models.Manager):
 
 
 # =============================================================================
+# Référentiel Sources (paramétrable — Story 3.7.b)
+# =============================================================================
+
+
+class RecommendationSource(models.Model):
+    """
+    Source d'une recommandation d'audit — référentiel paramétrable.
+
+    Remplace l'enum ``Recommendation.Source`` figé en dur en Python.
+    Géré exclusivement par l'Audit Admin (is_audit_admin=True).
+    Les sources désactivées (is_active=False) sont masquées du formulaire
+    de création mais restent visibles sur les recommandations historiques.
+
+    Ref. Story 3.7.b — NFR-AGN-01 (agnosticisme produit)
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    code = models.CharField(
+        _("Code"),
+        max_length=30,
+        unique=True,
+        help_text=_(
+            "Identifiant technique immuable (ex: COBAC). "
+            "Ne peut plus être modifié après création."
+        ),
+    )
+    label = models.CharField(
+        _("Libellé"),
+        max_length=120,
+        help_text=_("Libellé affiché dans l'UI et les exports."),
+    )
+    is_external = models.BooleanField(
+        _("Source externe"),
+        default=True,
+        help_text=_(
+            "True = autorité réglementaire externe (COBAC, ANIF…). "
+            "False = audit interne."
+        ),
+    )
+    is_active = models.BooleanField(
+        _("Active"),
+        default=True,
+        help_text=_(
+            "Sources inactives masquées du formulaire de création. "
+            "Désactiver plutôt que supprimer pour préserver l'historique."
+        ),
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name=_("Créé par"),
+    )
+
+    class Meta:
+        verbose_name = _("Source de recommandation")
+        verbose_name_plural = _("Sources de recommandation")
+        db_table = "workflow_recommendation_source"
+        ordering = ["is_external", "label"]
+
+    def __str__(self) -> str:
+        return self.label
+
+
+# =============================================================================
 # Recommandation
 # =============================================================================
 
@@ -90,15 +162,6 @@ class Recommendation(models.Model):
     """
 
     # ── Enums ─────────────────────────────────────────────────────────
-
-    class Source(models.TextChoices):
-        INTERNE = "INTERNE", _("Audit Interne")
-        COBAC = "COBAC", _("COBAC")
-        CAC = "CAC", _("CAC")
-        ANIF = "ANIF", _("ANIF")
-        BEAC = "BEAC", _("BEAC")
-        ANTIC = "ANTIC", _("ANTIC")
-        CONSULTANT = "CONSULTANT", _("Consultant")
 
     class Priority(models.TextChoices):
         CRITIQUE = "CRITIQUE", _("Critique")
@@ -174,10 +237,11 @@ class Recommendation(models.Model):
             "Décrit ce qui doit être corrigé ou amélioré."
         ),
     )
-    source = models.CharField(
-        _("Source"),
-        max_length=20,
-        choices=Source.choices,
+    source = models.ForeignKey(
+        "RecommendationSource",
+        on_delete=models.PROTECT,
+        related_name="recommendations",
+        verbose_name=_("Source"),
         help_text=_("Origine réglementaire de la recommandation."),
     )
     priority = models.CharField(
@@ -255,6 +319,30 @@ class Recommendation(models.Model):
         null=True,
         blank=True,
         help_text=_("Valeur 'IMPORTED' inaltérable si import historique (FR9)."),
+    )
+
+    # ── Clôture définitive (Story 3.8 / FR20) ────────────────────────
+
+    closed_at = models.DateTimeField(
+        _("Clôturée le"),
+        null=True,
+        blank=True,
+        help_text=_(
+            "Horodatage exact de la clôture par l'Audit Interne (Story 3.8). "
+            "Alimentera le sceau HMAC-SHA256 en Story 3.10."
+        ),
+    )
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="closed_recommendations",
+        verbose_name=_("Clôturée par"),
+        help_text=_(
+            "Auditeur responsable de la clôture définitive. "
+            "Référence Story 3.10 (HMAC) pour l'identité du signataire."
+        ),
     )
 
     # ── Soft Delete ───────────────────────────────────────────────────
@@ -397,6 +485,38 @@ class Recommendation(models.Model):
             )
         self.assigned_dm = dm
 
+    @transition(
+        field=status,
+        source=Status.DRAFT,
+        target=Status.IN_PROGRESS,
+    )
+    def assign_to_dg(self, dg):
+        """
+        Assigne la recommandation directement en IN_PROGRESS à un DG (Story 3.x).
+
+        Bypass de l'état ASSIGNED — le DG agit directement sans phase
+        d'acceptation intermédiaire (contrairement au circuit DM).
+
+        Args:
+            dg: Instance User avec role=DG.
+
+        Raises:
+            ValidationError: Si l'utilisateur n'a pas le rôle DG ou si le
+                             département n'est pas renseigné.
+        """
+        from apps.users.models import User
+
+        if not dg or dg.role != User.Role.DG:
+            raise ValidationError(
+                _("L'utilisateur sélectionné n'a pas le rôle Directeur Général.")
+            )
+        if not self.department:
+            raise ValidationError(
+                _("La Direction concernée doit être renseignée avant l'assignation.")
+            )
+        # Pas de validation département — le DG a périmètre banque entière
+        self.assigned_dm = dg
+
     @transition(field=status, source=Status.ASSIGNED, target=Status.IN_PROGRESS)
     def start_processing(self):
         """
@@ -441,6 +561,51 @@ class Recommendation(models.Model):
         La mise à jour de l'EvidenceSubmission (ACCEPTED + commentaire DM) et
         la vérification de l'exemption PV de Recette (FR19) sont orchestrées
         par validate_evidence_for_audit() dans le service layer.
+        """
+        pass
+
+    @transition(
+        field=status,
+        source=[Status.ASSIGNED, Status.IN_PROGRESS],
+        target=Status.PENDING_AUDIT_REVIEW,
+    )
+    def submit_directly_to_audit(self):
+        """
+        Transition directe DG → PENDING_AUDIT_REVIEW (Story 3.7 / FR33).
+        Bypass de PENDING_DM_REVIEW.
+
+        Déclenchée lorsque le DG assigné soumet directement ses preuves à l'Audit
+        Interne sans passer par le circuit DM Review.
+        Toute la logique métier (RBAC, validation contenu, AuditLog) est orchestrée
+        par submit_evidence_by_dg() dans le service layer.
+        """
+        pass
+
+    @transition(
+        field=status,
+        source=Status.PENDING_AUDIT_REVIEW,
+        target=Status.CLOSED_RESOLVED,
+    )
+    def close_by_audit(self):
+        """
+        Clôture définitive Audit Interne (Story 3.8 / FR20).
+
+        Toute logique métier dans le service layer
+        (close_recommendation_by_audit).
+        """
+        pass
+
+    @transition(
+        field=status,
+        source=Status.PENDING_AUDIT_REVIEW,
+        target=Status.IN_PROGRESS,
+    )
+    def reject_by_audit(self):
+        """
+        Rejet Audit Interne avec motif obligatoire (Story 3.8).
+
+        Symétrique de ``reject_by_dm()``. Toute logique métier dans le
+        service layer (reject_recommendation_by_audit).
         """
         pass
 
@@ -541,10 +706,11 @@ class EvidenceSubmission(models.Model):
     """
 
     class SubmissionStatus(models.TextChoices):
-        DRAFT    = "DRAFT",    _("Brouillon")
-        PENDING  = "PENDING",  _("En attente de validation")
-        ACCEPTED = "ACCEPTED", _("Acceptée")
-        REJECTED = "REJECTED", _("Rejetée")
+        DRAFT             = "DRAFT",             _("Brouillon")
+        PENDING           = "PENDING",           _("En attente de validation")
+        ACCEPTED          = "ACCEPTED",          _("Acceptée")
+        REJECTED          = "REJECTED",          _("Rejetée")
+        REJECTED_BY_AUDIT = "REJECTED_BY_AUDIT", _("Rejetée par l'Audit")
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     recommendation = models.ForeignKey(
@@ -575,7 +741,8 @@ class EvidenceSubmission(models.Model):
         default=SubmissionStatus.DRAFT,
         help_text=_(
             "DRAFT à la création du brouillon. PENDING à la soumission. "
-            "ACCEPTED/REJECTED piloté par le DM (Story 3.4)."
+            "ACCEPTED/REJECTED piloté par le DM (Story 3.4). "
+            "REJECTED_BY_AUDIT piloté par l'Audit Interne (Story 3.8)."
         ),
     )
     review_comment = models.TextField(

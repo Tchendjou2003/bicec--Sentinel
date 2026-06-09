@@ -20,11 +20,13 @@ from django.shortcuts import get_object_or_404
 from django.views import View
 from django.views.generic import DetailView, ListView
 
-from apps.users.mixins import AuditRequiredMixin, WorkflowAccessMixin
+from apps.users.mixins import AuditAdminRequiredMixin, AuditRequiredMixin, WorkflowAccessMixin
 from apps.users.models import User
 
 from . import selectors, services
+from .admin_forms import RecommendationSourceForm
 from .forms import (
+    AssignDGForm,
     AssignDMForm,
     DelegateETPForm,
     DeliverableFormSet,
@@ -36,7 +38,7 @@ from .forms import (
     ExtensionRequestForm,
     RecommendationForm,
 )
-from .models import EvidenceFile, EvidenceSubmission, ExtensionRequest, Recommendation
+from .models import EvidenceFile, EvidenceSubmission, ExtensionRequest, Recommendation, RecommendationSource
 
 
 def _get_client_ip(request) -> str | None:
@@ -45,6 +47,20 @@ def _get_client_ip(request) -> str | None:
     if x_forwarded:
         return x_forwarded.split(",")[0].strip()
     return request.META.get("REMOTE_ADDR")
+
+
+def _ensure_not_closed(recommendation) -> None:
+    """
+    Garde universel — bloque toute mutation sur une recommandation clôturée (FR20).
+
+    Doit être appelé au début de la méthode ``post`` de toutes les vues mutantes.
+    Lève ``ValueError`` qui sera interceptée par le pattern de gestion d'erreur
+    standard (HTTP 422) de chaque vue.
+
+    Ref. Story 3.8 — AC7.
+    """
+    if recommendation.status == Recommendation.Status.CLOSED_RESOLVED:
+        raise ValueError("Dossier clôturé, modification impossible.")
 
 
 # =============================================================================
@@ -81,7 +97,7 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
         context["topbar_title"] = "Recommandations"
         context["topbar_subtitle"] = "Suivi des recommandations d'audit"
         # Pour les filtres
-        context["sources"] = Recommendation.Source.choices
+        context["sources"] = selectors.get_active_sources()
         context["statuses"] = Recommendation.Status.choices
         context["priorities"] = Recommendation.Priority.choices
         # Filtres actuels
@@ -177,6 +193,16 @@ class RecommendationUpdateView(AuditRequiredMixin, View):
 
     def post(self, request, pk):
         recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         if recommendation.status != "DRAFT":
             return HttpResponseForbidden()
 
@@ -270,13 +296,18 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
             recommendation=rec,
             user=self.request.user,
         )
+        # Les deux statuts de rejet (DM et Audit) sont traités à l'identique :
+        # exclus de la liste « active » (sinon ils s'entassent) et regroupés
+        # dans l'accordéon « Historique des rejets ».
+        rejected_statuses = [
+            EvidenceSubmission.SubmissionStatus.REJECTED,
+            EvidenceSubmission.SubmissionStatus.REJECTED_BY_AUDIT,
+        ]
         context["evidence_submissions"] = submissions_qs  # QuerySet — compat. tests
         context["active_submissions"] = submissions_qs.exclude(
-            status=EvidenceSubmission.SubmissionStatus.REJECTED
+            status__in=rejected_statuses
         )
-        context["rejected_submissions"] = submissions_qs.filter(
-            status=EvidenceSubmission.SubmissionStatus.REJECTED
-        )
+        # `rejected_submissions` est défini plus bas (version enrichie select_related/order_by).
 
         # Visibilité du bouton "Soumettre Preuves"
         user = self.request.user
@@ -284,7 +315,8 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
             rec.assigned_etp is not None and rec.assigned_etp_id == user.pk
         )
         is_dm_porteur = (
-            rec.assigned_etp is None
+            user.role == User.Role.DM   # DG utilise can_submit_dg, pas ce chemin
+            and rec.assigned_etp is None
             and rec.assigned_dm is not None
             and rec.assigned_dm_id == user.pk
         )
@@ -295,18 +327,19 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
 
         # Soumissions rejetées — QuerySet partagé entre l'accordéon et la bannière
         # (override de la version brute définie plus haut, avec select_related + order)
+        # Inclut REJECTED (DM) et REJECTED_BY_AUDIT (Audit) pour un affichage homogène.
         context["rejected_submissions"] = submissions_qs.filter(
-            status=EvidenceSubmission.SubmissionStatus.REJECTED
+            status__in=rejected_statuses
         ).select_related("reviewed_by", "submitted_by").order_by("-reviewed_at")
 
         rejected_submission = context["rejected_submissions"].first()
         context["rejected_submission"] = rejected_submission
 
-        # Bannière de rejet — cuisine interne : visible uniquement ETP et DM
+        # Bannière de rejet — cuisine interne : visible pour les porteurs (ETP, DM, DG)
         context["show_rejection_banner"] = (
             rejected_submission is not None
             and rec.status == Recommendation.Status.IN_PROGRESS
-            and user.role in (User.Role.DM, User.Role.ETP)
+            and user.role in (User.Role.DM, User.Role.ETP, User.Role.DG)
         )
 
         # Visibilité du bouton "Rejeter" (Story 3.4 — AC3)
@@ -369,6 +402,29 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
             and pending_extension is not None
         )
 
+        # ── Soumission Directe DG (Story 3.7 — FR33) ──────────────────────
+        # Visible uniquement pour le DG personnellement assigné en ASSIGNED/IN_PROGRESS
+        context["can_submit_dg"] = (
+            user.role == User.Role.DG
+            and rec.assigned_dm is not None
+            and rec.assigned_dm_id == user.pk
+            and rec.status in (
+                Recommendation.Status.ASSIGNED,
+                Recommendation.Status.IN_PROGRESS,
+            )
+        )
+
+        # ── Clôture Définitive Audit (Story 3.8 — FR20) ────────────────────
+        context["can_close_by_audit"] = (
+            user.role == User.Role.AUDIT
+            and rec.status == Recommendation.Status.PENDING_AUDIT_REVIEW
+        )
+        context["can_reject_by_audit"] = (
+            user.role == User.Role.AUDIT
+            and rec.status == Recommendation.Status.PENDING_AUDIT_REVIEW
+        )
+        context["is_closed"] = rec.status == Recommendation.Status.CLOSED_RESOLVED
+
         return context
 
 
@@ -424,6 +480,7 @@ class RecommendationDeleteView(AuditRequiredMixin, View):
         recommendation = get_object_or_404(Recommendation.objects, pk=pk)
 
         try:
+            _ensure_not_closed(recommendation)
             services.soft_delete_recommendation(
                 recommendation=recommendation,
                 performed_by=request.user,
@@ -497,6 +554,15 @@ class RecommendationAssignView(AuditRequiredMixin, View):
             pk=pk, user=request.user
         )
 
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         # Garde de sécurité Backend (AC4)
         if recommendation.status != Recommendation.Status.DRAFT:
             return HttpResponseForbidden(
@@ -558,7 +624,7 @@ class RecommendationAssignView(AuditRequiredMixin, View):
 
 
 def _render_assign_modal(request, recommendation, form, has_dms):
-    """Render le partial de la modale d'assignation."""
+    """Render le partial de la modale d'assignation DM."""
     from django.template.loader import render_to_string
 
     return render_to_string(
@@ -567,6 +633,119 @@ def _render_assign_modal(request, recommendation, form, has_dms):
             "recommendation": recommendation,
             "form": form,
             "has_dms": has_dms,
+        },
+        request=request,
+    )
+
+
+# =============================================================================
+# Assignation directe au DG (Story 3.x)
+# =============================================================================
+
+
+class RecommendationAssignDGView(AuditRequiredMixin, View):
+    """
+    Vue d'assignation directe au DG — Modale HTMX (toggle DM ↔ DG).
+
+    GET  : Retourne le partial de la modale DG (toggle côté DG actif).
+    POST : Exécute la transition FSM DRAFT → IN_PROGRESS avec DG assigné.
+
+    Sécurité :
+        - AuditRequiredMixin : seul l'Audit peut assigner.
+        - Garde Backend : vérifie status == DRAFT côté serveur.
+        - Race condition : catch TransitionNotAllowed / ValidationError.
+    """
+
+    def get(self, request, pk):
+        recommendation = selectors.get_recommendation_by_id(
+            pk=pk, user=request.user
+        )
+
+        if recommendation.status != Recommendation.Status.DRAFT:
+            return HttpResponseForbidden(
+                "L'assignation n'est possible qu'en état DRAFT."
+            )
+
+        form = AssignDGForm()
+        has_dgs = form.fields["dg"].queryset.exists()
+
+        return HttpResponse(
+            _render_assign_dg_modal(request, recommendation, form, has_dgs),
+        )
+
+    def post(self, request, pk):
+        recommendation = selectors.get_recommendation_by_id(
+            pk=pk, user=request.user
+        )
+
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
+        if recommendation.status != Recommendation.Status.DRAFT:
+            return HttpResponseForbidden(
+                "L'assignation n'est possible qu'en état DRAFT."
+            )
+
+        from django_fsm import TransitionNotAllowed
+
+        form = AssignDGForm(request.POST)
+
+        if form.is_valid():
+            dg = form.cleaned_data["dg"]
+
+            try:
+                recommendation = services.assign_recommendation_to_dg(
+                    recommendation=recommendation,
+                    dg=dg,
+                    performed_by=request.user,
+                    ip_address=_get_client_ip(request),
+                )
+            except (TransitionNotAllowed, DjangoValidationError) as e:
+                response = HttpResponse(status=422)
+                response["HX-Trigger"] = json.dumps({
+                    "notify": {
+                        "msg": str(e) if str(e) else "Ce dossier a déjà été assigné.",
+                        "type": "error",
+                    },
+                    "closeModal": True,
+                    "refreshTable": True,
+                })
+                return response
+
+            dg_name = dg.get_full_name() or dg.username
+            response = HttpResponse(status=204)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {
+                    "msg": f"{recommendation.reference} assignée à {dg_name}",
+                    "type": "success",
+                },
+            })
+            response["HX-Refresh"] = "true"
+            return response
+
+        has_dgs = form.fields["dg"].queryset.exists()
+        return HttpResponse(
+            _render_assign_dg_modal(request, recommendation, form, has_dgs),
+            status=422,
+        )
+
+
+def _render_assign_dg_modal(request, recommendation, form, has_dgs):
+    """Render le partial de la modale d'assignation DG."""
+    from django.template.loader import render_to_string
+
+    return render_to_string(
+        "workflow/partials/assign_dg_modal.html",
+        {
+            "recommendation": recommendation,
+            "form": form,
+            "has_dgs": has_dgs,
         },
         request=request,
     )
@@ -623,6 +802,15 @@ class RecommendationDelegateView(WorkflowAccessMixin, View):
         recommendation = selectors.get_recommendation_by_id(
             pk=pk, user=request.user
         )
+
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
 
         # Garde RBAC : seul le DM assigné peut déléguer
         if recommendation.assigned_dm != request.user:
@@ -777,6 +965,15 @@ class RecommendationSubmitEvidenceView(WorkflowAccessMixin, View):
 
         recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
 
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         if recommendation.status != Recommendation.Status.IN_PROGRESS:
             return HttpResponseForbidden(
                 "La soumission de preuves n'est possible qu'en état IN_PROGRESS."
@@ -803,13 +1000,28 @@ class RecommendationSubmitEvidenceView(WorkflowAccessMixin, View):
             })
             return response
 
+        # Message adapté au rôle du soumissionnaire : l'ETP attend la validation
+        # de son DM ; le DM Porteur (pas d'ETP) est lui-même le validateur et passe
+        # à l'étape « valider et transmettre à l'Audit ».
+        is_dm_porteur = (
+            recommendation.assigned_etp is None
+            and recommendation.assigned_dm_id == request.user.pk
+        )
+        if is_dm_porteur:
+            success_msg = (
+                "Vos preuves ont été soumises avec succès. "
+                "Vous pouvez maintenant les valider et les transmettre à l'Audit Interne."
+            )
+        else:
+            success_msg = (
+                "Vos preuves ont été soumises avec succès. "
+                "En attente de validation par votre Directeur Métier."
+            )
+
         response = HttpResponse(status=204)
         response["HX-Trigger"] = json.dumps({
             "notify": {
-                "msg": (
-                    "Vos preuves ont été soumises avec succès. "
-                    "En attente de validation par votre Directeur Métier."
-                ),
+                "msg": success_msg,
                 "type": "success",
             },
         })
@@ -817,10 +1029,23 @@ class RecommendationSubmitEvidenceView(WorkflowAccessMixin, View):
         return response
 
 
-def _render_submit_evidence_modal(request, recommendation, draft):
-    """Render le partial du slide-over de soumission de preuves."""
+def _render_submit_evidence_modal(
+    request,
+    recommendation,
+    draft,
+    *,
+    submit_url_name="workflow:recommendation-submit-evidence",
+    panel_close_state="submitEvidenceModalOpen",
+    is_dg_direct=False,
+):
+    """Render le partial du slide-over de soumission de preuves.
+
+    Composant unique réutilisé par l'ETP/DM et le DG (Story 3.7). Seuls
+    diffèrent l'endpoint de soumission (``submit_url_name``), l'état Alpine
+    de fermeture du conteneur (``panel_close_state``) et le bandeau de
+    destination (``is_dg_direct`` → soumission directe à l'Audit, FR33).
+    """
     from django.template.loader import render_to_string
-    from django.db.models import Sum
 
     # Calcul du quota utilisé
     quota_used = services._get_active_evidence_quota_used(recommendation)
@@ -838,6 +1063,9 @@ def _render_submit_evidence_modal(request, recommendation, draft):
             "quota_used_mb": quota_used / (1024 * 1024),
             "quota_max_mb": quota_max / (1024 * 1024),
             "quota_percentage": min(round((quota_used / quota_max) * 100), 100) if quota_max else 0,
+            "submit_url_name": submit_url_name,
+            "panel_close_state": panel_close_state,
+            "is_dg_direct": is_dg_direct,
         },
         request=request,
     )
@@ -888,6 +1116,16 @@ class EvidenceRejectView(WorkflowAccessMixin, View):
         from django_fsm import TransitionNotAllowed
 
         recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         error = self._check_permission(request, recommendation)
         if error:
             return HttpResponseForbidden(error)
@@ -1001,6 +1239,16 @@ class EvidenceDMApprovalView(WorkflowAccessMixin, View):
         from django_fsm import TransitionNotAllowed
 
         recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
+
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         error = self._check_permission(request, recommendation)
         if error:
             return HttpResponseForbidden(error)
@@ -1100,6 +1348,15 @@ class DraftUploadFileView(WorkflowAccessMixin, View):
         recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
         _require_evidence_permission(recommendation, request.user)
 
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         draft = selectors.get_draft_submission_for_recommendation(
             recommendation=recommendation, user=request.user,
         )
@@ -1172,6 +1429,17 @@ class DraftDeleteFileView(WorkflowAccessMixin, View):
             submission__recommendation_id=pk,
         )
 
+        # Garde d'immutabilité (AC7) — reco récupérée sans le sélecteur RBAC
+        # pour préserver la sémantique 403 (vs 404) du contrôle d'auteur ci-dessous.
+        try:
+            _ensure_not_closed(evidence_file.submission.recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         try:
             services.delete_draft_file(
                 file=evidence_file,
@@ -1212,6 +1480,15 @@ class DraftSaveCommentView(WorkflowAccessMixin, View):
         recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
         _require_evidence_permission(recommendation, request.user)
 
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         draft = selectors.get_draft_submission_for_recommendation(
             recommendation=recommendation, user=request.user,
         )
@@ -1247,6 +1524,16 @@ class DraftToggleDeliverableView(WorkflowAccessMixin, View):
 
         recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
         _require_evidence_permission(recommendation, request.user)
+
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         deliverable = get_object_or_404(
             Deliverable,
             pk=del_id,
@@ -1367,6 +1654,15 @@ class ExtensionRequestView(WorkflowAccessMixin, View):
                 "Seul le directeur assigné peut demander un report."
             )
 
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         form = ExtensionRequestForm(
             request.POST, due_date=recommendation.due_date
         )
@@ -1452,6 +1748,15 @@ class ExtensionApproveView(AuditRequiredMixin, View):
         recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
         ext = self._get_extension(pk, ext_id)
 
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         form = ExtensionApproveForm(request.POST)
         if not form.is_valid():
             return HttpResponse(
@@ -1519,6 +1824,15 @@ class ExtensionRejectView(AuditRequiredMixin, View):
         recommendation = selectors.get_recommendation_by_id(pk=pk, user=request.user)
         ext = self._get_extension(pk, ext_id)
 
+        try:
+            _ensure_not_closed(recommendation)
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
         form = ExtensionRejectForm(request.POST)
         if not form.is_valid():
             return HttpResponse(
@@ -1566,4 +1880,412 @@ def _render_extension_review_modal(request, recommendation, ext, form, *, action
         },
         request=request,
     )
+
+
+# =============================================================================
+# Soumission Directe DG (Story 3.7 — FR33)
+# =============================================================================
+
+
+class EvidenceDGDirectSubmitView(WorkflowAccessMixin, View):
+    """
+    Vue de soumission directe à l'Audit par le DG (Story 3.7 — FR33).
+
+    GET  : Retourne le slide-over de soumission (composant unifié ETP/DM/DG).
+    POST : Appelle submit_evidence_by_dg() et renvoie HX-Refresh.
+
+    Réutilise ``_render_submit_evidence_modal`` (même panneau que l'ETP/DM :
+    checklist livrables, avancement, quota, drag&drop) ; seuls l'endpoint de
+    soumission et le bandeau « directement à l'Audit » diffèrent.
+
+    Sécurité (AC5) :
+        - WorkflowAccessMixin : rôles workflow uniquement.
+        - dispatch() : guard RBAC précoce — DG assigné uniquement.
+    """
+
+    def _render_panel(self, request, draft):
+        return _render_submit_evidence_modal(
+            request,
+            self._rec,
+            draft,
+            submit_url_name="workflow:evidence-submit-dg",
+            panel_close_state="dgSubmitPanelOpen",
+            is_dg_direct=True,
+        )
+
+    def _get_recommendation(self, pk):
+        return selectors.get_recommendation_detail_for_user(
+            pk=pk,
+            user=self.request.user,
+        )
+
+    def dispatch(self, request, *args, **kwargs):
+        rec = self._get_recommendation(kwargs["pk"])
+        # Guard RBAC précoce (AC5) — DG assigné uniquement
+        if (
+            request.user.role != User.Role.DG
+            or rec.assigned_dm_id != request.user.pk
+        ):
+            raise PermissionDenied("Réservé au DG assigné à cette recommandation.")
+        self._rec = rec
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, pk):
+        # Créer le draft DG dès l'ouverture du panneau pour que
+        # DraftUploadFileView puisse le retrouver lors d'un upload.
+        draft, _ = services.get_or_create_draft_submission(
+            recommendation=self._rec, user=request.user
+        )
+        return HttpResponse(self._render_panel(request, draft))
+
+    def post(self, request, pk):
+        try:
+            _ensure_not_closed(self._rec)
+            services.submit_evidence_by_dg(
+                recommendation=self._rec,
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except (ValueError, PermissionDenied) as exc:
+            # Le JS submitDraft() affiche l'erreur via le toast HX-Trigger
+            # (pas de swap du corps en 422) — cohérent avec la vue ETP/DM.
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {
+                "msg": "Preuves soumises directement à l'Audit.",
+                "type": "success",
+            },
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+# =============================================================================
+# Clôture Définitive par l'Audit Interne (Story 3.8 — FR20)
+# =============================================================================
+
+
+def _audit_action_unavailable_response():
+    """409 + toast — la reco n'est plus en PENDING_AUDIT_REVIEW (garde GET close/reject).
+
+    Défense en profondeur : les boutons ne s'affichent que si l'action est
+    éligible, mais l'URL GET reste atteignable. 409 = conflit d'état.
+    """
+    response = HttpResponse(status=409)
+    response["HX-Trigger"] = json.dumps({
+        "notify": {
+            "msg": "Action indisponible : la recommandation n'est plus en attente de revue Audit.",
+            "type": "error",
+        },
+    })
+    return response
+
+
+def _render_close_confirm_modal(request, rec):
+    """Rendu du partial de la modale de confirmation de clôture définitive."""
+    from django.template.loader import render_to_string
+
+    last_accepted = (
+        rec.evidence_submissions
+        .filter(status=EvidenceSubmission.SubmissionStatus.ACCEPTED)
+        .order_by("-created_at")
+        .select_related("submitted_by")
+        .first()
+    )
+    return render_to_string(
+        "workflow/partials/close_confirm_modal.html",
+        {
+            "recommendation": rec,
+            "last_accepted_submission": last_accepted,
+        },
+        request=request,
+    )
+
+
+def _render_reject_audit_modal(request, rec):
+    """Rendu du partial de la modale de rejet Audit avec motif.
+
+    Les erreurs de validation (motif trop court, statut invalide) sont
+    signalées par toast HX-Trigger côté POST (htmx ne swappe pas les 4xx),
+    pas par un re-rendu inline — d'où l'absence de paramètre d'erreur ici.
+    """
+    from django.template.loader import render_to_string
+
+    return render_to_string(
+        "workflow/partials/reject_audit_modal.html",
+        {"recommendation": rec},
+        request=request,
+    )
+
+
+class RecommendationCloseByAuditView(AuditRequiredMixin, View):
+    """
+    Vue de clôture définitive par l'Audit Interne — Story 3.8 (FR20).
+
+    GET  : Retourne la modale de confirmation de clôture (partial HTMX).
+    POST : Appelle close_recommendation_by_audit() et renvoie 204 + HX-Refresh.
+
+    Sécurité :
+        - AuditRequiredMixin : role=AUDIT obligatoire (AC5).
+        - _ensure_not_closed : protection double clôture (AC6).
+        - Service layer : guard FSM PENDING_AUDIT_REVIEW (AC6).
+    """
+
+    def _get_recommendation(self, pk):
+        return selectors.get_recommendation_detail_for_user(
+            pk=pk, user=self.request.user
+        )
+
+    def get(self, request, pk):
+        rec = self._get_recommendation(pk)
+        if rec.status != Recommendation.Status.PENDING_AUDIT_REVIEW:
+            return _audit_action_unavailable_response()
+        return HttpResponse(
+            _render_close_confirm_modal(request, rec)
+        )
+
+    def post(self, request, pk):
+        rec = self._get_recommendation(pk)
+
+        try:
+            _ensure_not_closed(rec)
+            services.close_recommendation_by_audit(
+                recommendation=rec,
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except PermissionDenied as exc:
+            return HttpResponseForbidden(str(exc))
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
+        response = HttpResponse(status=204)
+        response["HX-Refresh"] = "true"
+        response["HX-Trigger"] = json.dumps({
+            "notify": {
+                "msg": "Recommandation clôturée définitivement.",
+                "type": "success",
+            },
+        })
+        return response
+
+
+class RecommendationRejectByAuditView(AuditRequiredMixin, View):
+    """
+    Vue de rejet Audit avec motif — Story 3.8 (AC3, AC4).
+
+    GET  : Retourne la modale de rejet avec textarea motif (partial HTMX).
+    POST : Appelle reject_recommendation_by_audit() et renvoie 204 + HX-Refresh.
+
+    Sécurité :
+        - AuditRequiredMixin : role=AUDIT obligatoire (AC5).
+        - _ensure_not_closed : protection idempotence (AC6).
+        - Service layer : guard motif ≥ 10 chars (AC4), guard FSM (AC6).
+    """
+
+    def _get_recommendation(self, pk):
+        return selectors.get_recommendation_detail_for_user(
+            pk=pk, user=self.request.user
+        )
+
+    def get(self, request, pk):
+        rec = self._get_recommendation(pk)
+        if rec.status != Recommendation.Status.PENDING_AUDIT_REVIEW:
+            return _audit_action_unavailable_response()
+        return HttpResponse(
+            _render_reject_audit_modal(request, rec)
+        )
+
+    def post(self, request, pk):
+        rec = self._get_recommendation(pk)
+        reason = request.POST.get("reason", "")
+
+        try:
+            _ensure_not_closed(rec)
+            services.reject_recommendation_by_audit(
+                recommendation=rec,
+                reason=reason,
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except PermissionDenied as exc:
+            return HttpResponseForbidden(str(exc))
+        except ValueError as exc:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
+        response = HttpResponse(status=204)
+        response["HX-Refresh"] = "true"
+        response["HX-Trigger"] = json.dumps({
+            "notify": {
+                "msg": "Recommandation rejetée et retournée au DM.",
+                "type": "warning",
+            },
+        })
+        return response
+
+
+# =============================================================================
+# Administration des Sources de Recommandation (Story 3.7.b — Audit Admin)
+# =============================================================================
+
+
+def _render_source_form(request, form, source=None):
+    """Rendu du partial formulaire (modal) de source."""
+    from django.template.loader import render_to_string
+    return render_to_string(
+        "workflow/admin/sources/_form_modal.html",
+        {"form": form, "source": source},
+        request=request,
+    )
+
+
+class RecommendationSourceListView(AuditAdminRequiredMixin, ListView):
+    """
+    Vue liste — Administration des sources de recommandation.
+
+    Accès : Audit Admin uniquement (role=AUDIT AND is_audit_admin=True).
+    Affiche toutes les sources (actives et inactives) avec leur statut.
+    """
+
+    template_name = "workflow/admin/sources/list.html"
+    context_object_name = "sources"
+
+    def get_queryset(self):
+        return selectors.get_all_sources()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["active_route"] = "sources-admin"
+        context["topbar_title"] = "Sources de recommandation"
+        context["topbar_subtitle"] = "Paramétrage des sources (internes et externes)"
+        return context
+
+
+class RecommendationSourceCreateView(AuditAdminRequiredMixin, View):
+    """
+    Création d'une source de recommandation.
+
+    GET  : Retourne le partial formulaire vide (HTMX hx-get).
+    POST : Crée la source via le service. Retourne 204+HX-Refresh ou 422+form.
+    """
+
+    def get(self, request):
+        form = RecommendationSourceForm()
+        return HttpResponse(_render_source_form(request, form))
+
+    def post(self, request):
+        form = RecommendationSourceForm(request.POST)
+        if not form.is_valid():
+            return HttpResponse(_render_source_form(request, form), status=422)
+
+        try:
+            services.create_recommendation_source(
+                code=form.cleaned_data["code"],
+                label=form.cleaned_data["label"],
+                is_external=form.cleaned_data["is_external"],
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except Exception as exc:
+            form.add_error(None, str(exc))
+            return HttpResponse(_render_source_form(request, form), status=422)
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {"msg": "Source créée avec succès.", "type": "success"},
+            "closeModal": True,
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+class RecommendationSourceEditView(AuditAdminRequiredMixin, View):
+    """
+    Modification d'une source de recommandation (libellé + is_external).
+
+    GET  : Retourne le partial formulaire prérempli.
+    POST : Met à jour via le service. Retourne 204+HX-Refresh ou 422+form.
+
+    Note : le champ `code` est rendu disabled en édition (AC5 — immuable).
+    """
+
+    def _get_source(self, pk):
+        return get_object_or_404(RecommendationSource, pk=pk)
+
+    def get(self, request, pk):
+        source = self._get_source(pk)
+        form = RecommendationSourceForm(instance=source)
+        return HttpResponse(_render_source_form(request, form, source=source))
+
+    def post(self, request, pk):
+        source = self._get_source(pk)
+        form = RecommendationSourceForm(request.POST, instance=source)
+        if not form.is_valid():
+            return HttpResponse(_render_source_form(request, form, source=source), status=422)
+
+        try:
+            services.update_recommendation_source(
+                source=source,
+                label=form.cleaned_data["label"],
+                is_external=form.cleaned_data["is_external"],
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except Exception as exc:
+            form.add_error(None, str(exc))
+            return HttpResponse(_render_source_form(request, form, source=source), status=422)
+
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {"msg": "Source mise à jour.", "type": "success"},
+            "closeModal": True,
+        })
+        response["HX-Refresh"] = "true"
+        return response
+
+
+class RecommendationSourceToggleView(AuditAdminRequiredMixin, View):
+    """
+    Activation / désactivation d'une source (toggle is_active).
+
+    POST uniquement — sécurité CSRF assurée par le middleware Django.
+    Retourne 204 + HX-Refresh pour recharger le tableau.
+    """
+
+    def post(self, request, pk):
+        source = get_object_or_404(RecommendationSource, pk=pk)
+        try:
+            services.toggle_recommendation_source(
+                source=source,
+                performed_by=request.user,
+                ip_address=_get_client_ip(request),
+            )
+        except Exception as exc:
+            response = HttpResponse(str(exc), status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(exc), "type": "error"},
+            })
+            return response
+
+        action = "activée" if source.is_active else "désactivée"
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {"msg": f"Source {action}.", "type": "success"},
+        })
+        response["HX-Refresh"] = "true"
+        return response
 

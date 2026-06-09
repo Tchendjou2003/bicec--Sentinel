@@ -43,19 +43,22 @@
 
     <!-- Pont entre Django Messages et Alpine Toasts -->
     {% if messages %}
+    <div id="django-messages" style="display: none;">
+        {% for message in messages %}
+            <span class="django-message" data-message="{{ message }}" data-tags="{{ message.tags }}"></span>
+        {% endfor %}
+    </div>
     <script>
         document.addEventListener('alpine:init', () => {
-            {% for message in messages %}
-                {% if message.tags == 'error' %}
-                    Alpine.store('sentinel').notify("{{ message|escapejs }}", 'error');
-                {% elif message.tags == 'success' %}
-                    Alpine.store('sentinel').notify("{{ message|escapejs }}", 'success');
-                {% elif message.tags == 'warning' %}
-                    Alpine.store('sentinel').notify("{{ message|escapejs }}", 'warning');
-                {% else %}
-                    Alpine.store('sentinel').notify("{{ message|escapejs }}", 'info');
-                {% endif %}
-            {% endfor %}
+            const messagesContainer = document.getElementById('django-messages');
+            if (messagesContainer) {
+                messagesContainer.querySelectorAll('.django-message').forEach(el => {
+                    const text = el.getAttribute('data-message');
+                    const tags = el.getAttribute('data-tags');
+                    const type = (tags === 'error' || tags === 'success' || tags === 'warning') ? tags : 'info';
+                    Alpine.store('sentinel').notify(text, type);
+                });
+            }
         });
     </script>
     {% endif %}

@@ -278,6 +278,7 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
         # Livrables
         context["deliverables"] = rec.deliverables.all()
         context["progress"] = rec.progress_percentage
+        context["completed_deliverables_count"] = rec.deliverables.filter(is_completed=True).count()
 
         # AuditLog Timeline — 5 entrées inline + total pour le slide-over
         from apps.audit.models import AuditLog
@@ -2171,6 +2172,7 @@ class RecommendationSourceListView(AuditAdminRequiredMixin, ListView):
 
     template_name = "workflow/admin/sources/list.html"
     context_object_name = "sources"
+    paginate_by = 25
 
     def get_queryset(self):
         return selectors.get_all_sources()

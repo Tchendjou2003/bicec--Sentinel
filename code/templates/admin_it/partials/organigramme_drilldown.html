@@ -1,13 +1,13 @@
 {# Fil d'Ariane #}
-<nav class="flex items-center gap-2 mb-6 text-sm text-gray-500 flex-wrap">
+<nav class="flex items-center gap-2 mb-6 text-sm flex-wrap" style="color:#6F635B;">
   <button hx-get="{% url 'auth:organigramme-list' %}" hx-target="#organigramme-content" class="hover:text-sentinel-orange font-medium flex items-center gap-1 transition-colors">
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     Racine
   </button>
-  
+
   {% for bc in breadcrumb %}
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-gray-300"><path d="m9 18 6-6-6-6"/></svg>
-  <button hx-get="{% url 'auth:organigramme-list' %}?parent_id={{ bc.pk }}" hx-target="#organigramme-content" class="hover:text-sentinel-orange font-medium transition-colors {% if forloop.last %}text-gray-900{% endif %}">
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D8CBBE" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+  <button hx-get="{% url 'auth:organigramme-list' %}?parent_id={{ bc.pk }}" hx-target="#organigramme-content" class="hover:text-sentinel-orange font-medium transition-colors" {% if forloop.last %}style="color:#2D1F1E;"{% endif %}>
     {{ bc.name }}
   </button>
   {% endfor %}
@@ -17,21 +17,16 @@
 {% if departments %}
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
   {% for dept in departments %}
-  <div class="group relative bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-orange-200 transition-all duration-300 cursor-pointer flex flex-col"
+  <div class="group relative bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer flex flex-col" style="border:1px solid #E8DFD6;"
        hx-get="{% url 'auth:organigramme-list' %}?parent_id={{ dept.pk }}" hx-target="#organigramme-content">
-       
+
     <div class="flex items-start justify-between mb-4">
-      {# Badge couleur par niveau indicatif — générique (non lié aux codes BICEC) #}
+      {# Badge couleur famille DS — 3 niveaux indicatifs mappés en 3 teintes #}
       {% with level=dept.type.level %}
-      <div class="inline-flex items-center rounded-md px-2 py-1 text-xs font-bold
-        {% if level == 0 %}bg-purple-100 text-purple-700
-        {% elif level == 1 %}bg-blue-100 text-blue-700
-        {% elif level == 2 %}bg-indigo-100 text-indigo-700
-        {% elif level == 3 %}bg-teal-100 text-teal-700
-        {% elif level == 4 %}bg-amber-100 text-amber-700
-        {% elif level == 5 %}bg-emerald-100 text-emerald-700
-        {% elif level == 6 %}bg-rose-100 text-rose-700
-        {% else %}bg-gray-100 text-gray-600{% endif %}">
+      <div class="inline-flex items-center rounded-md px-2 py-1 text-xs font-bold"
+        {% if level == 0 or level == 1 %}style="background:#E6F2F1;color:#0A4744;"
+        {% elif level == 2 or level == 3 %}style="background:#FFF3EB;color:#A8500F;"
+        {% else %}style="background:#F5EDE6;color:#6F635B;"{% endif %}>
         {{ dept.type.name }}
       </div>
       {% endwith %}
@@ -55,17 +50,17 @@
     </div>
     
     <div class="flex-1">
-      <h3 class="text-base font-bold text-gray-900 leading-tight mb-1 group-hover:text-sentinel-orange transition-colors">{{ dept.name }}</h3>
-      <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">{{ dept.code }}</p>
+      <h3 class="text-base font-bold leading-tight mb-1 group-hover:text-sentinel-orange transition-colors" style="color:#2D1F1E;">{{ dept.name }}</h3>
+      <p class="text-xs uppercase tracking-wider font-semibold" style="color:#6F635B;">{{ dept.code }}</p>
     </div>
-    
-    <div class="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between">
-      <div class="flex items-center gap-1.5 text-sm font-medium {% if dept.child_count > 0 %}text-gray-600{% else %}text-gray-400{% endif %}">
+
+    <div class="mt-4 pt-4 flex items-center justify-between" style="border-top:1px solid #F5EDE6;">
+      <div class="flex items-center gap-1.5 text-sm font-medium" style="color:{% if dept.child_count > 0 %}#6F635B{% else %}#968A80{% endif %};">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
         <span>{{ dept.child_count }} sous-structure{{ dept.child_count|pluralize:"s" }}</span>
       </div>
       {% if dept.child_count > 0 %}
-      <div class="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-orange-50 group-hover:text-sentinel-orange transition-colors">
+      <div class="h-8 w-8 rounded-full flex items-center justify-center group-hover:bg-orange-50 group-hover:text-sentinel-orange transition-colors" style="background:#F8F5F2;">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
       </div>
       {% endif %}
@@ -74,14 +69,14 @@
   {% endfor %}
 </div>
 {% else %}
-<div class="flex flex-col items-center justify-center py-16 text-center animate-fade-in bg-white rounded-2xl border border-gray-100 border-dashed">
-  <div class="h-16 w-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 mb-4">
+<div class="flex flex-col items-center justify-center py-16 text-center animate-fade-in bg-white rounded-2xl border-dashed" style="border:1px dashed #E8DFD6;">
+  <div class="h-16 w-16 rounded-full flex items-center justify-center mb-4" style="background:#F5EDE6;color:#968A80;">
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
   </div>
-  <h3 class="text-lg font-bold text-gray-900 mb-1">Aucune sous-structure</h3>
-  <p class="text-sm text-gray-500 mb-6 max-w-sm">Ce niveau ne contient aucun département ou service actif pour le moment.</p>
+  <h3 class="text-lg font-bold mb-1" style="color:#2D1F1E;">Aucune sous-structure</h3>
+  <p class="text-sm mb-6 max-w-sm" style="color:#6F635B;">Ce niveau ne contient aucun département ou service actif pour le moment.</p>
   {% if current_parent_id %}
-  <button hx-get="{% url 'auth:department-create' %}?parent_id={{ current_parent_id }}" hx-target="#department-modal-content" hx-swap="innerHTML" @click="$store.sentinel.showModal = true" class="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 transition-colors">
+  <button hx-get="{% url 'auth:department-create' %}?parent_id={{ current_parent_id }}" hx-target="#department-modal-content" hx-swap="innerHTML" @click="$store.sentinel.showModal = true" class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors" style="background:#E87722;">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
     Ajouter une sous-structure
   </button>

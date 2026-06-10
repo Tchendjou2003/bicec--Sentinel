@@ -267,8 +267,8 @@ class OrganigrammeTest(TestCase):
         self.assertFormError(response.context["form"], "parent", "Référence circulaire détectée : « Dept B » est déjà un descendant de « Dept A ».")
 
 
-class ITUserCreationTest(TestCase):
-    """Tests création de comptes coquilles vides (AC4)."""
+class ITUserListTest(TestCase):
+    """Tests page liste des comptes Admin IT."""
 
     def setUp(self):
         self.client = Client()
@@ -279,7 +279,6 @@ class ITUserCreationTest(TestCase):
             is_staff=True,
         )
         self.client.force_login(self.admin_user)
-        self.create_url = reverse("auth:admin-user-create")
         self.list_url = reverse("auth:admin-user-list")
 
     def test_user_list_renders(self):
@@ -287,64 +286,6 @@ class ITUserCreationTest(TestCase):
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "admin_it/user_list.html")
-
-    def test_user_create_form_renders(self):
-        """Le formulaire de création s'affiche."""
-        response = self.client.get(self.create_url)
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "admin_it/user_create.html")
-
-    def test_user_create_form_has_no_role_field(self):
-        """AC4 — Le formulaire ne contient PAS de champ rôle."""
-        response = self.client.get(self.create_url)
-        form = response.context["form"]
-        self.assertNotIn("role", form.fields)
-        self.assertNotIn("is_external", form.fields)
-        self.assertNotIn("is_audit_admin", form.fields)
-
-    def test_create_shell_account(self):
-        """AC4 — Créer un compte coquille vide via POST."""
-        response = self.client.post(self.create_url, {
-            "username": "new_user",
-            "first_name": "Jean",
-            "last_name": "Dupont",
-            "email": "jean.dupont@bicec.cm",
-            "password1": "SecurePass123!",
-            "password2": "SecurePass123!",
-        })
-        self.assertRedirects(response, self.list_url)
-        new_user = User.objects.get(username="new_user")
-        self.assertEqual(new_user.role, "")  # Coquille vide
-        self.assertFalse(new_user.is_external)
-        self.assertFalse(new_user.is_audit_admin)
-        self.assertEqual(new_user.first_name, "Jean")
-        self.assertEqual(new_user.email, "jean.dupont@bicec.cm")
-
-        # Test NFR-SEC-05 (AuditLog)
-        self.assertTrue(AuditLog.objects.filter(content_type="User", action=AuditLog.Action.CREATE, object_id=new_user.pk).exists())
-
-    def test_shell_account_is_captured_by_middleware(self):
-        """AC4/FR37 — Le compte coquille vide est bien détecté comme shell_account."""
-        self.client.post(self.create_url, {
-            "username": "shell_test",
-            "first_name": "Test",
-            "last_name": "Shell",
-            "email": "test.shell@bicec.cm",
-            "password1": "SecurePass123!",
-            "password2": "SecurePass123!",
-        })
-        new_user = User.objects.get(username="shell_test")
-        self.assertTrue(new_user.is_shell_account)
-
-    def test_create_user_requires_all_fields(self):
-        """Le formulaire refuse un POST sans les champs requis."""
-        response = self.client.post(self.create_url, {
-            "username": "incomplete",
-            "password1": "SecurePass123!",
-            "password2": "SecurePass123!",
-        })
-        self.assertEqual(response.status_code, 200)  # Re-renders form
-        self.assertFalse(User.objects.filter(username="incomplete").exists())
 
     def test_user_list_filter_shell(self):
         """Le filtre 'shell' ne montre que les coquilles vides."""
@@ -354,6 +295,12 @@ class ITUserCreationTest(TestCase):
         users = response.context["users"]
         for u in users:
             self.assertEqual(u.role, "")
+
+    def test_create_user_route_removed(self):
+        """La route admin-user-create ne doit plus exister (SoD enforcement)."""
+        from django.urls import NoReverseMatch
+        with self.assertRaises(NoReverseMatch):
+            reverse("auth:admin-user-create")
 
 
 class DepartmentDeleteTest(TestCase):

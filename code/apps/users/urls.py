@@ -37,6 +37,27 @@ urlpatterns = [
         views.AdminDashboardView.as_view(),
         name="admin-dashboard",
     ),
+    # ── Monitoring & Surveillance (Story 7.1) ──
+    path(
+        "admin/monitoring/",
+        views.AdminMonitoringDashboardView.as_view(),
+        name="admin-monitoring",
+    ),
+    path(
+        "admin/monitoring/sessions/",
+        views.AdminActiveSessionsView.as_view(),
+        name="admin-sessions",
+    ),
+    path(
+        "admin/monitoring/inactive-users/",
+        views.AdminInactiveUsersView.as_view(),
+        name="admin-inactive-users",
+    ),
+    path(
+        "admin/monitoring/lockouts/<int:pk>/unlock/",
+        views.AdminUnlockAccountView.as_view(),
+        name="admin-unlock",
+    ),
     # ── Provisioning Maker/Checker (Story 6.2.0) ──
     path(
         "admin/provisioning/",
@@ -98,11 +119,6 @@ urlpatterns = [
         "admin/utilisateurs/",
         views.ITUserListView.as_view(),
         name="admin-user-list",
-    ),
-    path(
-        "admin/utilisateurs/create/",
-        views.ITUserCreateView.as_view(),
-        name="admin-user-create",
     ),
     # ── Types d'unités organisationnelles (Story 3.7.b / Phase B) ──
     path(

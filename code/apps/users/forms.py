@@ -10,7 +10,7 @@ Spécifications couvertes :
     - Story 6.2.0 : Provisioning Maker/Checker (UserProvisioningRequestForm)
 """
 from django import forms
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.exceptions import ValidationError
 
 from .models import Department, OrgUnitType, User
@@ -29,31 +29,6 @@ _CHECKBOX_CLASS = (
     "h-5 w-5 rounded border-gray-300 text-sentinel-orange "
     "focus:ring-sentinel-orange/50"
 )
-
-
-class ITUserCreationForm(UserCreationForm):
-    """
-    Formulaire de création de compte par l'Admin (Support IT).
-
-    Volontairement limité à l'identité technique (nom, prénom, email,
-    mot de passe). Les champs `role`, `is_external`, `is_audit_admin`
-    sont physiquement absents du formulaire pour garantir la séparation
-    des fonctions (ADR-10). Le compte créé est une « coquille vide »
-    (FR37) en attente d'habilitation par le Directeur de l'Audit Interne.
-    """
-
-    class Meta(UserCreationForm.Meta):
-        model = User
-        fields = ("username", "first_name", "last_name", "email")
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["first_name"].required = True
-        self.fields["last_name"].required = True
-        self.fields["email"].required = True
-
-        for field in self.fields.values():
-            field.widget.attrs.update({"class": _INPUT_CLASS})
 
 
 class OrgUnitTypeForm(forms.ModelForm):
@@ -261,6 +236,7 @@ class UserProvisioningRequestForm(forms.Form):
     requested_username = forms.CharField(
         label="Identifiant",
         max_length=150,
+        validators=[UnicodeUsernameValidator()],
         widget=forms.TextInput(attrs={
             "class": _INPUT_CLASS,
             "placeholder": "ex. j.dupont",

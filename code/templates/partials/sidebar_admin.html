@@ -7,17 +7,21 @@
     <p class="text-[10px] font-bold uppercase tracking-[0.08em] text-graphite-section px-3 mb-2 mt-1">Administration</p>
     <ul class="space-y-1">
       {% url 'auth:admin-dashboard' as u_dash %}
-      {% include "partials/_sidebar_item.html" with href=u_dash icon="layout-dashboard" label="Dashboard" route="dashboard" %}
-      {% url 'auth:admin-user-list' as u_users %}
-      {% include "partials/_sidebar_item.html" with href=u_users icon="users" label="Utilisateurs" route="utilisateurs" %}
+      {% include "partials/_sidebar_item.html" with href=u_dash icon="layout-dashboard" label="Tableau de bord" route="dashboard" %}
       {% url 'auth:provisioning-list' as u_prov %}
-      {% include "partials/_sidebar_item.html" with href=u_prov icon="shield-check" label="Provisioning" route="provisioning" %}
+      {% include "partials/_sidebar_item.html" with href=u_prov icon="users" label="Utilisateurs" route="provisioning" %}
       {% if user_is_provisioning_approver %}
       {% url 'auth:organigramme-list' as u_org %}
       {% include "partials/_sidebar_item.html" with href=u_org icon="network" label="Organigramme" route="organigramme" %}
       {% url 'auth:org-unit-type-list' as u_types %}
       {% include "partials/_sidebar_item.html" with href=u_types icon="shapes" label="Types d'unités" route="org-unit-types" %}
       {% endif %}
+    </ul>
+
+    <p class="text-[10px] font-bold uppercase tracking-[0.08em] text-graphite-section px-3 mb-2 mt-5">Surveillance</p>
+    <ul class="space-y-1">
+      {% url 'auth:admin-monitoring' as u_monitoring %}
+      {% include "partials/_sidebar_item.html" with href=u_monitoring icon="activity" label="Monitoring" route="monitoring" %}
     </ul>
   </nav>
 

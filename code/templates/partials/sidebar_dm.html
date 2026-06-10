@@ -7,7 +7,7 @@
     <p class="text-[10px] font-bold uppercase tracking-[0.08em] text-graphite-section px-3 mb-2 mt-1">Gestion</p>
     <ul class="space-y-1">
       {% url 'dashboards:home' as u_dash %}
-      {% include "partials/_sidebar_item.html" with href=u_dash icon="layout-dashboard" label="Dashboard" route="dashboard" %}
+      {% include "partials/_sidebar_item.html" with href=u_dash icon="layout-dashboard" label="Tableau de bord" route="dashboard" %}
       {% url 'workflow:recommendation-list' as u_recs %}
       {% include "partials/_sidebar_item.html" with href=u_recs icon="file-text" label="Recommandations" route="recommandations" %}
       {% include "partials/_sidebar_item.html" with href="#" icon="bar-chart-3" label="Rapports" route="rapports" %}

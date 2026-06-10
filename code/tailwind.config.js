@@ -34,7 +34,14 @@ module.exports = {
         "graphite-section": "#8A7F78",
         // Surfaces & hairlines complémentaires
         "surface-sunken": "#F3EFEA",
+        "surface-faint": "#F8F8F5",
         "border-strong": "#D8CBBE",
+        // Texte atténué chaud (labels/corps) — centralise les hex jadis en dur
+        "text-faint": "#968A80",
+        "text-body": "#6F635B",
+        // Renforts sémantiques succès / danger (texte foncé + fond clair)
+        "success-strong": "#1E6B41",
+        "danger-surface": "#FEE2E2",
         // Workflow status — FSM complet + tints (Recommendation.Status)
         "status-draft": "#968A80",        "status-draft-tint": "#F0ECE7",
         "status-assigned": "#2B6CB0",     "status-assigned-tint": "#E8F0F8",
@@ -160,11 +167,26 @@ module.exports = {
         "pulse-slow": { "0%, 100%": { opacity: "1" }, "50%": { opacity: "0.5" } },
         "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
         "slide-up": { from: { opacity: "0", transform: "translateY(12px)" }, to: { opacity: "1", transform: "translateY(0)" } },
+        "float": {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(-18px)" },
+        },
+        "card-in": {
+          from: { opacity: "0", transform: "translateY(14px) scale(0.98)" },
+          to: { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
+        "shake": {
+          "0%, 100%": { transform: "translateX(0)" },
+          "15%, 55%": { transform: "translateX(-5px)" },
+          "35%, 75%": { transform: "translateX(5px)" },
+        },
       },
       animation: {
         "pulse-slow": "pulse-slow 2s ease-in-out infinite",
         "fade-in": "fade-in 0.4s ease-out both",
         "slide-up": "slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both",
+        "card-in": "card-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both",
+        "shake": "shake 0.45s ease-in-out",
       },
     },
   },

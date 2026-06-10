@@ -11,15 +11,19 @@ Spécifications couvertes :
     - FR37 : Redirection des comptes sans rôle (coquilles vides)
     - ADR-10 : Séparation des comptes techniques et des habilitations
 """
+import csv
 import json
 import uuid
+from datetime import timedelta
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied
-from django.http import HttpResponse
+from django.http import HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView, TemplateView
 
@@ -31,7 +35,7 @@ from .mixins import (
     ProvisioningListAccessMixin,
 )
 from .models import Department, OrgUnitType, User, UserProvisioningRequest
-from .forms import DepartmentForm, ITUserCreationForm, OrgUnitTypeForm, UserProvisioningRequestForm
+from .forms import DepartmentForm, OrgUnitTypeForm, UserProvisioningRequestForm
 
 
 class SentinelLoginView(LoginView):
@@ -284,6 +288,156 @@ class AdminDashboardView(AdminRequiredMixin, TemplateView):
         return context
 
 
+class AdminMonitoringDashboardView(AdminRequiredMixin, TemplateView):
+    """Dashboard de surveillance opérationnelle Admin IT (Story 7.1)."""
+    template_name = "admin_it/monitoring/dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["active_route"] = "monitoring"
+        context["topbar_title"] = "Monitoring"
+        context["topbar_subtitle"] = "Surveillance opérationnelle"
+        context["lockouts_count"] = len(selectors.get_active_lockouts())
+        context["sessions_count"] = len(selectors.get_active_sessions())
+        context["inactive_count"] = selectors.get_inactive_users(30).count()
+        context["pending_count"] = selectors.get_pending_provisioning_count()
+        context["worker_health"] = selectors.get_worker_health()
+        context["usage_stats"] = selectors.get_usage_stats()
+        return context
+
+
+class AdminActiveSessionsView(AdminRequiredMixin, TemplateView):
+    """Liste des sessions actives + déconnexion forcée (Story 7.1 / AC2)."""
+    template_name = "admin_it/monitoring/sessions.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["active_route"] = "monitoring"
+        context["topbar_title"] = "Sessions actives"
+        context["topbar_subtitle"] = "Surveillance des connexions"
+        context["sessions"] = selectors.get_active_sessions()
+        return context
+
+    def post(self, request, *args, **kwargs):
+        session_key = request.POST.get("session_key", "")
+        target_username = request.POST.get("target_username", "")
+        if not session_key:
+            return HttpResponse(status=400)
+        # Guard superuser
+        try:
+            from django.contrib.sessions.models import Session
+            session = Session.objects.get(session_key=session_key)
+            data = session.get_decoded()
+            uid = data.get("_auth_user_id")
+            if uid:
+                target = User.objects.filter(pk=uid).first()
+                if target and target.is_superuser:
+                    raise PermissionDenied
+        except Session.DoesNotExist:
+            pass
+        ip = request.META.get("REMOTE_ADDR")
+        services.force_logout_session(
+            session_key=session_key,
+            target_username=target_username,
+            performed_by=request.user,
+            ip_address=ip,
+        )
+        # Ligne ciblée (hx-target=#session-row-N, hx-swap=outerHTML) remplacée par
+        # du vide → elle disparaît. Toast via HX-Trigger:notify (consommé par sentinel.js).
+        response = HttpResponse(status=200)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {"msg": "Session déconnectée.", "type": "success"}
+        })
+        return response
+
+
+class AdminInactiveUsersView(AdminRequiredMixin, ListView):
+    """Comptes inactifs avec export CSV (Story 7.1 / AC3)."""
+    template_name = "admin_it/monitoring/inactive_users.html"
+    context_object_name = "inactive_users"
+    paginate_by = 50
+    ALLOWED_SEUILS = {30, 60, 90}
+
+    def _get_seuil(self) -> int:
+        """Seuil validé (30/60/90), 30 par défaut si absent ou invalide."""
+        try:
+            val = int(self.request.GET.get("seuil", 30))
+        except (TypeError, ValueError):
+            return 30
+        return val if val in self.ALLOWED_SEUILS else 30
+
+    def get_queryset(self):
+        return selectors.get_inactive_users(self._get_seuil())
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["active_route"] = "monitoring"
+        context["topbar_title"] = "Comptes inactifs"
+        context["topbar_subtitle"] = "Détection des comptes dormants"
+        context["seuil"] = self._get_seuil()
+        return context
+
+    def render_to_response(self, context, **response_kwargs):
+        if self.request.GET.get("export") == "csv":
+            return self._csv_response(context)
+        return super().render_to_response(context, **response_kwargs)
+
+    def _csv_response(self, context):
+        date_str = timezone.now().strftime("%Y-%m-%d")
+        filename = f"comptes-inactifs-{date_str}.csv"
+
+        def rows():
+            yield ["username", "prénom", "nom", "email", "rôle", "département", "dernier login"]
+            for u in self.get_queryset():
+                last = u.last_login.strftime("%Y-%m-%d %H:%M") if u.last_login else "Jamais"
+                yield [
+                    u.username, u.first_name, u.last_name, u.email,
+                    u.get_role_display() if u.role else "—",
+                    u.department.name if u.department else "—",
+                    last,
+                ]
+
+        # Pseudo-buffer : csv.writer gère les guillemets/virgules/sauts de ligne.
+        class _Echo:
+            def write(self, value):
+                return value
+
+        writer = csv.writer(_Echo())
+
+        def stream():
+            yield "﻿"  # BOM UTF-8 — accents corrects à l'ouverture Excel
+            for row in rows():
+                yield writer.writerow(row)
+
+        response = StreamingHttpResponse(
+            stream(),
+            content_type="text/csv; charset=utf-8",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+
+class AdminUnlockAccountView(AdminRequiredMixin, View):
+    """Déblocage d'un compte verrouillé (Story 7.1 / AC1)."""
+
+    def post(self, request, pk, *args, **kwargs):
+        ip = request.META.get("REMOTE_ADDR")
+        try:
+            services.unlock_account(
+                access_attempt_pk=pk,
+                performed_by=request.user,
+                ip_address=ip,
+            )
+        except Exception:
+            return HttpResponse(status=404)
+        lockouts = selectors.get_active_lockouts()
+        response = render(request, "admin_it/partials/lockouts_panel.html", {"lockouts": lockouts})
+        response["HX-Trigger"] = json.dumps({
+            "notify": {"msg": "Compte débloqué.", "type": "success"}
+        })
+        return response
+
+
 class OrganigrammeListView(ProvisioningApproverRequiredMixin, TemplateView):
     """
     Liste hiérarchique des départements (Story 1.4 / AC2, AC3).
@@ -321,6 +475,8 @@ class OrganigrammeListView(ProvisioningApproverRequiredMixin, TemplateView):
         context["topbar_title"] = "Organigramme"
         context["topbar_subtitle"] = "Structure institutionnelle BICEC"
         context["total_departments"] = selectors.count_departments()
+        context["org_unit_types"] = OrgUnitType.objects.filter(is_active=True).order_by("level", "name")
+        context["root_departments"] = selectors.get_departments_tree()
         return context
 
 
@@ -495,46 +651,6 @@ class ITUserListView(AdminRequiredMixin, ListView):
         return context
 
 
-class ITUserCreateView(AdminRequiredMixin, View):
-    """
-    Création d'un compte « coquille vide » (Story 1.4 / AC4).
-
-    Le formulaire ne propose AUCUN champ rôle. Le compte créé
-    est automatiquement sans rôle et sera capté par le middleware
-    RoleRequiredMiddleware (FR37).
-    """
-
-    def get(self, request):
-        form = ITUserCreationForm()
-        return render(request, "admin_it/user_create.html", {
-            "form": form,
-            "active_route": "utilisateurs",
-            "topbar_title": "Nouveau compte",
-            "topbar_subtitle": "Création d'un compte coquille vide",
-        })
-
-    def post(self, request):
-        form = ITUserCreationForm(request.POST)
-        if form.is_valid():
-            user = services.create_shell_account_with_audit(
-                form=form, 
-                performed_by=request.user,
-                ip_address=request.META.get("REMOTE_ADDR"),
-            )
-            messages.success(
-                request,
-                f"Compte « {user.username} » créé. "
-                f"En attente d'habilitation par la Direction de l'Audit.",
-            )
-            return redirect("auth:admin-user-list")
-        return render(request, "admin_it/user_create.html", {
-            "form": form,
-            "active_route": "utilisateurs",
-            "topbar_title": "Nouveau compte",
-            "topbar_subtitle": "Création d'un compte coquille vide",
-        })
-
-
 # =============================================================================
 # Provisioning Maker/Checker (Story 6.2.0)
 # =============================================================================
@@ -568,17 +684,27 @@ class ProvisioningRequestListView(ProvisioningListAccessMixin, ListView):
             qs = qs.filter(status=status_filter)
         return qs
 
+    def render_to_response(self, context, **response_kwargs):
+        if self.request.headers.get("HX-Request"):
+            return render(
+                self.request,
+                "admin_it/partials/provisioning_table_partial.html",
+                context,
+            )
+        return super().render_to_response(context, **response_kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["active_route"] = "provisioning"
-        context["topbar_title"] = "Provisioning des comptes"
-        context["topbar_subtitle"] = "Demandes de création — file Maker/Checker"
+        context["topbar_title"] = "Gestion des utilisateurs"
+        context["topbar_subtitle"] = "Demandes de comptes — file Maker/Checker"
         context["status_choices"] = UserProvisioningRequest.Status.choices
         context["status_filter"] = self.request.GET.get("status", "")
         context["is_approver"] = services.user_is_provisioning_approver(self.request.user)
         context["pending_count"] = UserProvisioningRequest.objects.filter(
             status=UserProvisioningRequest.Status.PENDING
         ).count()
+        context["lockouts"] = selectors.get_active_lockouts()
         return context
 
 
@@ -805,6 +931,7 @@ class OrgUnitTypeListView(ProvisioningApproverRequiredMixin, ListView):
     """
     template_name = "admin_it/org_unit_types/list.html"
     context_object_name = "org_unit_types"
+    paginate_by = 25
 
     def get_queryset(self):
         return selectors.get_all_org_unit_types()

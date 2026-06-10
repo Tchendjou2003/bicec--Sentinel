@@ -95,3 +95,7 @@ development_status:
   6-6-triage-auto-assignation: backlog
   6-7-compilation-archive-zip-audit-externe: backlog
   epic-6-retrospective: optional
+
+  # ── Epic 7: Administration Technique & Surveillance ──
+  epic-7: in-progress
+  7-1-admin-it-monitoring-surveillance: ready-for-dev

@@ -226,3 +226,15 @@
     from { background-position: -400px 0; }
     to   { background-position: 400px 0; }
 }
+
+/* HTMX — indicateur de chargement (non injecté automatiquement par HTMX) */
+.htmx-indicator {
+    opacity: 0;
+    transition: opacity 200ms ease-in-out;
+    pointer-events: none;
+}
+.htmx-request .htmx-indicator,
+.htmx-indicator.htmx-request {
+    opacity: 1;
+    pointer-events: auto;
+}

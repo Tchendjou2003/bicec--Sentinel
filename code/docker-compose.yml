@@ -53,6 +53,7 @@ services:
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.prod
+      SKIP_COLLECTSTATIC: "1"
     command: python manage.py qcluster
     volumes:
       - sentinel_media:/app/media

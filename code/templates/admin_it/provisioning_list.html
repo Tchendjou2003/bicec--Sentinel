@@ -5,7 +5,7 @@
 {% block content %}
 <div
   class="max-w-7xl mx-auto space-y-6"
-  x-data="{ slideOverOpen: false }"
+  x-data="{ slideOverOpen: false, pane: window.location.search.includes('pane=lockouts') ? 'lockouts' : 'demandes' }"
   @close-create-provisioning.window="slideOverOpen = false"
   @provisioning-created.window="slideOverOpen = false; htmx.trigger(document.body, 'refresh-list')"
 >
@@ -13,7 +13,7 @@
   {# ── En-tête ── #}
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900 font-heading">Provisioning des comptes</h1>
+      <h1 class="text-2xl font-bold font-heading" style="color:#2D1F1E;">Gestion des utilisateurs</h1>
       <p class="text-sm text-gray-500 mt-1">
         {% if is_approver %}
           {% if pending_count > 0 %}
@@ -48,6 +48,28 @@
     {% endif %}
   </div>
 
+  {# ── Onglets Demandes / Comptes verrouillés ── #}
+  <div class="flex gap-0 border-b-2 border-border-subtle">
+    <button
+      @click="pane='demandes'"
+      :class="pane==='demandes' ? 'border-sentinel-orange text-sentinel-orange' : 'border-transparent text-text-faint'"
+      class="px-5 py-2.5 text-[13px] font-semibold transition-colors duration-150 border-b-2 -mb-0.5">
+      Demandes
+    </button>
+    <button
+      @click="pane='lockouts'"
+      :class="pane==='lockouts' ? 'border-sentinel-orange text-sentinel-orange' : 'border-transparent text-text-faint'"
+      class="px-5 py-2.5 text-[13px] font-semibold transition-colors duration-150 border-b-2 -mb-0.5 flex items-center gap-2">
+      Comptes verrouillés
+      {% if lockouts %}
+      <span class="inline-flex items-center justify-center h-5 min-w-5 rounded-full text-[10.5px] font-bold px-1.5 bg-danger-surface text-danger">{{ lockouts|length }}</span>
+      {% endif %}
+    </button>
+  </div>
+
+  {# ── Onglet Demandes ── #}
+  <div x-show="pane==='demandes'" style="display:block;">
+
   {# ── Filtre statut — dropdown dynamique HTMX ── #}
   <div class="flex items-center gap-3">
     <label for="status-filter" class="text-sm font-medium text-gray-500 shrink-0">Filtrer :</label>
@@ -74,52 +96,15 @@
   </div>
 
   {# ── Tableau ── #}
-  <div
-    id="provisioning-table"
-    class="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden"
-    hx-get="{% url 'auth:provisioning-list' %}{% if status_filter %}?status={{ status_filter }}{% endif %}"
-    hx-trigger="refresh-list from:body"
-    hx-target="#provisioning-table"
-    hx-swap="outerHTML"
-  >
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="border-b border-gray-100 bg-gray-50/50">
-          <th class="px-5 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Identité demandée</th>
-          <th class="px-5 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Rôle</th>
-          <th class="px-5 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Département</th>
-          <th class="px-5 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Demandé par</th>
-          <th class="px-5 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Statut</th>
-          <th class="px-5 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider tabular-nums">Date</th>
-          <th class="px-5 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-gray-50">
-        {% for req in requests %}
-          {% include "admin_it/partials/provisioning_row.html" with req=req is_approver=is_approver %}
-        {% empty %}
-        <tr>
-          <td colspan="7" class="px-5 py-16 text-center">
-            <p class="text-gray-400 text-sm">Aucune demande trouvée.</p>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  {% include "admin_it/partials/provisioning_table_partial.html" %}
 
-    {% if is_paginated %}
-    <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
-      <p class="text-xs text-gray-400">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</p>
-      <div class="flex gap-3">
-        {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="text-xs text-sentinel-orange hover:underline">← Précédente</a>
-        {% endif %}
-        {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="text-xs text-sentinel-orange hover:underline">Suivante →</a>
-        {% endif %}
-      </div>
+  </div>{# /pane demandes #}
+
+  {# ── Onglet Comptes verrouillés ── #}
+  <div x-show="pane==='lockouts'" style="display:none;">
+    <div class="bg-white rounded-xl overflow-hidden shadow-sm border border-border-subtle">
+      {% include "admin_it/partials/lockouts_panel.html" %}
     </div>
-    {% endif %}
   </div>
 
   {# ── Slide-over Provisioning (calqué sur recommendation_list.html) ── #}

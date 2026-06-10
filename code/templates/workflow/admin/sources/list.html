@@ -28,95 +28,113 @@
   {# ── Tableau des sources ── #}
   <div id="sources-table">
     {% if sources %}
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left">
-          <thead>
-            <tr class="bg-gray-50/80 border-b border-gray-100">
-              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Code</th>
-              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Libellé</th>
-              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Type</th>
-              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Statut</th>
-              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Créée le</th>
-              <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500 w-24">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-50">
-            {% for source in sources %}
-            <tr class="group hover:bg-orange-50/30 transition-colors duration-150" id="source-row-{{ source.pk }}">
-              <td class="px-4 py-3.5">
-                <span class="text-sm font-semibold text-gray-900 font-mono">{{ source.code }}</span>
-              </td>
-              <td class="px-4 py-3.5">
-                <span class="text-sm text-gray-700">{{ source.label }}</span>
-              </td>
-              <td class="px-4 py-3.5">
-                {% if source.is_external %}
-                <span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">Externe</span>
-                {% else %}
-                <span class="inline-flex items-center rounded-md bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 ring-1 ring-inset ring-purple-600/20">Interne</span>
-                {% endif %}
-              </td>
-              <td class="px-4 py-3.5">
-                {% if source.is_active %}
-                <span class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
-                  Active
-                </span>
-                {% else %}
-                <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
-                  Inactive
-                </span>
-                {% endif %}
-              </td>
-              <td class="px-4 py-3.5">
-                <span class="text-xs text-gray-500">{{ source.created_at|date:"d/m/Y" }}</span>
-              </td>
-              <td class="px-4 py-3.5">
-                <div class="flex items-center gap-2">
-                  {# Bouton Modifier #}
-                  <button
-                    @click="modalOpen = true"
-                    hx-get="{% url 'workflow:source-edit' source.pk %}"
-                    hx-target="#modal-content"
-                    hx-swap="innerHTML"
-                    class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-sentinel-orange transition-colors"
-                    title="Modifier"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                  </button>
-                  {# Bouton Activer/Désactiver #}
-                  <button
-                    hx-post="{% url 'workflow:source-toggle' source.pk %}"
-                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    class="rounded-lg p-1.5 transition-colors {% if source.is_active %}text-green-500 hover:bg-red-50 hover:text-red-500{% else %}text-gray-400 hover:bg-green-50 hover:text-green-500{% endif %}"
-                    title="{% if source.is_active %}Désactiver{% else %}Activer{% endif %}"
-                  >
-                    {% if source.is_active %}
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="7"/><circle cx="16" cy="12" r="3" fill="currentColor"/></svg>
-                    {% else %}
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="7"/><circle cx="8" cy="12" r="3" fill="currentColor"/></svg>
-                    {% endif %}
-                  </button>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    <div class="bg-white rounded-xl border border-[#E8DFD6] shadow-sm overflow-hidden">
+      <table class="w-full text-left">
+        <thead>
+          <tr class="bg-[#F3EFEA] border-b border-[#E8DFD6]">
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Code</th>
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Libellé</th>
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Type</th>
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Statut</th>
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Créée le</th>
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80] w-24">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-[#F5EDE6]">
+          {% for source in sources %}
+          <tr class="hover:bg-[#FFF3EB] transition-colors duration-150" id="source-row-{{ source.pk }}">
+            <td class="px-4 py-3.5">
+              <span class="text-[13px] font-semibold font-mono" style="color:#2D1F1E;">{{ source.code }}</span>
+            </td>
+            <td class="px-4 py-3.5 text-[13px]" style="color:#2D1F1E;">{{ source.label }}</td>
+            <td class="px-4 py-3.5">
+              {% if source.is_external %}
+              <span class="inline-flex items-center rounded-md px-2 py-1 text-[11.5px] font-semibold"
+                    style="background:#E6F2F1;color:#0A4744;">Externe</span>
+              {% else %}
+              <span class="inline-flex items-center rounded-md px-2 py-1 text-[11.5px] font-semibold"
+                    style="background:#F5EDE6;color:#6F635B;">Interne</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3.5">
+              {% if source.is_active %}
+              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
+                    style="background:#E7F2EC;color:#1E6B41;">
+                <span class="h-1.5 w-1.5 rounded-full" style="background:#2D8B56;"></span>Active
+              </span>
+              {% else %}
+              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
+                    style="background:#F5EDE6;color:#968A80;">
+                <span class="h-1.5 w-1.5 rounded-full" style="background:#968A80;"></span>Inactive
+              </span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3.5 text-[12.5px]" style="color:#6F635B;">{{ source.created_at|date:"d/m/Y" }}</td>
+            <td class="px-4 py-3.5">
+              <div class="flex items-center gap-2">
+                {# Bouton Modifier #}
+                <button
+                  @click="modalOpen = true"
+                  hx-get="{% url 'workflow:source-edit' source.pk %}"
+                  hx-target="#modal-content"
+                  hx-swap="innerHTML"
+                  class="rounded-lg p-1.5 transition-colors hover:bg-[#F5EDE6]"
+                  style="color:#968A80;"
+                  title="Modifier"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                </button>
+                {# Bouton Activer/Désactiver #}
+                <button
+                  hx-post="{% url 'workflow:source-toggle' source.pk %}"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  class="rounded-lg p-1.5 transition-colors"
+                  style="{% if source.is_active %}color:#968A80;{% else %}color:#2D8B56;{% endif %}"
+                  title="{% if source.is_active %}Désactiver{% else %}Activer{% endif %}"
+                >
+                  {% if source.is_active %}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="7"/><circle cx="16" cy="12" r="3" fill="currentColor"/></svg>
+                  {% else %}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="7"/><circle cx="8" cy="12" r="3" fill="currentColor"/></svg>
+                  {% endif %}
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {# ── Pagination ── #}
+      {% if is_paginated %}
+      <div class="flex items-center justify-between px-4 py-3 border-t border-[#E8DFD6] bg-[#F8F8F5]">
+        <p class="text-xs text-[#6F635B]">
+          Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}
+          — {{ page_obj.paginator.count }} source{{ page_obj.paginator.count|pluralize }}
+        </p>
+        <div class="flex gap-1">
+          {% if page_obj.has_previous %}
+          <a href="?page={{ page_obj.previous_page_number }}"
+             class="rounded-lg px-3 py-1.5 text-xs font-medium text-[#2D1F1E] bg-white border border-[#D8CBBE] hover:bg-[#F5EDE6] transition-colors">← Préc.</a>
+          {% endif %}
+          {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}"
+             class="rounded-lg px-3 py-1.5 text-xs font-medium text-[#2D1F1E] bg-white border border-[#D8CBBE] hover:bg-[#F5EDE6] transition-colors">Suiv. →</a>
+          {% endif %}
+        </div>
       </div>
+      {% endif %}
     </div>
     {% else %}
     {# ── Empty State ── #}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 px-8 text-center">
-      <div class="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center mb-6">
-        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange">
+    <div class="bg-white rounded-xl py-16 px-8 text-center" style="border:1px dashed #E8DFD6;">
+      <div class="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-5" style="background:#F5EDE6;color:#E87722;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Z"/><path d="M12 12h.01"/>
         </svg>
       </div>
-      <h3 class="text-lg font-semibold text-gray-900 mb-2">Aucune source configurée</h3>
-      <p class="text-sm text-gray-500 mb-8 max-w-md mx-auto">Créez les sources de recommandations utilisées dans votre organisation.</p>
+      <h3 class="text-lg font-semibold mb-2" style="color:#2D1F1E;">Aucune source configurée</h3>
+      <p class="text-sm mb-8 max-w-md mx-auto" style="color:#6F635B;">Créez les sources de recommandations utilisées dans votre organisation.</p>
       <button
         @click="modalOpen = true"
         hx-get="{% url 'workflow:source-create' %}"

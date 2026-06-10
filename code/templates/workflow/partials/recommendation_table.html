@@ -17,10 +17,8 @@
       </thead>
       <tbody class="divide-y divide-[#F5EDE6]">
         {% for rec in recommendations %}
-        <tr class="group hover:bg-[#FFF3EB] transition-colors duration-150 relative" id="row-{{ rec.pk }}">
-          {# Lien cliquable sur toute la ligne #}
+        <tr class="group hover:bg-[#FFF3EB] cursor-pointer transition-colors duration-150" data-href="{% url 'workflow:recommendation-detail' rec.pk %}" onclick="window.location.href=this.dataset.href" id="row-{{ rec.pk }}">
           <td class="px-4 py-3.5">
-            <a href="{% url 'workflow:recommendation-detail' rec.pk %}" class="absolute inset-0 z-0" aria-label="Détail {{ rec.reference }}"></a>
             <span class="relative z-10 font-mono text-[12.5px] font-semibold text-[#2D1F1E]">{{ rec.reference }}</span>
           </td>
           <td class="px-4 py-3.5">

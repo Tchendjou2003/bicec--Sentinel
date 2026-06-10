@@ -1,0 +1,215 @@
+{# Accordéon preuves — DS tokens. Vars : active_submissions, rejected_submissions, recommendation #}
+
+{# ── Section 1 : Preuves actives (DRAFT / PENDING / ACCEPTED) ── #}
+{% if active_submissions %}
+<div class="bg-white rounded-xl overflow-hidden" style="border:1px solid #E8DFD6;">
+
+  {# En-tête #}
+  <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid #F5EDE6;">
+    <div class="flex items-center gap-2.5">
+      <span class="flex h-6 w-6 items-center justify-center rounded-md shrink-0" style="background:#E6F2F1;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+          stroke="#14746F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+      </span>
+      <h3 class="font-display font-semibold text-[13.5px]" style="color:#2D1F1E;">Soumissions de preuves</h3>
+    </div>
+    <span class="text-[11.5px] font-medium" style="color:#968A80;">
+      {{ active_submissions|length }} soumission{{ active_submissions|length|pluralize }}
+    </span>
+  </div>
+
+  <div class="p-4 space-y-3">
+    {% for submission in active_submissions %}
+    <div class="rounded-xl p-4" style="background:#F8F5F2;border:1px solid #E8DFD6;">
+
+      {# En-tête soumission #}
+      <div class="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <p class="text-[13px] font-semibold" style="color:#2D1F1E;">
+            {{ submission.submitted_by.get_full_name|default:submission.submitted_by.username }}
+          </p>
+          <p class="text-[11.5px] mt-0.5" style="color:#968A80;">
+            {{ submission.created_at|date:"d/m/Y à H:i" }}
+          </p>
+        </div>
+        {# Badge statut DS #}
+        {% if submission.status == 'ACCEPTED' %}
+        <span class="shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold"
+          style="border:1.5px solid #2D8B56;color:#2D8B56;background:white;">Acceptée</span>
+        {% elif submission.status == 'PENDING' %}
+        <span class="shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold"
+          style="border:1.5px solid #C08A2D;color:#C08A2D;background:white;">En attente</span>
+        {% else %}
+        <span class="shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold"
+          style="border:1.5px solid #968A80;color:#968A80;background:white;">Brouillon</span>
+        {% endif %}
+      </div>
+
+      {# Commentaire de résolution #}
+      <div class="rounded-lg p-3 mb-3" style="background:white;border:1px solid #E8DFD6;">
+        <p class="text-[10.5px] font-bold uppercase tracking-[0.06em] mb-1" style="color:#968A80;">
+          Commentaire de résolution
+        </p>
+        <div x-data="{ expanded: false }">
+          <p class="text-[12.5px] whitespace-pre-line" :class="expanded ? '' : 'line-clamp-4'" style="color:#2D1F1E;">{{ submission.comment }}</p>
+          {% if submission.comment|length > 280 %}
+          <button type="button" @click="expanded = !expanded"
+            class="mt-1 text-[11.5px] font-semibold transition-colors"
+            style="color:#14746F;" x-text="expanded ? 'Réduire' : 'Voir plus'"></button>
+          {% endif %}
+        </div>
+      </div>
+
+      {# Fichiers joints #}
+      {% if submission.files.all %}
+      <div class="space-y-1.5">
+        {% for ef in submission.files.all %}
+        <div class="flex items-center gap-3 rounded-lg px-3 py-2" style="background:white;border:1px solid #E8DFD6;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="#968A80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <div class="flex-1 min-w-0">
+            <p class="text-[12.5px] font-medium truncate" style="color:#2D1F1E;">{{ ef.original_filename }}</p>
+            <p class="text-[11px]" style="color:#968A80;">{{ ef.file_size|filesizeformat }} · {{ ef.get_tag_display }}</p>
+          </div>
+          <a href="{% url 'workflow:evidence-download' recommendation.pk ef.pk %}"
+            class="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-semibold transition-colors"
+            style="color:#14746F;" download title="Télécharger {{ ef.original_filename }}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Télécharger
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ── Section 2 : Accordéon soumissions rejetées ── #}
+{% if rejected_submissions %}
+<div x-data="{ open: false }" class="rounded-xl overflow-hidden"
+  style="border:1px solid #EAC5BF;">
+
+  {# Header cliquable #}
+  <button type="button" @click="open = !open"
+    class="w-full flex items-center justify-between px-5 py-3.5 text-left transition-colors"
+    style="background:#FBEAE7;">
+    <div class="flex items-center gap-2.5">
+      <span class="flex h-6 w-6 items-center justify-center rounded-md shrink-0" style="background:#FDDDD8;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+          stroke="#C0392B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>
+        </svg>
+      </span>
+      <span class="text-[13px] font-semibold" style="color:#C0392B;">
+        Historique des rejets
+      </span>
+      <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold"
+        style="background:#FDDDD8;color:#C0392B;">{{ rejected_submissions|length }}</span>
+    </div>
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="#C0392B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+      class="transition-transform duration-200" :class="open ? 'rotate-180' : ''">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  </button>
+
+  {# Corps accordéon #}
+  <div x-show="open"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="px-4 py-4 space-y-3" style="display:none;border-top:1px solid #EAC5BF;background:white;">
+
+    {% for submission in rejected_submissions %}
+    <div class="rounded-xl p-4" style="border:1px solid #EAC5BF;background:#FEFCFC;">
+
+      <div class="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <p class="text-[13px] font-semibold" style="color:#2D1F1E;">
+            {{ submission.submitted_by.get_full_name|default:submission.submitted_by.username }}
+          </p>
+          <p class="text-[11.5px] mt-0.5" style="color:#968A80;">
+            Soumise le {{ submission.created_at|date:"d/m/Y à H:i" }}
+          </p>
+        </div>
+        <span class="shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold"
+          style="border:1.5px solid #C0392B;color:#C0392B;background:white;">Rejetée</span>
+      </div>
+
+      {# Motif de rejet #}
+      {% if submission.review_comment %}
+      <div class="rounded-lg px-3 py-2 mb-3" style="background:white;border:1px solid #EAC5BF;">
+        <p class="text-[10.5px] font-bold uppercase tracking-[0.06em] mb-1" style="color:#C0392B;">Motif de rejet</p>
+        <div x-data="{ expanded: false }">
+          <p class="text-[12.5px] whitespace-pre-line" :class="expanded ? '' : 'line-clamp-4'" style="color:#7A1A1A;">{{ submission.review_comment }}</p>
+          {% if submission.review_comment|length > 280 %}
+          <button type="button" @click="expanded = !expanded"
+            class="mt-1 text-[11.5px] font-semibold transition-colors"
+            style="color:#C0392B;" x-text="expanded ? 'Réduire' : 'Voir plus'"></button>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      {# Reviewer #}
+      {% if submission.reviewed_by %}
+      <p class="text-[11.5px]" style="color:#968A80;">
+        Rejeté par
+        <strong style="color:#2D1F1E;">{{ submission.reviewed_by.get_full_name|default:submission.reviewed_by.username }}</strong>
+        · {{ submission.reviewed_at|date:"d/m/Y à H:i" }}
+      </p>
+      {% endif %}
+
+      {# Fichiers soumis #}
+      {% if submission.files.all %}
+      <div class="space-y-1.5 mt-3">
+        {% for ef in submission.files.all %}
+        <div class="flex items-center gap-2 rounded-lg px-3 py-2" style="background:white;border:1px solid #EAC5BF;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="#968A80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <div class="flex-1 min-w-0">
+            <p class="text-[12px] font-medium truncate" style="color:#6F635B;">{{ ef.original_filename }}</p>
+            <p class="text-[11px]" style="color:#968A80;">{{ ef.file_size|filesizeformat }}</p>
+          </div>
+          <a href="{% url 'workflow:evidence-download' recommendation.pk ef.pk %}"
+            class="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-medium transition-colors"
+            style="color:#968A80;" download title="Télécharger {{ ef.original_filename }}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

@@ -331,6 +331,7 @@ def create_shell_account_with_audit(
 # =============================================================================
 
 
+@transaction.atomic
 def create_provisioning_request(
     *,
     maker: User,
@@ -398,7 +399,7 @@ def create_provisioning_request(
             f"Demandé par {maker.username} — "
             f"Rôle : {req.get_requested_role_display()}"
         ),
-        url=f"/auth/admin/provisioning/{req.pk}/",
+        url="/auth/admin/provisioning/",
     )
 
     return req
@@ -428,6 +429,13 @@ def approve_provisioning_request(
 
     if request.status != UserProvisioningRequest.Status.PENDING:
         raise ValueError("Seules les demandes PENDING peuvent être approuvées.")
+
+    # Séparation des fonctions (ADR-10) : un checker ne peut pas valider sa propre
+    # demande, même s'il cumule les rôles maker (Admin IT) et checker (groupe).
+    if request.requested_by_id == checker.pk:
+        raise PermissionDenied(
+            "Séparation des fonctions : vous ne pouvez pas approuver votre propre demande."
+        )
 
     # Revalider l'unicité username/email (collision potentielle après soumission)
     if User.objects.filter(username__iexact=request.requested_username).exists():
@@ -534,6 +542,7 @@ def approve_provisioning_request(
     return user
 
 
+@transaction.atomic
 def reject_provisioning_request(
     *,
     request: UserProvisioningRequest,
@@ -552,6 +561,13 @@ def reject_provisioning_request(
 
     if request.status != UserProvisioningRequest.Status.PENDING:
         raise ValueError("Seules les demandes PENDING peuvent être rejetées.")
+
+    # Séparation des fonctions (ADR-10) : pas d'auto-rejet de sa propre demande
+    # (cohérent avec l'approbation ; l'auteur dispose de l'annulation à la place).
+    if request.requested_by_id == checker.pk:
+        raise PermissionDenied(
+            "Séparation des fonctions : vous ne pouvez pas rejeter votre propre demande."
+        )
 
     reason = (reason or "").strip()
     if not reason:
@@ -591,6 +607,7 @@ def reject_provisioning_request(
     return request
 
 
+@transaction.atomic
 def cancel_provisioning_request(
     *,
     request: UserProvisioningRequest,
@@ -628,4 +645,50 @@ def cancel_provisioning_request(
     )
 
     return request
+
+
+# ── Monitoring & Surveillance (Story 7.1) ─────────────────────────────────────
+
+def unlock_account(
+    *,
+    access_attempt_pk: int,
+    performed_by: User,
+    ip_address: str | None = None,
+) -> None:
+    """Supprime un lockout axes et trace l'action dans l'AuditLog."""
+    from axes.models import AccessAttempt
+    attempt = AccessAttempt.objects.get(pk=access_attempt_pk)
+    username = attempt.username
+    attempt.delete()
+    AuditLog.objects.create(
+        action=AuditLog.Action.UPDATE,
+        user=performed_by,
+        content_type="AccessAttempt",
+        description=f"Compte débloqué : '{username}' par {performed_by.username}",
+        changes={"action": [None, "unlock"], "username": [None, username]},
+        ip_address=ip_address,
+    )
+
+
+def force_logout_session(
+    *,
+    session_key: str,
+    target_username: str,
+    performed_by: User,
+    ip_address: str | None = None,
+) -> None:
+    """Invalide une session Django et trace l'action dans l'AuditLog."""
+    from django.contrib.sessions.models import Session
+    Session.objects.filter(session_key=session_key).delete()
+    AuditLog.objects.create(
+        action=AuditLog.Action.UPDATE,
+        user=performed_by,
+        content_type="Session",
+        description=(
+            f"Session invalidée pour '{target_username}' "
+            f"par {performed_by.username}"
+        ),
+        changes={"action": [None, "force_logout"], "target_user": [None, target_username]},
+        ip_address=ip_address,
+    )
 

@@ -28,7 +28,7 @@
   </div>
 
   {# ── Filtres et Toolbar (HTMX) ── #}
-  <form id="filter-form" class="bg-white rounded-xl border border-[#E8DFD6] shadow-sm mb-4">
+  <form id="filter-form" hx-indicator="#table-loading" class="bg-white rounded-xl border border-[#E8DFD6] shadow-sm mb-4">
     
     {# ── Ligne 1 : Onglets Historique / Récent (Alpine.js) ── #}
     <div class="px-4 pt-3 border-b border-[#E8DFD6] bg-[#F8F8F5] rounded-t-xl" x-data="{ importStatus: '{{ current_import_status|default:'recent' }}' }">
@@ -126,8 +126,15 @@
   </form>
 
   {# ── Tableau ── #}
-  <div id="recommendation-table">
-    {% include "workflow/partials/recommendation_table.html" %}
+  <div class="relative">
+    {# Skeleton — visible pendant les requêtes HTMX (htmx-indicator géré par HTMX) #}
+    <div id="table-loading" class="htmx-indicator absolute inset-0 z-10 rounded-xl overflow-hidden"
+      style="background:rgba(255,255,255,0.85);">
+      {% include "workflow/partials/recommendation_table_skeleton.html" %}
+    </div>
+    <div id="recommendation-table">
+      {% include "workflow/partials/recommendation_table.html" %}
+    </div>
   </div>
 
   {# ── Slide-over Stepper (Alpine.js) ── #}

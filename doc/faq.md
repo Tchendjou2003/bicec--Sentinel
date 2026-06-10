@@ -16,6 +16,10 @@ Ce document regroupe les questions fréquemment posées concernant l'importation
    - [Pourquoi y a-t-il une limite de 5 fichiers maximum par lot de soumission si le quota global est de 20 Mo ?](#pourquoi-y-a-t-il-une-limite-de-5-fichiers-maximum-par-lot-de-soumission-si-le-quota-global-est-de-20-mo-)
    - [Comment garantir que seules les preuves validées sont scellées à la clôture ?](#comment-garantir-que-seules-les-preuves-validées-sont-scellées-à-la-clôture-)
    - [Comment le scellement cryptographique empêche-t-il la falsification ?](#comment-le-scellement-cryptographique-empêche-t-il-la-falsification-)
+3. [Déploiement et Création des Comptes (Prise en Main)](#3-déploiement-et-création-des-comptes-prise-en-main)
+   - [Comment sont créés les comptes des utilisateurs et des administrateurs Sentinel ?](#comment-sont-créés-les-comptes-des-utilisateurs-et-des-administrateurs-sentinel-)
+   - [Comment doit se passer la toute première prise en main après le déploiement ?](#comment-doit-se-passer-la-toute-première-prise-en-main-après-le-déploiement-)
+   - [Comment faire la première prise en main de la gestion de l'organigramme ?](#comment-faire-la-première-prise-en-main-de-la-gestion-de-lorganigramme-)
 
 ---
 
@@ -87,3 +91,36 @@ Sentinel applique un verrouillage mathématique par signature cryptographique **
 1.  Le serveur calcule une empreinte unique (hash SHA-256) combinant les données textuelles de la recommandation et le contenu binaire exact des seuls fichiers de preuve validés (`APPROVED`), le tout signé par une clé secrète serveur.
 2.  Cette signature finale (le **Sceau**) est enregistrée directement en base de données.
 3.  **Garantie d'intégrité** : Si quelqu'un (y compris un administrateur ayant un accès direct à la base de données SQL) tente de modifier, supprimer ou remplacer un fichier de preuve après la clôture, le calcul du hash ne correspondra plus au Sceau enregistré. Le système lèvera immédiatement une alerte de corruption, invalidant la preuve falsifiée.
+
+---
+
+## 3. Déploiement et Création des Comptes (Prise en Main)
+
+### Comment sont créés les comptes des utilisateurs et des administrateurs Sentinel ?
+Dans Sentinel, par mesure de sécurité bancaire, un compte ne peut **jamais** être créé de bout en bout par une seule et même personne. L'application impose le "Principe des 4 yeux" (Aussi appelé *Maker / Checker*) :
+
+1. **L'Initiateur (La Demande)** : Un membre du support technique remplit un formulaire de création avec le nom, le département et le rôle du futur utilisateur. À ce stade, **aucun compte n'est encore créé**, la demande est simplement mise en attente.
+2. **Le Validateur (La Confirmation)** : Un deuxième administrateur reçoit une notification. Il vérifie les informations de la demande et clique sur "Approuver". C'est uniquement à cet instant précis que le compte utilisateur est réellement créé et activé.
+
+> [!NOTE]
+> Cette règle stricte s'applique à **tous les comptes**, qu'il s'agisse d'un simple employé, du Directeur de l'Audit, ou même d'un futur administrateur Sentinel. La sécurité prime avant tout.
+
+### Comment doit se passer la toute première prise en main après le déploiement ?
+Si le système exige obligatoirement deux personnes pour créer un compte (l'Initiateur et le Validateur), comment fait-on au tout début, juste après l'installation, quand le système est complètement vide ?
+
+C'est là qu'intervient la phase de "Démarrage" (Bootstrap) :
+1. **Le Super-Administrateur technique** : Lors de l'installation, l'équipe informatique crée un compte fantôme "Superuser" directement sur le serveur technique.
+2. **Création des premiers vrais Admins** : Ce Superuser se connecte à Sentinel. Comme il possède les pleins pouvoirs exceptionnels de démarrage, il est autorisé à jouer **à la fois** le rôle de l'Initiateur et du Validateur. Il va ainsi créer et approuver les deux premiers vrais comptes de l'entreprise : l'Admin A et l'Admin B.
+3. **Fermeture de la porte technique** : Dès que l'Admin A et l'Admin B sont créés, le Superuser ne doit plus être utilisé au quotidien. Le fonctionnement normal de la banque prend le relais : désormais, l'Admin A devra demander la création d'un compte, et l'Admin B devra l'approuver.
+
+### Comment faire la première prise en main de la gestion de l'organigramme ?
+L'organigramme est le cœur de Sentinel. C'est lui qui définit le périmètre de sécurité de chaque employé ("Qui a le droit de voir quelles recommandations").
+
+Lors du tout premier déploiement de l'application, **l'organigramme de la banque est totalement vide**. Le système connaît les différents niveaux hiérarchiques (Direction, Service, Agence...), mais aucun département physique n'existe encore.
+
+La toute première mission des nouveaux administrateurs (Admin A et Admin B) est donc de dessiner cette arborescence dans le système :
+1. Rendez-vous dans le menu d'administration de l'Organigramme.
+2. **Créer les racines du système** : Créez des départements totalement indépendants tout en haut de l'arbre, comme la "Direction Générale", la "Direction de l'Audit Interne", et le "Support Informatique" (DSI).
+3. **Déployer les branches** : Sous la racine "Direction Générale", créez vos différentes directions métier (ex: Direction des Risques, Direction des Opérations, etc.), puis les services et les agences qui y sont rattachés.
+
+Une fois que ce squelette organisationnel est en place, l'équipe support pourra enfin commencer à créer les comptes de vos employés en les rangeant proprement dans leurs départements respectifs !

@@ -12,6 +12,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import Http404, HttpResponse
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.views import View
 from django.views.generic import ListView
 
@@ -81,10 +82,16 @@ class NotificationListView(LoginRequiredMixin, ListView):
 
 class NotificationMarkReadView(LoginRequiredMixin, View):
     """
-    POST /notifications/{pk}/mark-read/ → marque comme lue + redirige (AC3).
+    POST /notifications/{pk}/mark-read/ → marque comme lue (AC3).
 
     Sécurité (AC6) : l'utilisateur ne peut agir que sur ses propres notifications.
-    Renvoie HX-Redirect vers l'URL de la notification.
+
+    Deux modes de réponse selon l'appelant (revue PR #15 — ISSUE-015) :
+      - ``inline=1`` (bouton « Marquer lu » de la page liste, qui attend un
+        swap ``closest .notification-card``) → renvoie la carte re-rendue.
+      - sinon (bouton « Consulter », items du dropdown) → HX-Redirect vers
+        ``notif.url``, ou la page notifications si la notif n'a pas d'URL
+        (plus de renvoi arbitraire vers « / »).
     """
 
     def post(self, request, pk):
@@ -96,8 +103,19 @@ class NotificationMarkReadView(LoginRequiredMixin, View):
         notif.is_read = True
         notif.save(update_fields=["is_read"])
 
+        if request.POST.get("inline"):
+            # Swap in-place : la carte re-rendue à l'état « Lu », pas de redirection.
+            html = render_to_string(
+                "notifications/partials/_notification_card.html",
+                {"notif": notif},
+                request=request,
+            )
+            response = HttpResponse(html)
+            response["HX-Trigger"] = json.dumps({"badge-refresh": True})
+            return response
+
         # Rafraîchit le badge via OOB et redirige vers l'URL de destination.
-        redirect_url = notif.url or "/"
+        redirect_url = notif.url or reverse("notifications:list")
         response = HttpResponse(status=204)
         response["HX-Redirect"] = redirect_url
         response["HX-Trigger"] = json.dumps({"badge-refresh": True})
@@ -108,7 +126,12 @@ class NotificationMarkAllReadView(LoginRequiredMixin, View):
     """
     POST /notifications/mark-all-read/ → marque toutes les notifs comme lues (AC3).
 
-    Renvoie le dropdown mis à jour + déclenche le refresh du badge via HX-Trigger.
+    Réponse contextuelle selon l'origine (revue PR #15 — ISSUE-014) :
+      - depuis le dropdown topbar (``HX-Target: notif-panel-container``) →
+        re-rend le dropdown complet dans son conteneur.
+      - depuis la page liste (bouton sans cible) → 204 + ``HX-Refresh`` :
+        la page se recharge avec toutes les cartes à l'état « Lu » (avant,
+        le HTML du dropdown était injecté dans le bouton lui-même).
     """
 
     def post(self, request):
@@ -116,19 +139,25 @@ class NotificationMarkAllReadView(LoginRequiredMixin, View):
             recipient=request.user, is_read=False
         ).update(is_read=True)
 
-        # Re-rend le dropdown (maintenant tout lu) + refreshe le badge.
-        notifications = (
-            Notification.objects.filter(recipient=request.user)
-            .select_related("recommendation")
-            .order_by("-created_at")[:DROPDOWN_LIMIT]
-        )
-        html = render_to_string(
-            "notifications/partials/notification_dropdown.html",
-            {"notifications": notifications, "unread_count": 0},
-            request=request,
-        )
-        response = HttpResponse(html)
-        response["HX-Trigger"] = json.dumps({"badge-refresh": True})
+        if request.headers.get("HX-Target") == "notif-panel-container":
+            # Origine dropdown : re-rendre le dropdown (maintenant tout lu).
+            notifications = (
+                Notification.objects.filter(recipient=request.user)
+                .select_related("recommendation")
+                .order_by("-created_at")[:DROPDOWN_LIMIT]
+            )
+            html = render_to_string(
+                "notifications/partials/notification_dropdown.html",
+                {"notifications": notifications, "unread_count": 0},
+                request=request,
+            )
+            response = HttpResponse(html)
+            response["HX-Trigger"] = json.dumps({"badge-refresh": True})
+            return response
+
+        # Origine page liste : recharger la page (état tout-lu visible).
+        response = HttpResponse(status=204)
+        response["HX-Refresh"] = "true"
         return response
 
 

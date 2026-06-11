@@ -10,11 +10,10 @@
     {# Topbar #}
     {% include "partials/topbar.html" with title=topbar_title subtitle=topbar_subtitle %}
 
-    <main class="flex-1 bg-background p-6 animate-fade-in flex-shrink-0">
+    <main class="flex-1 bg-surface-base p-6 animate-fade-in flex-shrink-0">
       {% block content %}{% endblock %}
     </main>
 
-    {% include "partials/footer.html" %}
   </div>
 </div>
 {% endblock %}

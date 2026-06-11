@@ -85,26 +85,8 @@ module.exports = {
         "text-secondary": "#8B7E74",
         "text-muted": "#B5A99E",
 
-        // Tokens Material/Stitch LEGACY — encore consommés (lockout.html,
-        // shells bg-background, kpi_card accent="primary", provisioning,
-        // audit_admin_members). À migrer vers les tokens Sentinel au fil du
-        // Lot 3.5 ; les 33 tokens sans consommateur ont été purgés (3.6).
-        // ⚠ piège : text-primary (#a23f00) ≠ text-text-primary (#2D1F1E).
-        "background": "#fcf9f8",
-        "primary": "#a23f00",
-        "tertiary": "#006496",
-        "error": "#ba1a1a",
-        "error-container": "#ffdad6",
-        "on-error-container": "#93000a",
-        "on-surface": "#1c1b1b",
-        "on-surface-variant": "#594137",
-        "outline-variant": "#e1bfb2",
-        "surface": "#fcf9f8",
-        "surface-container": "#f0eded",
-        "surface-container-low": "#f6f3f2",
-        "surface-container-high": "#eae7e7",
-        "surface-container-lowest": "#ffffff",
-
+        // Tokens Material/Stitch : intégralement purgés (lot 3.6 terminé) —
+        // tous les consommateurs ont été migrés vers les tokens Sentinel.
 
         // Tokens HSL du kit (Sentinel Export)
         "border": "hsl(var(--border))",

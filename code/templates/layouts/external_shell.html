@@ -4,7 +4,7 @@
 {% block title %}Sentinel — Espace Externe{% endblock %}
 
 {% block body %}
-<div class="min-h-screen flex flex-col bg-background">
+<div class="min-h-screen flex flex-col bg-surface-base">
   {# Topbar simplifiée pour l'espace externe #}
   <header class="bg-card border-b border-border/50 px-6 py-4 flex items-center justify-between shadow-sm">
     <div class="flex items-center gap-3">
@@ -41,11 +41,5 @@
     {% block content %}{% endblock %}
   </main>
 
-  {# Footer simplifié #}
-  <footer class="border-t border-border/50 bg-card px-6 py-3">
-    <p class="text-xs text-muted-foreground text-center">
-      Sentinel — Plateforme de suivi des recommandations d'audit BICEC &middot; Accès externe
-    </p>
-  </footer>
 </div>
 {% endblock %}

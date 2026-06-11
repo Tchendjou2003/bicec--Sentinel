@@ -16,22 +16,19 @@ from django.db import migrations
 from django.utils import timezone
 
 
-def _compute_payload(rec, EvidenceSubmission, EvidenceFile):
-    accepted = (
-        EvidenceSubmission.objects
-        .filter(recommendation=rec, status="ACCEPTED")
-        .order_by("created_at")
-    )
-
+def _compute_payload(rec, accepted_subs, files_by_submission):
+    # accepted_subs / files_by_submission sont préchargés en masse par
+    # backfill_seals() (2 requêtes au total) — pas de requête par reco ici,
+    # sinon N+1 sur une base avec des centaines de recos clôturées.
     file_hashes = {}
     submissions = []
-    for sub in accepted:
+    for sub in accepted_subs:
         submissions.append({
             "id": str(sub.id),
             "submitted_by": str(sub.submitted_by_id),
             "comment": sub.comment,
         })
-        for ef in EvidenceFile.objects.filter(submission=sub):
+        for ef in files_by_submission.get(sub.id, []):
             file_hashes[str(ef.id)] = ef.sha256_hash
 
     sealed_metadata = {
@@ -68,13 +65,39 @@ def backfill_seals(apps, schema_editor):
     EvidenceFile = apps.get_model("workflow", "EvidenceFile")
     HmacSeal = apps.get_model("audit", "HmacSeal")
 
-    closed = Recommendation.objects.filter(
-        status="CLOSED_RESOLVED", hmac_seal__isnull=True
+    closed = list(
+        Recommendation.objects
+        .filter(status="CLOSED_RESOLVED", hmac_seal__isnull=True)
+        .select_related("source", "controlled_department", "department")
     )
+    if not closed:
+        return
+
+    # Préchargement en masse (2 requêtes) — évite le N+1 par reco/soumission.
+    accepted_subs = (
+        EvidenceSubmission.objects
+        .filter(recommendation__in=closed, status="ACCEPTED")
+        .order_by("created_at")
+    )
+    subs_by_reco = {}
+    for sub in accepted_subs:
+        subs_by_reco.setdefault(sub.recommendation_id, []).append(sub)
+
+    files_by_submission = {}
+    for ef in EvidenceFile.objects.filter(submission__in=accepted_subs):
+        files_by_submission.setdefault(ef.submission_id, []).append(ef)
+
+    skipped = 0
     for rec in closed:
         sealed_metadata, file_hashes, hmac_hash = _compute_payload(
-            rec, EvidenceSubmission, EvidenceFile
+            rec, subs_by_reco.get(rec.pk, []), files_by_submission
         )
+        # Invariant réglementaire : un sceau sans preuve documentaire n'a
+        # aucune valeur juridique — ne pas sceller les recos historiques
+        # clôturées sans fichier probatoire accepté.
+        if not file_hashes:
+            skipped += 1
+            continue
         HmacSeal.objects.create(
             id=uuid.uuid4(),
             recommendation=rec,
@@ -84,12 +107,21 @@ def backfill_seals(apps, schema_editor):
             sealed_by_id=rec.closed_by_id,
             sealed_at=rec.closed_at or timezone.now(),
         )
+    if skipped:
+        print(
+            f"\n  [backfill HMAC] {skipped} recommandation(s) clôturée(s) sans "
+            f"preuve acceptée — non scellée(s) (invariant : pas de sceau sans preuve)."
+        )
 
 
 def remove_backfilled_seals(apps, schema_editor):
-    # Réversible : on retire tous les sceaux (la table est entièrement issue de 3.10).
-    HmacSeal = apps.get_model("audit", "HmacSeal")
-    HmacSeal.objects.all().delete()
+    # Volontairement NO-OP : les sceaux HMAC sont des traces d'audit immuables.
+    # Un all().delete() détruirait aussi les sceaux créés par de vraies clôtures
+    # postérieures à l'apply — perte irréversible en cas de rollback accidentel.
+    print(
+        "\n  [backfill HMAC] Rollback no-op : les sceaux HMAC sont des données "
+        "d'audit immuables et ne sont jamais supprimés automatiquement."
+    )
 
 
 class Migration(migrations.Migration):

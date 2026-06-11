@@ -205,7 +205,17 @@ class HmacSealServiceTest(TestCase):
         mig = importlib.import_module(
             "apps.audit.migrations.0006_backfill_hmac_seals"
         )
+        # Reproduire le préchargement en masse fait par backfill_seals()
+        accepted_subs = list(
+            EvidenceSubmission.objects
+            .filter(recommendation=rec, status="ACCEPTED")
+            .order_by("created_at")
+        )
+        files_by_submission = {}
+        for ef in EvidenceFile.objects.filter(submission__in=accepted_subs):
+            files_by_submission.setdefault(ef.submission_id, []).append(ef)
+
         _, _, backfill_hash = mig._compute_payload(
-            rec, EvidenceSubmission, EvidenceFile
+            rec, accepted_subs, files_by_submission
         )
         self.assertEqual(service_hash, backfill_hash)

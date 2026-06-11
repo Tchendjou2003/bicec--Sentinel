@@ -11,8 +11,10 @@ Spécifications couvertes :
 """
 from django import forms
 from django.contrib.auth.validators import UnicodeUsernameValidator
+from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 
+from .form_fields import GroupedByTypeIterator, department_option_label
 from .models import Department, OrgUnitType, User
 
 
@@ -29,6 +31,18 @@ _CHECKBOX_CLASS = (
     "h-5 w-5 rounded border-gray-300 text-sentinel-orange "
     "focus:ring-sentinel-orange/50"
 )
+
+
+class UserLoginForm(AuthenticationForm):
+    """
+    Formulaire de connexion de l'application.
+    Surcharge le message d'erreur standard de Django pour une meilleure UX.
+    """
+    error_messages = {
+        "invalid_login": "Nom d'utilisateur ou mot de passe incorrect.",
+        "inactive": "Ce compte est inactif.",
+    }
+
 
 
 class OrgUnitTypeForm(forms.ModelForm):
@@ -80,7 +94,7 @@ class DepartmentForm(forms.ModelForm):
 
         # Filtrer le queryset parent : actifs uniquement, exclure soi-même
         qs = Department.objects.filter(is_active=True).select_related(
-            "parent", "parent__parent", "parent__parent__parent"
+            "type", "parent", "parent__parent", "parent__parent__parent"
         ).order_by("name")
         if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
@@ -121,8 +135,9 @@ class DepartmentForm(forms.ModelForm):
         """
         Génère un label hiérarchique pour le select du parent.
 
-        Ex: « Direction Générale › Direction du Réseau › Rég. Littoral »
-        au lieu de juste « Rég. Littoral ».
+        Ex: « [SDIR] Direction Générale › Dir. du Réseau › Rég. Littoral (RLIT) »
+        — le chemin reste central (essentiel pour choisir un parent), enrichi
+        du type et du code de l'unité (lot Sélecteurs & unités).
         """
         parts = [obj.name]
         current = obj.parent
@@ -132,7 +147,12 @@ class DepartmentForm(forms.ModelForm):
             current = current.parent
             depth += 1
         parts.reverse()
-        return " › ".join(parts)
+        label = " › ".join(parts)
+        if obj.code:
+            label = f"{label} ({obj.code})"
+        if obj.type_id and obj.type.code:
+            label = f"[{obj.type.code}] {label}"
+        return label
 
     def clean_parent(self):
         """
@@ -231,6 +251,14 @@ class UserProvisioningRequestForm(forms.Form):
             choices.append((initial_val, initial_val))
 
         self.fields["mission_organization"].choices = choices
+
+        # Optgroups par type d'unité + libellé « Nom (CODE) » (lot Sélecteurs).
+        # Ré-affecter le queryset APRÈS l'itérateur : le setter de queryset
+        # fige widget.choices avec l'itérateur courant.
+        dept_field = self.fields["requested_department"]
+        dept_field.iterator = GroupedByTypeIterator
+        dept_field.label_from_instance = department_option_label  # type: ignore[method-assign]
+        dept_field.queryset = dept_field.queryset
 
     # ── Identité ─────────────────────────────────────────────────────
     requested_username = forms.CharField(

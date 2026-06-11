@@ -227,7 +227,7 @@ def get_available_dms_for_department(*, department) -> QuerySet:
         role=User.Role.DM,
         department_id__in=dept_ids,
         is_active=True,
-    ).order_by("last_name", "first_name")
+    ).select_related("department__type").order_by("last_name", "first_name")
 
 
 def get_available_dgs_for_recommendation() -> QuerySet:
@@ -246,7 +246,7 @@ def get_available_dgs_for_recommendation() -> QuerySet:
     return User.objects.filter(
         role=User.Role.DG,
         is_active=True,
-    ).order_by("last_name", "first_name")
+    ).select_related("department__type").order_by("last_name", "first_name")
 
 
 def get_evidence_for_recommendation(*, recommendation, user=None) -> QuerySet[EvidenceSubmission]:
@@ -315,7 +315,7 @@ def get_available_etps_for_department(*, department) -> QuerySet:
         role=User.Role.ETP,
         department_id__in=dept_ids,
         is_active=True,
-    ).order_by("last_name", "first_name")
+    ).select_related("department__type").order_by("last_name", "first_name")
 
 
 def get_draft_submission_for_recommendation(

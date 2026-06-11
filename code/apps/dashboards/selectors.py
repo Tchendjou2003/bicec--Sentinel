@@ -79,7 +79,9 @@ def _get_descendants_map():
 
     # 1 requête : les racines comme objets (pour accéder à .name)
     roots = list(
-        Department.objects.filter(parent__isnull=True, is_active=True).order_by("name")
+        Department.objects.filter(parent__isnull=True, is_active=True)
+        .select_related("type")
+        .order_by("name")
     )
 
     descendants_by_root_id = {}

@@ -153,15 +153,16 @@ class HmacSealServiceTest(TestCase):
         self.dm_user.save(update_fields=["first_name", "last_name"])
         self.assertTrue(verify_recommendation_seal(Recommendation.all_objects.get(pk=rec.pk)))
 
-    # ── M2 — Sans soumission acceptée ────────────────────────────────────
-    def test_seal_without_accepted_submissions(self):
+    # ── F3 — Scellement sans preuves fichier → ValueError (garde COBAC) ────
+    def test_seal_without_accepted_submissions_raises(self):
+        """F3 — generate_recommendation_seal() refuse de sceller un dossier sans fichier probatoire.
+        Un sceau vide n'aurait aucune valeur réglementaire (COBAC / NFR-SEC-04)."""
         rec = self._make_reco(
             status=Recommendation.Status.CLOSED_RESOLVED, with_accepted_evidence=False
         )
-        seal = generate_recommendation_seal(recommendation=rec, sealed_by=self.audit_user)
-        self.assertEqual(seal.sealed_metadata["submissions"], [])
-        self.assertEqual(seal.file_hashes, {})
-        self.assertEqual(len(seal.hmac_hash), 64)
+        with self.assertRaises(ValueError) as cm:
+            generate_recommendation_seal(recommendation=rec, sealed_by=self.audit_user)
+        self.assertIn("aucun fichier probatoire", str(cm.exception))
 
     # ── AC7 — Idempotence ────────────────────────────────────────────────
     def test_seal_idempotent(self):

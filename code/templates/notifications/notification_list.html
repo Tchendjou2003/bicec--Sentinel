@@ -1,0 +1,162 @@
+{% extends "layouts/app_shell.html" %}
+{% load static %}
+
+{% block title %}Mes Notifications — Sentinel{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Animations premium pour la liste de notifications */
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.notification-card {
+  animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.notification-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08), 0 4px 10px -4px rgba(0, 0, 0, 0.04);
+}
+
+.notif-badge {
+  position: relative;
+}
+.notif-badge::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 9999px;
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.5; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-init="$store.sentinel.sidebarOpen = false" class="max-w-5xl mx-auto">
+  
+  <div id="notif-container">
+    
+    {# ── En-tête de page ──────────────────────────────────────────────── #}
+    <div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-heading font-extrabold text-foreground tracking-tight flex items-center gap-3">
+        <span class="bg-sentinel-orange/10 text-sentinel-orange p-2 rounded-xl">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        </span>
+        Centre de Notifications
+      </h1>
+      <p class="mt-2 text-sm text-muted-foreground max-w-2xl">
+        Retrouvez ici l'historique complet de vos alertes, assignations et mises à jour sur vos recommandations d'audit.
+      </p>
+    </div>
+
+    {% if unread_count %}
+    <div class="flex-shrink-0">
+      <button type="button"
+              hx-post="{% url 'notifications:mark-all-read' %}"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-sentinel-orange shadow-sm hover:bg-sentinel-orange/5 hover:border-sentinel-orange/30 transition-smooth group focus:outline-none focus:ring-2 focus:ring-sentinel-orange/50">
+        <svg class="w-4 h-4 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Tout marquer comme lu
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Barre de recherche ────────────────────────────────────────────── #}
+  <div class="mb-6 flex items-center justify-between gap-4">
+    <form hx-get="{% url 'notifications:list' %}"
+          hx-target="#notif-container"
+          hx-select="#notif-container"
+          hx-trigger="keyup changed delay:500ms from:input"
+          class="relative w-full max-w-md">
+      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <svg class="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+      <input type="text" name="q" value="{{ search_query|default:'' }}" placeholder="Rechercher une notification..." 
+             class="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sentinel-orange focus:border-sentinel-orange sm:text-sm transition-smooth shadow-sm">
+      {% if search_query %}
+      <a href="{% url 'notifications:list' %}" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </a>
+      {% endif %}
+    </form>
+  </div>
+
+  {# ── Contenu principal (Liste) ────────────────────────────────────── #}
+  <div class="bg-white rounded-2xl shadow-premium-lg border border-gray-100 overflow-hidden relative">
+    
+    {% if not notifications %}
+    
+    {# ── État vide ──────────────────────────────────────────────────── #}
+    <div class="py-24 flex flex-col items-center justify-center text-center">
+      <div class="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+        <svg class="w-10 h-10 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </div>
+      <h3 class="text-lg font-bold text-foreground">Aucune notification</h3>
+      <p class="text-muted-foreground max-w-sm mt-2 text-sm">Vous êtes à jour ! Aucune alerte ou mise à jour n'a été reçue récemment.</p>
+    </div>
+    
+    {% else %}
+    
+    {# ── Liste paginée ──────────────────────────────────────────────── #}
+    <div class="divide-y divide-gray-100/80">
+      {% for notif in notifications %}
+      {% include "notifications/partials/_notification_card.html" with notif=notif anim_delay=forloop.counter0 %}
+      {% endfor %}
+    </div>
+
+    {# ── Pagination ─────────────────────────────────────────────────── #}
+    {% if is_paginated %}
+    <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/30 flex items-center justify-between sm:px-8">
+      <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+        <div>
+          <p class="text-sm text-muted-foreground">
+            Affichage de <span class="font-semibold text-foreground">{{ page_obj.start_index }}</span> à <span class="font-semibold text-foreground">{{ page_obj.end_index }}</span> sur <span class="font-semibold text-foreground">{{ paginator.count }}</span> notifications
+          </p>
+        </div>
+        <div>
+          <nav class="relative z-0 inline-flex rounded-lg shadow-sm -space-x-px" aria-label="Pagination">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-l-lg border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+              <span class="sr-only">Précédent</span>
+              <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+            </a>
+            {% endif %}
+            
+            {% for num in paginator.page_range %}
+              {% if page_obj.number == num %}
+              <span aria-current="page" class="z-10 bg-sentinel-orange/10 border-sentinel-orange/30 text-sentinel-orange relative inline-flex items-center px-4 py-2 border text-sm font-bold">
+                {{ num }}
+              </span>
+              {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+              <a href="?page={{ num }}" class="bg-white border-gray-300 text-gray-500 hover:bg-gray-50 relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-colors">
+                {{ num }}
+              </a>
+              {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-r-lg border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
+              <span class="sr-only">Suivant</span>
+              <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+            </a>
+            {% endif %}
+          </nav>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

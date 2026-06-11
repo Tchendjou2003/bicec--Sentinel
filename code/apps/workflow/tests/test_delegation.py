@@ -19,7 +19,6 @@ from datetime import timedelta
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
-from django.core.exceptions import ValidationError
 
 from apps.users.models import Department, OrgUnitType, User
 from apps.workflow.models import Recommendation, RecommendationSource

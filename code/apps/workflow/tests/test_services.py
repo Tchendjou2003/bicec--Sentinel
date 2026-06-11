@@ -10,15 +10,13 @@ Tests pour les services de mutation :
 """
 import uuid
 from datetime import timedelta
-from unittest.mock import patch
 
-from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
 from apps.users.models import Department, OrgUnitType, User
-from apps.workflow.models import Deliverable, Recommendation, RecommendationSource
+from apps.workflow.models import Recommendation, RecommendationSource
 from apps.workflow.services import (
     assign_recommendation_to_dm,
     create_recommendation,

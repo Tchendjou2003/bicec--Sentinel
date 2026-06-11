@@ -17,13 +17,15 @@
       {% endif %}
     </div>
     {% if unread_count %}
+    {# Cible le CONTENEUR du panel (la vue renvoie le dropdown complet) — cibler
+       #notif-list imbriquait un dropdown entier dans la zone liste. #}
     <button type="button"
             class="text-sentinel-orange hover:bg-sentinel-orange/10 rounded transition-smooth"
             style="font-size:11px;padding:2px 6px;"
             hx-post="{% url 'notifications:mark-all-read' %}"
             hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-            hx-target="#notif-list"
-            hx-swap="outerHTML">
+            hx-target="#notif-panel-container"
+            hx-swap="innerHTML">
       Tout marquer lu
     </button>
     {% endif %}

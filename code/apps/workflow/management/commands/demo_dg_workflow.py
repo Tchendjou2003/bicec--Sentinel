@@ -41,6 +41,18 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        from django.conf import settings
+        from django.core.management.base import CommandError
+
+        # Garde de production : cette commande ÉCRIT des données de démo
+        # (reco DEMO, notifications, fichiers) qui pollueraient la base et
+        # l'AuditLog d'un environnement réel.
+        if not settings.DEBUG:
+            raise CommandError(
+                "demo_dg_workflow est une commande de démonstration : elle crée "
+                "des données fictives en base. Exécution refusée hors DEBUG."
+            )
+
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         from apps.audit.services import verify_recommendation_seal

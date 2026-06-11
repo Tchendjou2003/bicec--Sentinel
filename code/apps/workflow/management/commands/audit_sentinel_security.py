@@ -297,7 +297,6 @@ class Command(BaseCommand):
     # ════════════════════════════════════════════════════════════════════
     def _chapter_2_rbac(self):
         rec = self._new_reco()
-        detail = f"/audit/recommandations/{rec.pk}/"
 
         # Liste : workflow roles OK, EXT/ADMIN 403, shell 302
         for role, u in self.all_roles:
@@ -458,7 +457,7 @@ class Command(BaseCommand):
             rec = self._new_reco()
             rec = assign_recommendation_to_dg(recommendation=rec, dg=self.u_dg, performed_by=self.u_audit)
             # Forcer une soumission ACCEPTED SANS fichier + statut PENDING_AUDIT_REVIEW
-            sub = EvidenceSubmission.objects.create(
+            EvidenceSubmission.objects.create(
                 recommendation=rec, submitted_by=self.u_dg,
                 status=EvidenceSubmission.SubmissionStatus.ACCEPTED, comment="sans fichier")
             Recommendation.all_objects.filter(pk=rec.pk).update(status="PENDING_AUDIT_REVIEW")

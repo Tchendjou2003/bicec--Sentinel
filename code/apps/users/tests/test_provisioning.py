@@ -130,7 +130,7 @@ class CreateProvisioningRequestServiceTest(TestCase):
         """Chaque membre du groupe reçoit une notification PROVISIONING_REQUESTED."""
         checker2 = _make_checker(username="checker2", group=self.group)
         data = _base_data(dept=self.dept)
-        req = services.create_provisioning_request(
+        services.create_provisioning_request(
             maker=self.maker, cleaned_data=data, ip_address="127.0.0.1"
         )
         # Le checker et checker2 doivent être notifiés

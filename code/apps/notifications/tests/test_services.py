@@ -61,3 +61,17 @@ class EmitNotificationServiceTest(TestCase):
         self._emit(key="key:a")
         self._emit(key="key:b")
         self.assertEqual(Notification.objects.filter(recipient=self.user).count(), 2)
+
+    def test_emit_same_key_different_recipient_creates_notification(self):
+        """Scénario délégation (revue PR #15 — ISSUE-016) : la même clé pour un
+        AUTRE destinataire crée bien une nouvelle notification — la notif de
+        l'ancien porteur ne bloque plus celle du nouveau."""
+        first = self._emit(key="DUE_SOON_J7:reco-1")                      # ancien porteur
+        second = self._emit(key="DUE_SOON_J7:reco-1", recipient=self.other)  # nouveau porteur
+        self.assertIsNotNone(first)
+        self.assertIsNotNone(second)
+        self.assertEqual(
+            Notification.objects.filter(idempotency_key="DUE_SOON_J7:reco-1").count(), 2
+        )
+        # L'idempotence par destinataire reste garantie
+        self.assertIsNone(self._emit(key="DUE_SOON_J7:reco-1", recipient=self.other))

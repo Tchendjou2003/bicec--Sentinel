@@ -94,13 +94,15 @@ class MarkReadViewTest(NotificationViewTestBase):
 class MarkAllReadViewTest(NotificationViewTestBase):
 
     def test_mark_all_read(self):
-        """AC3 — POST mark-all-read → toutes les notifs lues."""
+        """AC3 — POST mark-all-read (page liste) → toutes lues + HX-Refresh."""
         self._notif(key="all:1")
         self._notif(key="all:2")
         self._notif(user=self.other, key="all:other")  # ne doit pas être touché
         self._login()
+        # Sans HX-Target (bouton de la page liste) → 204 + rechargement page.
         response = self.client.post(reverse("notifications:mark-all-read"))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.headers.get("HX-Refresh"), "true")
         # Les notifs du user sont toutes lues
         self.assertEqual(
             Notification.objects.filter(recipient=self.user, is_read=False).count(), 0
@@ -109,6 +111,17 @@ class MarkAllReadViewTest(NotificationViewTestBase):
         self.assertTrue(
             Notification.objects.get(recipient=self.other).is_read is False
         )
+
+    def test_mark_all_read_from_dropdown_returns_dropdown(self):
+        """Origine dropdown (HX-Target: notif-panel-container) → 200 + HTML dropdown."""
+        self._notif(key="dd:1")
+        self._login()
+        response = self.client.post(
+            reverse("notifications:mark-all-read"),
+            HTTP_HX_TARGET="notif-panel-container",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"notif-list", response.content)
 
 
 class UnreadCountContextTest(NotificationViewTestBase):

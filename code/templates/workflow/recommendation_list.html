@@ -6,7 +6,12 @@
 {% block content %}
 {# Le stepper partagé ne ferme plus l'état directement : il dispatch #}
 {# 'close-slide-over' et chaque page hôte le mappe sur SON état (3.1/3.3). #}
-<div x-data="{ slideOverOpen: false }" @close-slide-over.window="slideOverOpen = false" class="space-y-6">
+{# `.camel` capte aussi l'événement serveur `closeSlideOver` (HX-Trigger #}
+{# après création/modification réussie — views.py). #}
+<div x-data="{ slideOverOpen: false }"
+  @close-slide-over.window="slideOverOpen = false"
+  @close-slide-over.camel.window="slideOverOpen = false"
+  class="space-y-6">
 
   {# ── Header + Bouton Créer ── #}
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -181,14 +186,10 @@
 
 </div>
 
-{# ── Listeners HTMX pour fermer le slide-over et rafraîchir le tableau ── #}
+{# ── Listener HTMX pour rafraîchir le tableau après création/modification ── #}
+{# (la fermeture du slide-over passe par @close-slide-over.camel.window sur la #}
+{# racine Alpine — l'ancien Alpine.evaluate ciblait le mauvais scope x-data.) #}
 <script>
-  document.addEventListener('htmx:trigger', function(e) {
-    // Recevoir les triggers HTMX depuis les réponses serveur
-  });
-  document.body.addEventListener('closeSlideOver', function() {
-    Alpine.evaluate(document.querySelector('[x-data]'), 'slideOverOpen = false');
-  });
   document.body.addEventListener('refreshTable', function() {
     htmx.ajax('GET', '{% url "workflow:recommendation-list" %}', {target:'#recommendation-table', swap:'innerHTML'});
   });

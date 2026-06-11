@@ -20,7 +20,7 @@
     {% include "components/kpi_card.html" with title="En retard" value=kpis.overdue accent="destructive" %}
     {% include "components/kpi_card.html" with title="Critiques ouvertes" value=kpis.critique_open accent="warning" %}
     {% with taux_str=kpis.taux_cloture|stringformat:".1f" %}
-      {% include "components/kpi_card.html" with title="Taux de cloture" value=taux_str accent="success" %}
+      {% include "components/kpi_card.html" with title="Taux de clôture" value=taux_str accent="success" %}
     {% endwith %}
     {% include "components/kpi_card.html" with title="En validation Audit" value=kpis.pending_audit_review accent="info" %}
   </div>
@@ -59,7 +59,7 @@
           <tr class="transition-colors hover:bg-gray-50/50
             {% if d.risk_level == 'CRITIQUE' %}bg-red-50/30{% elif d.risk_level == 'MODERE' %}bg-orange-50/20{% endif %}">
             <td class="px-6 py-3.5 font-medium text-gray-900">
-              <a href="{% url 'workflow:recommendation-list' %}" class="hover:text-sentinel-orange hover:underline transition-colors">{{ d.department.name }}</a>
+              <a href="{% url 'workflow:recommendation-list' %}" class="hover:text-sentinel-orange hover:underline transition-colors">{% include "components/org_unit_badge.html" with department=d.department %}</a>
             </td>
             <td class="px-4 py-3.5 text-right tabular-nums text-gray-700">{{ d.actives }}</td>
             <td class="px-4 py-3.5 text-right tabular-nums">

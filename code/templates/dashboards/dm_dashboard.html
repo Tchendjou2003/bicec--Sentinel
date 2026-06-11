@@ -16,7 +16,7 @@
     {% include "components/kpi_card.html" with title="En retard" value=kpis.overdue accent="destructive" %}
     {% include "components/kpi_card.html" with title="A valider (preuves)" value=kpis.pending_dm_review accent="warning" %}
     {% with taux_str=kpis.taux_cloture|stringformat:".1f" %}
-      {% include "components/kpi_card.html" with title="Taux de cloture" value=taux_str accent="success" %}
+      {% include "components/kpi_card.html" with title="Taux de clôture" value=taux_str accent="success" %}
     {% endwith %}
     {% include "components/kpi_card.html" with title="Critiques ouvertes" value=kpis.critique_open accent="destructive" %}
 

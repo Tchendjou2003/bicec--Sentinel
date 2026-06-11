@@ -19,16 +19,16 @@
     {% include "components/kpi_card.html" with title="A valider" value=kpis.pending_audit_review accent="warning" %}
     {% include "components/kpi_card.html" with title="Critiques ouvertes" value=kpis.critique_open accent="destructive" %}
     {% with taux_str=kpis.taux_cloture|stringformat:".1f" %}
-      {% include "components/kpi_card.html" with title="Taux de cloture" value=taux_str accent="success" %}
+      {% include "components/kpi_card.html" with title="Taux de clôture" value=taux_str accent="success" %}
     {% endwith %}
-    {% include "components/kpi_card.html" with title="Creees ce mois" value=kpis.recos_crees_ce_mois accent="info" %}
+    {% include "components/kpi_card.html" with title="Créées ce mois" value=kpis.recos_crees_ce_mois accent="info" %}
   </div>
 </div>
 
 {# ── Section 2 : Inbox Audit (3 files d'action) ── #}
 <div class="mb-8">
   <div class="mb-4 flex items-center gap-2">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
     <h3 class="text-base font-bold text-gray-900 font-heading">Mes actions en attente</h3>
   </div>
 
@@ -38,7 +38,7 @@
     <div class="rounded-xl border border-purple-100 bg-white shadow-premium-sm overflow-hidden">
       <div class="flex items-center justify-between border-b border-purple-100 bg-purple-50/40 px-5 py-3.5">
         <div class="flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-purple-600"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-purple-600"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
           <h4 class="text-xs font-bold uppercase tracking-wide text-purple-700">Preuves à examiner</h4>
         </div>
         {% if pending_review_count > 0 %}
@@ -74,7 +74,7 @@
     <div class="rounded-xl border border-orange-100 bg-white shadow-premium-sm overflow-hidden">
       <div class="flex items-center justify-between border-b border-orange-100 bg-orange-50/40 px-5 py-3.5">
         <div class="flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-orange-600"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18M8 2v4m8-4v4"/></svg>
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-orange-600"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18M8 2v4m8-4v4"/></svg>
           <h4 class="text-xs font-bold uppercase tracking-wide text-orange-700">Reports à décider</h4>
         </div>
         {% if pending_extensions_count > 0 %}
@@ -110,7 +110,7 @@
     <div class="rounded-xl border border-gray-200 bg-white shadow-premium-sm overflow-hidden">
       <div class="flex items-center justify-between border-b border-gray-100 bg-gray-50/60 px-5 py-3.5">
         <div class="flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           <h4 class="text-xs font-bold uppercase tracking-wide text-gray-600">Brouillons à assigner</h4>
         </div>
         {% if draft_unassigned_count > 0 %}
@@ -190,7 +190,7 @@
           {% for d in dept_breakdown %}
           <tr class="transition-colors hover:bg-gray-50/50
             {% if d.risk_level == 'CRITIQUE' %}bg-red-50/30{% elif d.risk_level == 'MODERE' %}bg-orange-50/20{% endif %}">
-            <td class="px-6 py-3.5 font-medium text-gray-900">{{ d.department.name }}</td>
+            <td class="px-6 py-3.5 font-medium text-gray-900">{% include "components/org_unit_badge.html" with department=d.department %}</td>
             <td class="px-4 py-3.5 text-right tabular-nums text-gray-700">{{ d.actives }}</td>
             <td class="px-4 py-3.5 text-right tabular-nums">
               {% if d.overdue > 0 %}<span class="font-semibold text-red-600">{{ d.overdue }}</span>
@@ -236,10 +236,10 @@
 <div class="mb-8">
   <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500">Performance de l'équipe Audit</h3>
   <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-    {% include "components/kpi_card.html" with title="Recos creees ce mois" value=kpis.recos_crees_ce_mois accent="info" %}
-    {% include "components/kpi_card.html" with title="Recos cloturees ce mois" value=kpis.recos_closes_ce_mois accent="success" %}
+    {% include "components/kpi_card.html" with title="Recos créées ce mois" value=kpis.recos_crees_ce_mois accent="info" %}
+    {% include "components/kpi_card.html" with title="Recos clôturées ce mois" value=kpis.recos_closes_ce_mois accent="success" %}
     {% with taux_str=kpis.taux_cloture|stringformat:".1f" %}
-      {% include "components/kpi_card.html" with title="Taux cloture global" value=taux_str accent="primary" %}
+      {% include "components/kpi_card.html" with title="Taux de clôture global" value=taux_str accent="primary" %}
     {% endwith %}
     {% with overdue_str=kpis.taux_overdue|stringformat:".1f" %}
       {% include "components/kpi_card.html" with title="Taux retard global" value=overdue_str accent="destructive" %}

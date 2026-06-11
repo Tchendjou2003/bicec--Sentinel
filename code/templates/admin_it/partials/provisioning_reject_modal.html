@@ -29,6 +29,7 @@
       hx-target="#reject-modal-container"
       hx-swap="outerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      hx-disabled-elt="find button[type='submit']"
       class="px-6 py-5 space-y-4"
     >
       {% csrf_token %}
@@ -54,13 +55,13 @@
         <button
           type="button"
           @click="$el.closest('[id=reject-modal-container]').remove()"
-          class="rounded-lg px-4 py-2 text-sm font-medium text-text-secondary border border-border-subtle hover:bg-surface-base transition-colors"
+          class="btn btn-secondary"
         >
           Annuler
         </button>
         <button
           type="submit"
-          class="rounded-lg bg-status-rejected px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 transition-opacity"
+          class="btn btn-danger"
         >
           Confirmer le rejet
         </button>

@@ -67,7 +67,7 @@
               hx-swap="outerHTML swap:200ms"
               hx-confirm="Déconnecter {{ s.user.username }} ? Sa session active sera invalidée."
               class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors duration-150 text-text-body border border-border-subtle hover:bg-surface-warm">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
               Déconnecter
             </button>
             {% else %}
@@ -81,7 +81,7 @@
     {% else %}
     <div class="flex flex-col items-center justify-center py-16">
       <div class="h-12 w-12 rounded-full flex items-center justify-center mb-4 bg-surface-warm text-text-faint">
-        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
       </div>
       <p class="text-[14px] font-medium mb-1 text-text-primary">Aucune session active</p>
       <p class="text-[13px] text-text-faint">Aucun utilisateur n'est connecté pour le moment.</p>

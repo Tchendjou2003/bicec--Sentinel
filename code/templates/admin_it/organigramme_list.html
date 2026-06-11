@@ -35,7 +35,7 @@
 
       {# Barre de recherche HTMX #}
       <div class="relative w-full sm:w-64 md:w-80" x-data="{ query: '' }" @click.outside="query = ''">
-        <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style="color:#968A80;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style="color:#968A80;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="search" name="q" placeholder="Rechercher une structure..."
                class="w-full pl-9 pr-4 py-2.5 bg-white rounded-xl text-sm outline-none transition-all shadow-sm"
                style="border:1px solid #E8DFD6;"
@@ -54,7 +54,7 @@
         <button hx-get="{% url 'auth:department-create' %}?parent_id={{ current_parent_id|default:'' }}" hx-target="#department-modal-content" hx-swap="innerHTML"
           @click="$store.sentinel.showModal = true"
           class="btn btn-primary">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
           <span>Ajouter</span>
         </button>
 
@@ -65,7 +65,7 @@
               ? 'background:white;color:#A8500F;box-shadow:0 1px 3px rgba(0,0,0,0.08);'
               : 'color:#6F635B;background:transparent;'"
             class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
             Cartes
           </button>
           <button type="button" @click="viewMode='tree'"
@@ -73,7 +73,7 @@
               ? 'background:white;color:#A8500F;box-shadow:0 1px 3px rgba(0,0,0,0.08);'
               : 'color:#6F635B;background:transparent;'"
             class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
             Arborescence
           </button>
         </div>
@@ -109,7 +109,7 @@
         hx-swap="innerHTML"
         class="btn btn-primary shrink-0"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
         Nouveau type
       </button>
     </div>
@@ -125,18 +125,18 @@
               <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Libellé</th>
               <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Niveau</th>
               <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Statut</th>
-              <th class="px-6 py-3 text-right text-[10.5px] font-bold uppercase tracking-[0.06em]" style="color:#968A80;">Actions</th>
+              <th class="px-4 py-3 text-right text-[10.5px] font-bold uppercase tracking-[0.06em]" style="color:#968A80;">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[#F5EDE6]">
             {% for obj in org_unit_types %}
             <tr class="hover:bg-[#FAF7F4] transition-colors duration-150">
-              <td class="px-6 py-4">
+              <td class="px-4 py-2.5">
                 <span class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold" style="background:#F5EDE6;color:#6F635B;font-family:monospace;">{{ obj.code }}</span>
               </td>
-              <td class="px-6 py-4 text-sm font-medium" style="color:#2D1F1E;">{{ obj.name }}</td>
-              <td class="px-6 py-4 text-sm" style="color:#6F635B;font-family:monospace;">{{ obj.level }}</td>
-              <td class="px-6 py-4">
+              <td class="px-4 py-2.5 text-sm font-medium" style="color:#2D1F1E;">{{ obj.name }}</td>
+              <td class="px-4 py-2.5 text-sm" style="color:#6F635B;font-family:monospace;">{{ obj.level }}</td>
+              <td class="px-4 py-2.5">
                 {% if obj.is_active %}
                 <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold" style="background:#E7F2EC;color:#1E6B41;">
                   <span class="h-1.5 w-1.5 rounded-full" style="background:#2D8B56;"></span>Actif
@@ -147,7 +147,7 @@
                 </span>
                 {% endif %}
               </td>
-              <td class="px-6 py-4 text-right">
+              <td class="px-4 py-2.5 text-right">
                 <div class="flex items-center justify-end gap-2">
                   <button
                     @click="modalOpen = true"
@@ -158,7 +158,7 @@
                     style="color:#968A80;"
                     title="Modifier"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                   </button>
                   <button
                     hx-post="{% url 'auth:org-unit-type-toggle' obj.pk %}"
@@ -168,9 +168,9 @@
                     title="{% if obj.is_active %}Désactiver{% else %}Activer{% endif %}"
                   >
                     {% if obj.is_active %}
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64A9 9 0 0 1 20.77 15"/><path d="M6.16 6.16a9 9 0 1 0 12.68 12.68"/><path d="M12 2v4"/><path d="m2 2 20 20"/></svg>
+                    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64A9 9 0 0 1 20.77 15"/><path d="M6.16 6.16a9 9 0 1 0 12.68 12.68"/><path d="M12 2v4"/><path d="m2 2 20 20"/></svg>
                     {% else %}
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
                     {% endif %}
                   </button>
                 </div>
@@ -183,7 +183,7 @@
       {% else %}
       <div class="flex flex-col items-center justify-center py-20 text-center bg-white rounded-xl border-dashed" style="border:1px dashed #E8DFD6;">
         <div class="h-16 w-16 rounded-full flex items-center justify-center mb-4" style="background:#F5EDE6;color:#E87722;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
         </div>
         <h3 class="text-lg font-bold mb-1" style="color:#2D1F1E;">Aucun type défini</h3>
         <p class="text-sm mb-6 max-w-sm" style="color:#6F635B;">Créez les types d'unités structurelles pour paramétrer l'organigramme.</p>
@@ -194,7 +194,7 @@
           hx-swap="innerHTML"
           class="btn btn-primary"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
           Créer le premier type
         </button>
       </div>

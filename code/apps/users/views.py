@@ -35,7 +35,7 @@ from .mixins import (
     ProvisioningListAccessMixin,
 )
 from .models import Department, OrgUnitType, User, UserProvisioningRequest
-from .forms import DepartmentForm, OrgUnitTypeForm, UserProvisioningRequestForm
+from .forms import DepartmentForm, OrgUnitTypeForm, UserLoginForm, UserProvisioningRequestForm
 
 
 class SentinelLoginView(LoginView):
@@ -46,6 +46,7 @@ class SentinelLoginView(LoginView):
     redirection conditionnelle après connexion (FR37).
     """
     template_name = "auth/login.html"
+    form_class = UserLoginForm
 
     def get_success_url(self) -> str:
         """
@@ -485,20 +486,32 @@ class DepartmentCreateView(ProvisioningApproverRequiredMixin, View):
     Création d'un département (HTMX — Story 1.4 / AC2, AC3).
     """
 
+    @staticmethod
+    def _get_parent_locked(pk):
+        if not pk:
+            return None
+        try:
+            return Department.objects.select_related("type").get(pk=pk, is_active=True)
+        except (Department.DoesNotExist, ValueError):
+            return None
+
     def get(self, request):
         parent_id = request.GET.get("parent_id")
-        initial = {"parent": parent_id} if parent_id else None
+        parent_locked = self._get_parent_locked(parent_id)
+        initial = {"parent": parent_id} if parent_locked else None
         form = DepartmentForm(initial=initial)
         return render(request, "admin_it/partials/department_form.html", {
             "form": form,
             "is_edit": False,
+            "parent_locked": parent_locked,
         })
 
     def post(self, request):
         form = DepartmentForm(request.POST)
+        parent_locked = self._get_parent_locked(request.POST.get("_parent_locked_pk"))
         if form.is_valid():
             dept = services.create_department_with_audit(
-                form=form, 
+                form=form,
                 performed_by=request.user,
                 ip_address=request.META.get("REMOTE_ADDR"),
             )
@@ -522,6 +535,7 @@ class DepartmentCreateView(ProvisioningApproverRequiredMixin, View):
         return render(request, "admin_it/partials/department_form.html", {
             "form": form,
             "is_edit": False,
+            "parent_locked": parent_locked,
         })
 
 

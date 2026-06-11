@@ -1,12 +1,12 @@
 {# Fil d'Ariane #}
 <nav class="flex items-center gap-2 mb-6 text-sm flex-wrap" style="color:#6F635B;">
   <button hx-get="{% url 'auth:organigramme-list' %}" hx-target="#organigramme-content" class="hover:text-sentinel-orange font-medium flex items-center gap-1 transition-colors">
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     Racine
   </button>
 
   {% for bc in breadcrumb %}
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D8CBBE" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D8CBBE" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
   <button hx-get="{% url 'auth:organigramme-list' %}?parent_id={{ bc.pk }}" hx-target="#organigramme-content" class="hover:text-sentinel-orange font-medium transition-colors" {% if forloop.last %}style="color:#2D1F1E;"{% endif %}>
     {{ bc.name }}
   </button>
@@ -34,17 +34,17 @@
       {# Actions Rapides (Hover) #}
       <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button type="button" @click.stop="$store.sentinel.showModal = true" hx-get="{% url 'auth:department-create' %}?parent_id={{ dept.pk }}" hx-target="#department-modal-content" hx-swap="innerHTML" class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Ajouter une sous-structure">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
         </button>
         <button type="button" @click.stop="$store.sentinel.showModal = true" hx-get="{% url 'auth:department-edit' dept.pk %}" hx-target="#department-modal-content" hx-swap="innerHTML" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
         </button>
         <button type="button" @click.stop 
                 hx-post="{% url 'auth:department-delete' dept.pk %}" 
                 hx-confirm="Êtes-vous sûr de vouloir supprimer la structure « {{ dept.name }} » ?"
                 hx-target="#organigramme-content"
                 class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
         </button>
       </div>
     </div>
@@ -56,12 +56,12 @@
 
     <div class="mt-4 pt-4 flex items-center justify-between" style="border-top:1px solid #F5EDE6;">
       <div class="flex items-center gap-1.5 text-sm font-medium" style="color:{% if dept.child_count > 0 %}#6F635B{% else %}#968A80{% endif %};">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
         <span>{{ dept.child_count }} sous-structure{{ dept.child_count|pluralize:"s" }}</span>
       </div>
       {% if dept.child_count > 0 %}
       <div class="h-8 w-8 rounded-full flex items-center justify-center group-hover:bg-orange-50 group-hover:text-sentinel-orange transition-colors" style="background:#F8F5F2;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
       </div>
       {% endif %}
     </div>
@@ -71,13 +71,13 @@
 {% else %}
 <div class="flex flex-col items-center justify-center py-16 text-center animate-fade-in bg-white rounded-2xl border-dashed" style="border:1px dashed #E8DFD6;">
   <div class="h-16 w-16 rounded-full flex items-center justify-center mb-4" style="background:#F5EDE6;color:#968A80;">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
   </div>
   <h3 class="text-lg font-bold mb-1" style="color:#2D1F1E;">Aucune sous-structure</h3>
   <p class="text-sm mb-6 max-w-sm" style="color:#6F635B;">Ce niveau ne contient aucun département ou service actif pour le moment.</p>
   {% if current_parent_id %}
   <button hx-get="{% url 'auth:department-create' %}?parent_id={{ current_parent_id }}" hx-target="#department-modal-content" hx-swap="innerHTML" @click="$store.sentinel.showModal = true" class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors" style="background:#E87722;">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
     Ajouter une sous-structure
   </button>
   {% endif %}

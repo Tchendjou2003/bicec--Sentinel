@@ -19,7 +19,7 @@
       hx-swap="innerHTML"
       class="btn btn-primary"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Nouveau type
     </button>
   </div>
@@ -35,18 +35,18 @@
             <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Libellé</th>
             <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Niveau</th>
             <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Statut</th>
-            <th class="px-6 py-3 text-right text-[10.5px] font-bold uppercase tracking-[0.06em]" style="color:#968A80;">Actions</th>
+            <th class="px-4 py-3 text-right text-[10.5px] font-bold uppercase tracking-[0.06em]" style="color:#968A80;">Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-[#F5EDE6]">
           {% for obj in org_unit_types %}
           <tr class="hover:bg-[#FAF7F4] transition-colors duration-150">
-            <td class="px-6 py-4">
+            <td class="px-4 py-2.5">
               <span class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold" style="background:#F5EDE6;color:#6F635B;font-family:monospace;">{{ obj.code }}</span>
             </td>
-            <td class="px-6 py-4 text-sm font-medium" style="color:#2D1F1E;">{{ obj.name }}</td>
-            <td class="px-6 py-4 text-sm" style="color:#6F635B;font-family:monospace;">{{ obj.level }}</td>
-            <td class="px-6 py-4">
+            <td class="px-4 py-2.5 text-sm font-medium" style="color:#2D1F1E;">{{ obj.name }}</td>
+            <td class="px-4 py-2.5 text-sm" style="color:#6F635B;font-family:monospace;">{{ obj.level }}</td>
+            <td class="px-4 py-2.5">
               {% if obj.is_active %}
               <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold" style="background:#E7F2EC;color:#1E6B41;">
                 <span class="h-1.5 w-1.5 rounded-full" style="background:#2D8B56;"></span>Actif
@@ -57,7 +57,7 @@
               </span>
               {% endif %}
             </td>
-            <td class="px-6 py-4 text-right">
+            <td class="px-4 py-2.5 text-right">
               <div class="flex items-center justify-end gap-2">
                 {# Bouton Modifier #}
                 <button
@@ -69,7 +69,7 @@
                   style="color:#968A80;"
                   title="Modifier"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                 </button>
                 {# Bouton Activer/Désactiver #}
                 <button
@@ -80,9 +80,9 @@
                   title="{% if obj.is_active %}Désactiver{% else %}Activer{% endif %}"
                 >
                   {% if obj.is_active %}
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64A9 9 0 0 1 20.77 15"/><path d="M6.16 6.16a9 9 0 1 0 12.68 12.68"/><path d="M12 2v4"/><path d="m2 2 20 20"/></svg>
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64A9 9 0 0 1 20.77 15"/><path d="M6.16 6.16a9 9 0 1 0 12.68 12.68"/><path d="M12 2v4"/><path d="m2 2 20 20"/></svg>
                   {% else %}
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
                   {% endif %}
                 </button>
               </div>
@@ -116,7 +116,7 @@
     {# ── État vide ── #}
     <div class="flex flex-col items-center justify-center py-20 text-center bg-white rounded-xl border-dashed" style="border:1px dashed #E8DFD6;">
       <div class="h-16 w-16 rounded-full flex items-center justify-center mb-4" style="background:#F5EDE6;color:#E87722;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
       </div>
       <h3 class="text-lg font-bold mb-1" style="color:#2D1F1E;">Aucun type défini</h3>
       <p class="text-sm mb-6 max-w-sm" style="color:#6F635B;">Créez les types d'unités structurelles (Direction, Service, Agence…) pour paramétrer l'organigramme.</p>
@@ -127,7 +127,7 @@
         hx-swap="innerHTML"
         class="btn btn-primary"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Créer le premier type
       </button>
     </div>

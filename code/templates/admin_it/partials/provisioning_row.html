@@ -51,6 +51,7 @@
           hx-post="{% url 'auth:provisioning-approve' req.pk %}"
           hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
           hx-confirm="Confirmer l'approbation de cette demande ?"
+          hx-disabled-elt="this"
           class="rounded-md bg-green-50 px-2.5 py-1 text-xs font-medium text-status-approved border border-green-200 hover:bg-green-100 transition-colors duration-150"
         >
           Approuver
@@ -71,6 +72,7 @@
           hx-post="{% url 'auth:provisioning-cancel' req.pk %}"
           hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
           hx-confirm="Annuler votre propre demande ?"
+          hx-disabled-elt="this"
           class="rounded-md px-2.5 py-1 text-xs font-medium text-text-muted border border-border-subtle hover:bg-surface-base transition-colors duration-150"
         >
           Annuler

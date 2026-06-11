@@ -8,8 +8,11 @@
     <meta name="description" content="Sentinel — Plateforme de suivi des recommandations d'audit BICEC">
     <title>{% block title %}Sentinel{% endblock %}</title>
 
+    <!-- Fonts vendorisées (on-premise, aucun CDN) -->
+    <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+
     <!-- Tailwind CSS compilé -->
-    <link rel="stylesheet" href="{% static 'css/output.css' %}?v=17">
+    <link rel="stylesheet" href="{% static 'css/output.css' %}?v=22">
 
     <!-- TomSelect — vendorisé local (Story 6.2.0 / aucun CDN) -->
     <link rel="stylesheet" href="{% static 'vendor/tom-select/tom-select.min.css' %}">

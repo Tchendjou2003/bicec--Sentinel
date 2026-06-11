@@ -168,6 +168,7 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1  # Heure(s)
 AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
 AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_TEMPLATE = "axes/lockout.html"
 
 # ============================================
 # Security

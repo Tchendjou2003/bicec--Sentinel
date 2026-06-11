@@ -43,13 +43,15 @@ module.exports = {
         "success-strong": "#1E6B41",
         "danger-surface": "#FEE2E2",
         // Workflow status — FSM complet + tints (Recommendation.Status)
-        "status-draft": "#968A80",        "status-draft-tint": "#F0ECE7",
+        // status-draft : #6F635B (= text-body) et non #968A80 — contraste
+        // WCAG AA ≈ 4,6:1 sur la tint (correctif 2.3 du rapport UI/UX)
+        "status-draft": "#6F635B",        "status-draft-tint": "#F0ECE7",
         "status-assigned": "#2B6CB0",     "status-assigned-tint": "#E8F0F8",
-        "status-in-progress-tint": "#FFF3EB",
+        "status-in-progress-strong": "#C9631A", "status-in-progress-tint": "#FFF3EB",
         "status-dm-review": "#C08A2D",    "status-dm-review-tint": "#FBF1DF",
         "status-audit-review": "#14746F", "status-audit-review-tint": "#E6F2F1",
-        "status-closed-tint": "#E7F2EC",
-        "status-overdue-tint": "#FBEAE7",
+        "status-closed-strong": "#2D8B56", "status-closed-tint": "#E7F2EC",
+        "status-overdue-strong": "#991B1B", "status-overdue-tint": "#FBEAE7",
         // Criticité (priorité)
         "prio-critique": "#C0392B", "prio-critique-tint": "#FBEAE7",
         "prio-haute": "#C9631A",    "prio-haute-tint": "#FCEFE4",
@@ -157,7 +159,6 @@ module.exports = {
         sans: ["Inter", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "monospace"],
         display: ["Manrope", "system-ui", "sans-serif"],
-        headline: ["Plus Jakarta Sans", "sans-serif"],
         heading: ["Manrope", "sans-serif"],
         body: ["Inter", "sans-serif"],
         label: ["Inter", "sans-serif"],

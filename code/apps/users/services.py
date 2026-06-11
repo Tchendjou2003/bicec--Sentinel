@@ -16,6 +16,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from ..audit.models import AuditLog
@@ -399,7 +400,7 @@ def create_provisioning_request(
             f"Demandé par {maker.username} — "
             f"Rôle : {req.get_requested_role_display()}"
         ),
-        url="/auth/admin/provisioning/",
+        url=reverse("auth:provisioning-list"),
     )
 
     return req
@@ -426,6 +427,11 @@ def approve_provisioning_request(
     from apps.notifications.models import Notification
     from apps.notifications.services import emit_notification
     from .models import ExternalMission  # import local pour éviter la circularité
+
+    # Verrou anti-course : la vue charge l'instance sans lock — sans re-fetch
+    # verrouillé, une décision concurrente (cancel/reject) passerait aussi la
+    # garde d'état et serait écrasée par ce save().
+    request = UserProvisioningRequest.objects.select_for_update().get(pk=request.pk)
 
     if request.status != UserProvisioningRequest.Status.PENDING:
         raise ValueError("Seules les demandes PENDING peuvent être approuvées.")
@@ -536,7 +542,7 @@ def approve_provisioning_request(
         title=f"Votre demande a été approuvée : {request.requested_username}",
         idempotency_key=f"PROVISIONING_APPROVED:{request.pk}",
         body=f"Approuvé par {checker.username}. L'utilisateur peut désormais se connecter.",
-        url="/auth/admin/provisioning/",
+        url=reverse("auth:provisioning-list"),
     )
 
     return user
@@ -558,6 +564,9 @@ def reject_provisioning_request(
     """
     from apps.notifications.models import Notification
     from apps.notifications.services import emit_notification
+
+    # Verrou anti-course (cf. approve_provisioning_request)
+    request = UserProvisioningRequest.objects.select_for_update().get(pk=request.pk)
 
     if request.status != UserProvisioningRequest.Status.PENDING:
         raise ValueError("Seules les demandes PENDING peuvent être rejetées.")
@@ -601,7 +610,7 @@ def reject_provisioning_request(
         title=f"Votre demande a été rejetée : {request.requested_username}",
         idempotency_key=f"PROVISIONING_REJECTED:{request.pk}",
         body=f"Motif : {reason}",
-        url="/auth/admin/provisioning/",
+        url=reverse("auth:provisioning-list"),
     )
 
     return request
@@ -619,6 +628,9 @@ def cancel_provisioning_request(
 
     Seul l'auteur de la demande peut l'annuler et uniquement si elle est PENDING.
     """
+    # Verrou anti-course (cf. approve_provisioning_request)
+    request = UserProvisioningRequest.objects.select_for_update().get(pk=request.pk)
+
     if request.requested_by_id != maker.pk:
         raise PermissionDenied(
             "Seul l'auteur de la demande peut l'annuler."
@@ -649,13 +661,14 @@ def cancel_provisioning_request(
 
 # ── Monitoring & Surveillance (Story 7.1) ─────────────────────────────────────
 
+@transaction.atomic
 def unlock_account(
     *,
     access_attempt_pk: int,
     performed_by: User,
     ip_address: str | None = None,
 ) -> None:
-    """Supprime un lockout axes et trace l'action dans l'AuditLog."""
+    """Supprime un lockout axes et trace l'action dans l'AuditLog (atomique : pas de déblocage sans trace)."""
     from axes.models import AccessAttempt
     attempt = AccessAttempt.objects.get(pk=access_attempt_pk)
     username = attempt.username
@@ -670,6 +683,7 @@ def unlock_account(
     )
 
 
+@transaction.atomic
 def force_logout_session(
     *,
     session_key: str,
@@ -677,7 +691,7 @@ def force_logout_session(
     performed_by: User,
     ip_address: str | None = None,
 ) -> None:
-    """Invalide une session Django et trace l'action dans l'AuditLog."""
+    """Invalide une session Django et trace l'action dans l'AuditLog (atomique : pas d'invalidation sans trace)."""
     from django.contrib.sessions.models import Session
     Session.objects.filter(session_key=session_key).delete()
     AuditLog.objects.create(

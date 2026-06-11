@@ -11,6 +11,8 @@ Spécifications couvertes :
     - FR15 : Upload en brouillon DRAFT (soumission de preuves)
     - FR16 : Soumission verrouille les brouillons en PENDING
 """
+import logging
+
 from uuid import UUID
 
 from django.core.exceptions import PermissionDenied
@@ -1538,11 +1540,23 @@ def run_nightly_notifications() -> dict:
     Django-Q2 le déclenche chaque nuit (cf. migration 0016).
 
     Returns:
-        dict: compteurs agrégés ``{"overdue": {...}, "upcoming": {...}}``.
+        dict: compteurs agrégés ``{"overdue": {...}, "upcoming": {...}}`` —
+        en cas d'échec d'une phase, sa clé vaut ``{"error": "..."}`` et
+        l'autre phase s'exécute quand même (isolation d'échec).
     """
-    overdue = flag_overdue_recommendations()
-    upcoming = notify_upcoming_deadlines()
-    return {"overdue": overdue, "upcoming": upcoming}
+    logger = logging.getLogger(__name__)
+    results: dict = {}
+    try:
+        results["overdue"] = flag_overdue_recommendations()
+    except Exception as exc:  # noqa: BLE001 — le cron ne doit jamais sauter l'autre phase
+        logger.exception("Cron nocturne : échec de la bascule OVERDUE")
+        results["overdue"] = {"error": str(exc)}
+    try:
+        results["upcoming"] = notify_upcoming_deadlines()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Cron nocturne : échec de l'anticipation J-7/J-3")
+        results["upcoming"] = {"error": str(exc)}
+    return results
 
 
 # =============================================================================

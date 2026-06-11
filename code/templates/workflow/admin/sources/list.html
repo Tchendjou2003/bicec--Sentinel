@@ -4,7 +4,7 @@
 {% block title %}Sources de recommandation — Sentinel{% endblock %}
 
 {% block content %}
-<div x-data="{ modalOpen: false, modalContent: '' }" class="space-y-6">
+<div x-data="{ modalOpen: false, modalContent: '' }" class="max-w-5xl mx-auto space-y-6">
 
   {# ── Header + Bouton Créer ── #}
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -88,8 +88,7 @@
                 <button
                   hx-post="{% url 'workflow:source-toggle' source.pk %}"
                   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                  class="rounded-lg p-1.5 transition-colors"
-                  style="{% if source.is_active %}color:#968A80;{% else %}color:#2D8B56;{% endif %}"
+                  class="rounded-lg p-1.5 transition-colors {% if source.is_active %}text-[#968A80]{% else %}text-[#2D8B56]{% endif %}"
                   title="{% if source.is_active %}Désactiver{% else %}Activer{% endif %}"
                 >
                   {% if source.is_active %}

@@ -26,39 +26,39 @@
     <div class="flex items-center gap-2 pb-3" style="border-bottom:1px solid #E8DFD6;">
         <a href="{% url 'workflow:habilitation-list' %}"
            class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-150
-                  {% if not filtre_actif %}text-white{% else %}hover:bg-[#F5EDE6]{% endif %}"
+                  {% if not filtre_actif %}text-white{% else %}hover:bg-surface-warm{% endif %}"
            style="{% if not filtre_actif %}background:#E87722;{% else %}color:#6F635B;{% endif %}">
             Tous les comptes
         </a>
         <a href="{% url 'workflow:habilitation-list' %}?filtre=shell"
            class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-150
-                  {% if filtre_actif == 'shell' %}text-white{% else %}hover:bg-[#F5EDE6]{% endif %}"
+                  {% if filtre_actif == 'shell' %}text-white{% else %}hover:bg-surface-warm{% endif %}"
            style="{% if filtre_actif == 'shell' %}background:#C08A2D;{% else %}color:#6F635B;{% endif %}">
             En attente ({{ total_shell }})
         </a>
         <a href="{% url 'workflow:habilitation-list' %}?filtre=actif"
            class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-150
-                  {% if filtre_actif == 'actif' %}text-white{% else %}hover:bg-[#F5EDE6]{% endif %}"
+                  {% if filtre_actif == 'actif' %}text-white{% else %}hover:bg-surface-warm{% endif %}"
            style="{% if filtre_actif == 'actif' %}background:#2D8B56;{% else %}color:#6F635B;{% endif %}">
             Comptes actifs
         </a>
     </div>
 
     {# ── Table ── #}
-    <div class="bg-white rounded-xl border border-[#E8DFD6] shadow-sm overflow-hidden">
+    <div class="bg-white rounded-xl border border-border-subtle shadow-sm overflow-hidden">
         <table class="min-w-full">
             <thead>
-                <tr class="bg-[#F3EFEA] border-b border-[#E8DFD6]">
-                    <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Utilisateur</th>
-                    <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Rôle</th>
-                    <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Département</th>
-                    <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Admin Audit</th>
-                    <th class="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Actions</th>
+                <tr class="bg-surface-sunken border-b border-border-subtle">
+                    <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Utilisateur</th>
+                    <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Rôle</th>
+                    <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Département</th>
+                    <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Admin Audit</th>
+                    <th class="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-text-faint">Actions</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-[#F5EDE6]">
+            <tbody class="divide-y divide-surface-warm">
                 {% for u in users %}
-                <tr class="hover:bg-[#FFF3EB] transition-colors duration-150">
+                <tr class="hover:bg-sentinel-orange-light transition-colors duration-150">
                     {# Utilisateur #}
                     <td class="px-4 py-3.5">
                         <div class="flex items-center gap-3">
@@ -101,7 +101,7 @@
                     {# Actions #}
                     <td class="px-4 py-3.5 text-right">
                         <a href="{% url 'workflow:habilitation-edit' u.pk %}"
-                           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] font-medium rounded-lg transition-colors hover:bg-[#F5EDE6]"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] font-medium rounded-lg transition-colors hover:bg-surface-warm"
                            style="color:#E87722;">
                             <svg aria-hidden="true" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
@@ -122,18 +122,18 @@
 
         {# ── Pagination ── #}
         {% if page_obj.has_other_pages %}
-        <div class="flex items-center justify-between px-4 py-3 border-t border-[#E8DFD6] bg-[#F8F8F5]">
-            <p class="text-xs text-[#6F635B]">
+        <div class="flex items-center justify-between px-4 py-3 border-t border-border-subtle bg-surface-faint">
+            <p class="text-xs text-text-body">
                 Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}
             </p>
             <div class="flex gap-1">
                 {% if page_obj.has_previous %}
                 <a href="?page={{ page_obj.previous_page_number }}{% if filtre_actif %}&filtre={{ filtre_actif }}{% endif %}"
-                   class="rounded-lg px-3 py-1.5 text-xs font-medium text-[#2D1F1E] bg-white border border-[#D8CBBE] hover:bg-[#F5EDE6] transition-colors">← Préc.</a>
+                   class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">← Préc.</a>
                 {% endif %}
                 {% if page_obj.has_next %}
                 <a href="?page={{ page_obj.next_page_number }}{% if filtre_actif %}&filtre={{ filtre_actif }}{% endif %}"
-                   class="rounded-lg px-3 py-1.5 text-xs font-medium text-[#2D1F1E] bg-white border border-[#D8CBBE] hover:bg-[#F5EDE6] transition-colors">Suiv. →</a>
+                   class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">Suiv. →</a>
                 {% endif %}
             </div>
         </div>

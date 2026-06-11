@@ -26,7 +26,7 @@
   {% endif %}
 
   {# ── C1 : Carte Contexte Mission (DS 1.1) ── #}
-  <div class="bg-white border border-[#E8DFD6] rounded-xl shadow-premium-sm overflow-hidden">
+  <div class="bg-white border border-border-subtle rounded-xl shadow-premium-sm overflow-hidden">
 
     {# Ligne 1 : référence + badges statut/criticité + boutons d'action #}
     <div class="flex items-center justify-between gap-4 px-5 pt-4 pb-3">
@@ -269,7 +269,7 @@
     </div>
 
     {# Séparateur #}
-    <div class="border-t border-[#F5EDE6] mx-5"></div>
+    <div class="border-t border-surface-warm mx-5"></div>
 
     {# Grille 4 colonnes : Direction / Porteur DM / Échéance / Source #}
     <div class="grid grid-cols-4 px-0">
@@ -293,7 +293,7 @@
       </div>
       <div class="px-5 py-3" style="border-left:1px solid #F5EDE6;">
         <p class="text-[10px] font-bold uppercase tracking-[0.06em] mb-1" style="color:#968A80;">Échéance</p>
-        <p class="text-[13.5px] font-bold font-mono {% if recommendation.is_overdue %}text-[#C0392B]{% else %}text-[#2D1F1E]{% endif %}">
+        <p class="text-[13.5px] font-bold font-mono {% if recommendation.is_overdue %}text-danger{% else %}text-text-primary{% endif %}">
           {{ recommendation.due_date|date:"d/m/Y" }}
         </p>
       </div>
@@ -311,8 +311,8 @@
     <div class="space-y-4">
 
       {# C4 — Carte Recommandation (DS spec 1.4) #}
-      <div class="bg-white border border-[#E8DFD6] rounded-xl shadow-premium-sm overflow-hidden">
-        <div class="flex items-center gap-2.5 px-5 py-4 border-b border-[#F5EDE6]">
+      <div class="bg-white border border-border-subtle rounded-xl shadow-premium-sm overflow-hidden">
+        <div class="flex items-center gap-2.5 px-5 py-4 border-b border-surface-warm">
           <svg aria-hidden="true" class="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             style="color:#968A80;">
@@ -325,7 +325,7 @@
           <h2 class="font-display font-semibold text-[13.5px]" style="color:#2D1F1E;">Recommandation</h2>
         </div>
         <div class="p-5">
-          <div class="flex gap-3 bg-[#FFF3EB] border border-[#F5C89A] rounded-lg p-4">
+          <div class="flex gap-3 bg-sentinel-orange-light border border-sentinel-orange-soft rounded-lg p-4">
             <span class="shrink-0 mt-0.5">
               <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E87722"
                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -348,8 +348,8 @@
       </div>
 
       {# C5 — Carte Observations + Anomalies (DS spec 1.5) #}
-      <div class="bg-white border border-[#E8DFD6] rounded-xl shadow-premium-sm overflow-hidden">
-        <div class="flex items-center gap-2.5 px-5 py-4 border-b border-[#F5EDE6]">
+      <div class="bg-white border border-border-subtle rounded-xl shadow-premium-sm overflow-hidden">
+        <div class="flex items-center gap-2.5 px-5 py-4 border-b border-surface-warm">
           <svg aria-hidden="true" class="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             style="color:#968A80;">
@@ -529,8 +529,8 @@
     <div class="space-y-4">
 
       {# C6 — Carte Avancement (DS spec 1.6) #}
-      <div class="bg-white border border-[#E8DFD6] rounded-xl shadow-premium-sm overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-[#F5EDE6]">
+      <div class="bg-white border border-border-subtle rounded-xl shadow-premium-sm overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-warm">
           <div class="flex items-center gap-2">
             <svg aria-hidden="true" class="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -556,7 +556,7 @@
                 <line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
               <span class="font-medium" style="color:#2D1F1E;">Échéance</span>
-              <span class="font-mono font-semibold {% if recommendation.is_overdue %}text-[#C0392B]{% else %}text-[#2D1F1E]{% endif %}">
+              <span class="font-mono font-semibold {% if recommendation.is_overdue %}text-danger{% else %}text-text-primary{% endif %}">
                 {{ recommendation.due_date|date:"d/m/Y" }}
               </span>
             </div>
@@ -569,8 +569,8 @@
 
       {# C7 — Carte Intégrité (DS spec 1.7 — clôturée + scellée uniquement) #}
       {% if is_closed and hmac_seal %}
-      <div class="bg-white border border-[#E8DFD6] rounded-xl shadow-premium-sm overflow-hidden">
-        <div class="flex items-center gap-2.5 px-5 py-4 border-b border-[#F5EDE6]">
+      <div class="bg-white border border-border-subtle rounded-xl shadow-premium-sm overflow-hidden">
+        <div class="flex items-center gap-2.5 px-5 py-4 border-b border-surface-warm">
           <svg aria-hidden="true" class="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             style="color:#968A80;">
@@ -646,8 +646,8 @@
       {% endif %}
 
       {# C8 — Carte Livrables attendus (DS spec 1.8) #}
-      <div class="bg-white border border-[#E8DFD6] rounded-xl shadow-premium-sm overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-[#F5EDE6]">
+      <div class="bg-white border border-border-subtle rounded-xl shadow-premium-sm overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-surface-warm">
           <div class="flex items-center gap-2.5">
             <svg aria-hidden="true" class="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"

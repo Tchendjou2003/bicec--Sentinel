@@ -118,19 +118,19 @@
     <div id="org-unit-types-table">
       {% if org_unit_types %}
       <div class="bg-white rounded-xl overflow-hidden shadow-premium-sm" style="border:1px solid #E8DFD6;">
-        <table class="min-w-full divide-y divide-[#E8DFD6]">
+        <table class="min-w-full divide-y divide-border-subtle">
           <thead>
             <tr style="background:#F3EFEA;">
-              <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Code</th>
-              <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Libellé</th>
-              <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Niveau</th>
-              <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Statut</th>
+              <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Code</th>
+              <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Libellé</th>
+              <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Niveau</th>
+              <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Statut</th>
               <th class="px-4 py-3 text-right text-[10.5px] font-bold uppercase tracking-[0.06em]" style="color:#968A80;">Actions</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-[#F5EDE6]">
+          <tbody class="divide-y divide-surface-warm">
             {% for obj in org_unit_types %}
-            <tr class="hover:bg-[#FAF7F4] transition-colors duration-150">
+            <tr class="hover:bg-surface-base transition-colors duration-150">
               <td class="px-4 py-2.5">
                 <span class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold" style="background:#F5EDE6;color:#6F635B;font-family:monospace;">{{ obj.code }}</span>
               </td>

@@ -21,38 +21,38 @@
   <div class="flex gap-2">
     <a href="{% url 'auth:admin-user-list' %}"
        class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-150
-              {% if not filtre_actif %}text-white{% else %}hover:bg-[#F5EDE6]{% endif %}"
+              {% if not filtre_actif %}text-white{% else %}hover:bg-surface-warm{% endif %}"
        style="{% if not filtre_actif %}background:#E87722;{% else %}color:#6F635B;{% endif %}">
       Tous
     </a>
     <a href="{% url 'auth:admin-user-list' %}?filtre=shell"
        class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-150
-              {% if filtre_actif == 'shell' %}text-white{% else %}hover:bg-[#F5EDE6]{% endif %}"
+              {% if filtre_actif == 'shell' %}text-white{% else %}hover:bg-surface-warm{% endif %}"
        style="{% if filtre_actif == 'shell' %}background:#C08A2D;{% else %}color:#6F635B;{% endif %}">
       Coquilles vides ({{ total_shell }})
     </a>
     <a href="{% url 'auth:admin-user-list' %}?filtre=actif"
        class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-150
-              {% if filtre_actif == 'actif' %}text-white{% else %}hover:bg-[#F5EDE6]{% endif %}"
+              {% if filtre_actif == 'actif' %}text-white{% else %}hover:bg-surface-warm{% endif %}"
        style="{% if filtre_actif == 'actif' %}background:#2D8B56;{% else %}color:#6F635B;{% endif %}">
       Habilités
     </a>
   </div>
 
   {# ── Tableau des utilisateurs ── #}
-  <div class="bg-white rounded-xl border border-[#E8DFD6] shadow-sm overflow-hidden">
+  <div class="bg-white rounded-xl border border-border-subtle shadow-sm overflow-hidden">
     <table class="w-full">
       <thead>
-        <tr class="bg-[#F3EFEA] border-b border-[#E8DFD6]">
-          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Utilisateur</th>
-          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Email</th>
-          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Statut</th>
-          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Département</th>
+        <tr class="bg-surface-sunken border-b border-border-subtle">
+          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Utilisateur</th>
+          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Email</th>
+          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Statut</th>
+          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Département</th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-[#F5EDE6]">
+      <tbody class="divide-y divide-surface-warm">
         {% for u in users %}
-        <tr class="hover:bg-[#FFF3EB] transition-colors duration-150">
+        <tr class="hover:bg-sentinel-orange-light transition-colors duration-150">
           <td class="px-4 py-3.5">
             <div class="flex items-center gap-3">
               <div class="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold uppercase"
@@ -95,19 +95,19 @@
 
     {# ── Pagination ── #}
     {% if is_paginated %}
-    <div class="flex items-center justify-between px-4 py-3 border-t border-[#E8DFD6] bg-[#F8F8F5]">
-      <p class="text-xs text-[#6F635B]">
+    <div class="flex items-center justify-between px-4 py-3 border-t border-border-subtle bg-surface-faint">
+      <p class="text-xs text-text-body">
         Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}
         — {{ page_obj.paginator.count }} utilisateur{{ page_obj.paginator.count|pluralize }}
       </p>
       <div class="flex gap-1">
         {% if page_obj.has_previous %}
         <a href="?page={{ page_obj.previous_page_number }}{% if filtre_actif %}&filtre={{ filtre_actif }}{% endif %}"
-           class="rounded-lg px-3 py-1.5 text-xs font-medium text-[#2D1F1E] bg-white border border-[#D8CBBE] hover:bg-[#F5EDE6] transition-colors">← Préc.</a>
+           class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">← Préc.</a>
         {% endif %}
         {% if page_obj.has_next %}
         <a href="?page={{ page_obj.next_page_number }}{% if filtre_actif %}&filtre={{ filtre_actif }}{% endif %}"
-           class="rounded-lg px-3 py-1.5 text-xs font-medium text-[#2D1F1E] bg-white border border-[#D8CBBE] hover:bg-[#F5EDE6] transition-colors">Suiv. →</a>
+           class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">Suiv. →</a>
         {% endif %}
       </div>
     </div>

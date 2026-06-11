@@ -13,6 +13,7 @@ module.exports = {
         "sentinel-orange": "#E87722",
         "sentinel-orange-dark": "#C9631A",
         "sentinel-orange-light": "#FFF3EB",
+        "sentinel-orange-soft": "#F5C89A",
         "sentinel-brown": "#4A2C2A",
         "sentinel-brown-light": "#6B4A3A",
         "sentinel-brown-dark": "#3A1F1A",

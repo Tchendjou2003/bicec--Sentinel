@@ -1,7 +1,7 @@
 {# Partial — Tableau provisioning (HTMX target pour filtre + auto-refresh) #}
 <div
   id="provisioning-table"
-  class="bg-white rounded-xl border border-[#E8DFD6] shadow-sm overflow-hidden"
+  class="bg-white rounded-xl border border-border-subtle shadow-sm overflow-hidden"
   hx-get="{% url 'auth:provisioning-list' %}{% if status_filter %}?status={{ status_filter }}{% endif %}"
   hx-trigger="refresh-list from:body"
   hx-target="#provisioning-table"
@@ -9,17 +9,17 @@
 >
   <table class="w-full text-sm">
     <thead>
-      <tr class="bg-[#F3EFEA] border-b border-[#E8DFD6]">
-        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Identité demandée</th>
-        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Rôle</th>
-        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Département</th>
-        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Demandé par</th>
-        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Statut</th>
-        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80] tabular-nums">Date</th>
-        <th class="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Actions</th>
+      <tr class="bg-surface-sunken border-b border-border-subtle">
+        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Identité demandée</th>
+        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Rôle</th>
+        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Département</th>
+        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Demandé par</th>
+        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Statut</th>
+        <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint tabular-nums">Date</th>
+        <th class="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-text-faint">Actions</th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-[#F5EDE6]">
+    <tbody class="divide-y divide-surface-warm">
       {% for req in requests %}
         {% include "admin_it/partials/provisioning_row.html" with req=req is_approver=is_approver %}
       {% empty %}
@@ -33,19 +33,19 @@
   </table>
 
   {% if is_paginated %}
-  <div class="flex items-center justify-between px-4 py-3 border-t border-[#E8DFD6] bg-[#F8F8F5]">
-    <p class="text-xs text-[#6F635B]">
+  <div class="flex items-center justify-between px-4 py-3 border-t border-border-subtle bg-surface-faint">
+    <p class="text-xs text-text-body">
       Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}
       — {{ page_obj.paginator.count }} demande{{ page_obj.paginator.count|pluralize }}
     </p>
     <div class="flex gap-1">
       {% if page_obj.has_previous %}
       <a href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}"
-         class="rounded-lg px-3 py-1.5 text-xs font-medium text-[#2D1F1E] bg-white border border-[#D8CBBE] hover:bg-[#F5EDE6] transition-colors">← Préc.</a>
+         class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">← Préc.</a>
       {% endif %}
       {% if page_obj.has_next %}
       <a href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}"
-         class="rounded-lg px-3 py-1.5 text-xs font-medium text-[#2D1F1E] bg-white border border-[#D8CBBE] hover:bg-[#F5EDE6] transition-colors">Suiv. →</a>
+         class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">Suiv. →</a>
       {% endif %}
     </div>
   </div>

@@ -1,6 +1,6 @@
 {# Nœud récursif — vue Arborescence (sans x-collapse) #}
 <div class="rounded-xl bg-white" style="border:1px solid #E8DFD6;" x-data="{ open: false }">
-  <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none rounded-xl hover:bg-[#FFF3EB] transition-colors duration-150"
+  <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none rounded-xl hover:bg-sentinel-orange-light transition-colors duration-150"
        @click="open = !open">
     <div class="flex items-center gap-3">
       {# Badge famille DS — même mapping que drilldown #}
@@ -24,7 +24,7 @@
               hx-get="{% url 'auth:department-edit' node.pk %}"
               hx-target="#department-modal-content"
               hx-swap="innerHTML"
-              class="rounded-lg p-1.5 transition-colors hover:bg-[#F5EDE6]"
+              class="rounded-lg p-1.5 transition-colors hover:bg-surface-warm"
               style="color:#968A80;"
               title="Modifier">
         <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>

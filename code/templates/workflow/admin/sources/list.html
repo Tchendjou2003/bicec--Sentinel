@@ -28,21 +28,21 @@
   {# ── Tableau des sources ── #}
   <div id="sources-table">
     {% if sources %}
-    <div class="bg-white rounded-xl border border-[#E8DFD6] shadow-sm overflow-hidden">
+    <div class="bg-white rounded-xl border border-border-subtle shadow-sm overflow-hidden">
       <table class="w-full text-left">
         <thead>
-          <tr class="bg-[#F3EFEA] border-b border-[#E8DFD6]">
-            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Code</th>
-            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Libellé</th>
-            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Type</th>
-            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Statut</th>
-            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80]">Créée le</th>
-            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#968A80] w-24">Actions</th>
+          <tr class="bg-surface-sunken border-b border-border-subtle">
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Code</th>
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Libellé</th>
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Type</th>
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Statut</th>
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Créée le</th>
+            <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint w-24">Actions</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-[#F5EDE6]">
+        <tbody class="divide-y divide-surface-warm">
           {% for source in sources %}
-          <tr class="hover:bg-[#FFF3EB] transition-colors duration-150" id="source-row-{{ source.pk }}">
+          <tr class="hover:bg-sentinel-orange-light transition-colors duration-150" id="source-row-{{ source.pk }}">
             <td class="px-4 py-3.5">
               <span class="text-[13px] font-semibold font-mono" style="color:#2D1F1E;">{{ source.code }}</span>
             </td>
@@ -78,7 +78,7 @@
                   hx-get="{% url 'workflow:source-edit' source.pk %}"
                   hx-target="#modal-content"
                   hx-swap="innerHTML"
-                  class="rounded-lg p-1.5 transition-colors hover:bg-[#F5EDE6]"
+                  class="rounded-lg p-1.5 transition-colors hover:bg-surface-warm"
                   style="color:#968A80;"
                   title="Modifier"
                 >
@@ -107,19 +107,19 @@
 
       {# ── Pagination ── #}
       {% if is_paginated %}
-      <div class="flex items-center justify-between px-4 py-3 border-t border-[#E8DFD6] bg-[#F8F8F5]">
-        <p class="text-xs text-[#6F635B]">
+      <div class="flex items-center justify-between px-4 py-3 border-t border-border-subtle bg-surface-faint">
+        <p class="text-xs text-text-body">
           Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}
           — {{ page_obj.paginator.count }} source{{ page_obj.paginator.count|pluralize }}
         </p>
         <div class="flex gap-1">
           {% if page_obj.has_previous %}
           <a href="?page={{ page_obj.previous_page_number }}"
-             class="rounded-lg px-3 py-1.5 text-xs font-medium text-[#2D1F1E] bg-white border border-[#D8CBBE] hover:bg-[#F5EDE6] transition-colors">← Préc.</a>
+             class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">← Préc.</a>
           {% endif %}
           {% if page_obj.has_next %}
           <a href="?page={{ page_obj.next_page_number }}"
-             class="rounded-lg px-3 py-1.5 text-xs font-medium text-[#2D1F1E] bg-white border border-[#D8CBBE] hover:bg-[#F5EDE6] transition-colors">Suiv. →</a>
+             class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">Suiv. →</a>
           {% endif %}
         </div>
       </div>

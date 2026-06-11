@@ -1249,6 +1249,88 @@ def cleanup_abandoned_drafts(
     return count
 
 
+def flag_overdue_recommendations() -> dict:
+    """
+    Bascule le flag ``is_overdue`` des recommandations échues (CRON nocturne, FR21).
+
+    Réconciliation bidirectionnelle (Story 3.9) :
+      - met ``is_overdue=True`` pour les recos en état actif (ASSIGNED, IN_PROGRESS,
+        PENDING_DM_REVIEW, PENDING_AUDIT_REVIEW) dont ``due_date`` est dépassée ;
+      - remet ``is_overdue=False`` pour les recos qui ne sont plus en retard
+        (échéance repoussée après un report approuvé, ou passées en CLOSED_RESOLVED).
+
+    Chaque bascule produit un AuditLog ``SYSTEM`` par recommandation (``object_id=pk``),
+    append-only (NFR-SEC-05). ``is_overdue`` n'étant pas piloté par django-fsm, on
+    utilise ``update()`` en masse (pas de signaux ni de transition FSM).
+
+    Le manager par défaut exclut déjà les recommandations soft-deleted. Destinée à
+    être appelée par le scheduler Django-Q2 (Schedule quotidien, minuit Africa/Douala).
+
+    Returns:
+        dict: ``{"flagged": <nb mis en retard>, "cleared": <nb retirés du retard>}``.
+
+    Refs: AC1-AC6 / FR21 — Story 3.9.
+    """
+    today = timezone.localdate()
+    eligible = [
+        Recommendation.Status.ASSIGNED,
+        Recommendation.Status.IN_PROGRESS,
+        Recommendation.Status.PENDING_DM_REVIEW,
+        Recommendation.Status.PENDING_AUDIT_REVIEW,
+    ]
+
+    with transaction.atomic():
+        # Recos à marquer en retard : actives, échues, pas encore flaguées.
+        to_flag = list(
+            Recommendation.objects.filter(
+                status__in=eligible,
+                due_date__lt=today,
+                is_overdue=False,
+            ).values_list("pk", "reference")
+        )
+        # Réconciliation : recos flaguées qui ne sont plus « actives ET échues »
+        # (échéance repoussée au futur, ou statut non éligible comme CLOSED_RESOLVED).
+        to_clear = list(
+            Recommendation.objects.filter(is_overdue=True)
+            .exclude(status__in=eligible, due_date__lt=today)
+            .values_list("pk", "reference")
+        )
+
+        flagged_pks = [pk for pk, _ in to_flag]
+        cleared_pks = [pk for pk, _ in to_clear]
+
+        if flagged_pks:
+            Recommendation.objects.filter(pk__in=flagged_pks).update(is_overdue=True)
+        if cleared_pks:
+            Recommendation.objects.filter(pk__in=cleared_pks).update(is_overdue=False)
+
+        logs = [
+            AuditLog(
+                action=AuditLog.Action.SYSTEM,
+                user=None,
+                content_type="Recommendation",
+                object_id=pk,
+                changes={"is_overdue": [False, True]},
+                description=f"Bascule automatique OVERDUE {ref} : marquée en retard",
+            )
+            for pk, ref in to_flag
+        ] + [
+            AuditLog(
+                action=AuditLog.Action.SYSTEM,
+                user=None,
+                content_type="Recommendation",
+                object_id=pk,
+                changes={"is_overdue": [True, False]},
+                description=f"Bascule automatique OVERDUE {ref} : retrait du retard",
+            )
+            for pk, ref in to_clear
+        ]
+        if logs:
+            AuditLog.objects.bulk_create(logs)
+
+    return {"flagged": len(flagged_pks), "cleared": len(cleared_pks)}
+
+
 # =============================================================================
 # Demandes de Report d'Échéance (Story 3.6 — FR13, FR14, FR34)
 # =============================================================================
@@ -1698,6 +1780,10 @@ def close_recommendation_by_audit(
         rec.closed_by = performed_by
         rec.save(update_fields=["status", "closed_at", "closed_by", "updated_at"])
 
+        # Sceau HMAC-SHA256 — effet de bord de la transaction finale (Story 3.10 / FR24).
+        from apps.audit.services import generate_recommendation_seal
+        seal = generate_recommendation_seal(recommendation=rec, sealed_by=performed_by)
+
         performed_by_display = performed_by.get_full_name() or performed_by.username
 
         AuditLog.objects.create(
@@ -1708,9 +1794,11 @@ def close_recommendation_by_audit(
             changes={
                 "status": [source_status, Recommendation.Status.CLOSED_RESOLVED],
                 "closed_by_audit": True,
+                "seal_hash": seal.hmac_hash,
             },
             description=(
-                f"Clôture définitive {rec.reference} par {performed_by_display}"
+                f"Clôture définitive {rec.reference} par {performed_by_display} "
+                f"— sceau {seal.hmac_hash[:12]}…"
             ),
             ip_address=ip_address,
         )

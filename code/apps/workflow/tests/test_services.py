@@ -22,6 +22,7 @@ from apps.workflow.models import Deliverable, Recommendation, RecommendationSour
 from apps.workflow.services import (
     assign_recommendation_to_dm,
     create_recommendation,
+    flag_overdue_recommendations,
     soft_delete_recommendation,
     update_recommendation,
 )
@@ -754,3 +755,146 @@ class RejectRecommendationByAuditServiceTest(AuditClosureServiceTestMixin, TestC
                 performed_by=self.audit_user,
             )
         self.assertIn("DRAFT", str(cm.exception))
+
+
+class FlagOverdueRecommendationsServiceTest(ServiceTestMixin, TestCase):
+    """Tests de flag_overdue_recommendations() — Story 3.9 (AC1-AC6 / FR21)."""
+
+    def _make_rec(self, *, status, due_offset_days, is_overdue=False, deleted=False):
+        """Crée une reco DRAFT puis force status/due_date/is_overdue via update().
+
+        update() contourne la protection FSM (status) et la validation clean()
+        (due_date dans le passé) — exactement ce qu'il faut pour outiller ces tests.
+        """
+        rec = create_recommendation(
+            data=self._base_data(),
+            deliverables_data=[],
+            performed_by=self.audit_user,
+        )
+        today = timezone.localdate()
+        Recommendation.all_objects.filter(pk=rec.pk).update(
+            status=status,
+            due_date=today + timedelta(days=due_offset_days),
+            is_overdue=is_overdue,
+            is_deleted=deleted,
+        )
+        return Recommendation.all_objects.get(pk=rec.pk)
+
+    def _refresh(self, rec):
+        return Recommendation.all_objects.get(pk=rec.pk)
+
+    def test_flags_active_overdue(self):
+        """Les états actifs échus passent is_overdue=True."""
+        recs = [
+            self._make_rec(status=s, due_offset_days=-1)
+            for s in (
+                Recommendation.Status.ASSIGNED,
+                Recommendation.Status.IN_PROGRESS,
+                Recommendation.Status.PENDING_DM_REVIEW,
+                Recommendation.Status.PENDING_AUDIT_REVIEW,
+            )
+        ]
+        result = flag_overdue_recommendations()
+        self.assertEqual(result["flagged"], 4)
+        for rec in recs:
+            self.assertTrue(self._refresh(rec).is_overdue)
+
+    def test_excludes_draft_and_closed(self):
+        """DRAFT et CLOSED_RESOLVED échus ne sont jamais marqués."""
+        draft = self._make_rec(status=Recommendation.Status.DRAFT, due_offset_days=-5)
+        closed = self._make_rec(
+            status=Recommendation.Status.CLOSED_RESOLVED, due_offset_days=-5
+        )
+        result = flag_overdue_recommendations()
+        self.assertEqual(result["flagged"], 0)
+        self.assertFalse(self._refresh(draft).is_overdue)
+        self.assertFalse(self._refresh(closed).is_overdue)
+
+    def test_excludes_future_and_today_due_date(self):
+        """due_date future ou égale à aujourd'hui → reste False."""
+        future = self._make_rec(
+            status=Recommendation.Status.IN_PROGRESS, due_offset_days=5
+        )
+        today_rec = self._make_rec(
+            status=Recommendation.Status.IN_PROGRESS, due_offset_days=0
+        )
+        result = flag_overdue_recommendations()
+        self.assertEqual(result["flagged"], 0)
+        self.assertFalse(self._refresh(future).is_overdue)
+        self.assertFalse(self._refresh(today_rec).is_overdue)
+
+    def test_reconcile_clears_after_extension(self):
+        """Reco flaguée dont l'échéance est repoussée au futur → is_overdue=False."""
+        rec = self._make_rec(
+            status=Recommendation.Status.IN_PROGRESS,
+            due_offset_days=10,  # échéance future
+            is_overdue=True,     # ancien flag périmé (report approuvé)
+        )
+        result = flag_overdue_recommendations()
+        self.assertEqual(result["cleared"], 1)
+        self.assertFalse(self._refresh(rec).is_overdue)
+
+    def test_reconcile_clears_when_closed(self):
+        """Reco CLOSED_RESOLVED avec ancien is_overdue=True → nettoyée à False."""
+        rec = self._make_rec(
+            status=Recommendation.Status.CLOSED_RESOLVED,
+            due_offset_days=-3,
+            is_overdue=True,
+        )
+        result = flag_overdue_recommendations()
+        self.assertEqual(result["cleared"], 1)
+        self.assertFalse(self._refresh(rec).is_overdue)
+
+    def test_idempotent_second_run(self):
+        """2ᵉ exécution sans changement = 0 bascule et aucun nouvel AuditLog."""
+        self._make_rec(status=Recommendation.Status.IN_PROGRESS, due_offset_days=-1)
+        first = flag_overdue_recommendations()
+        self.assertEqual(first["flagged"], 1)
+
+        logs_before = AuditLog.objects.filter(action=AuditLog.Action.SYSTEM).count()
+        second = flag_overdue_recommendations()
+        logs_after = AuditLog.objects.filter(action=AuditLog.Action.SYSTEM).count()
+
+        self.assertEqual(second, {"flagged": 0, "cleared": 0})
+        self.assertEqual(logs_before, logs_after)
+
+    def test_audit_log_per_reco_system(self):
+        """Un AuditLog SYSTEM par reco basculée (object_id + changes)."""
+        recs = [
+            self._make_rec(status=Recommendation.Status.IN_PROGRESS, due_offset_days=-2)
+            for _ in range(2)
+        ]
+        flag_overdue_recommendations()
+        for rec in recs:
+            log = AuditLog.objects.get(
+                action=AuditLog.Action.SYSTEM,
+                content_type="Recommendation",
+                object_id=rec.pk,
+            )
+            self.assertEqual(log.changes, {"is_overdue": [False, True]})
+            self.assertIsNone(log.user)
+
+    def test_excludes_soft_deleted(self):
+        """Une reco soft-deleted échue n'est pas touchée."""
+        rec = self._make_rec(
+            status=Recommendation.Status.IN_PROGRESS,
+            due_offset_days=-1,
+            deleted=True,
+        )
+        result = flag_overdue_recommendations()
+        self.assertEqual(result["flagged"], 0)
+        self.assertFalse(self._refresh(rec).is_overdue)
+
+    def test_returns_counts(self):
+        """Retourne les compteurs exacts {flagged, cleared}."""
+        # 2 à flaguer (actives échues, non flaguées)
+        self._make_rec(status=Recommendation.Status.ASSIGNED, due_offset_days=-1)
+        self._make_rec(status=Recommendation.Status.IN_PROGRESS, due_offset_days=-1)
+        # 1 à nettoyer (flaguée mais échéance repoussée)
+        self._make_rec(
+            status=Recommendation.Status.IN_PROGRESS,
+            due_offset_days=7,
+            is_overdue=True,
+        )
+        result = flag_overdue_recommendations()
+        self.assertEqual(result, {"flagged": 2, "cleared": 1})

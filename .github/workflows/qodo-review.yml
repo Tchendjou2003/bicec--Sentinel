@@ -17,12 +17,14 @@ jobs:
     name:  Qodo Merge Review
     runs-on: ubuntu-latest
 
+    # Actions épinglées par SHA (supply chain — appli bancaire) :
+    # un tag/branche flottant peut être redirigé vers un commit malveillant.
     steps:
       - name:  Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name:  Qodo AI Code Review
-        uses: Codium-ai/pr-agent@main
+        uses: Codium-ai/pr-agent@ffe1f89a4dafc7d8e88b9cf010a3233e30b49f43 # v0.36.0
         with:
           command: review
         env:

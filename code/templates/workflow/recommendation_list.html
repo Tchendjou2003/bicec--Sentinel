@@ -9,8 +9,8 @@
   {# ── Header + Bouton Créer ── #}
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-bold text-[#2D1F1E] tracking-tight">Recommandations</h1>
-      <p class="text-sm text-[#6F635B] mt-1">Suivi et gestion des recommandations d'audit</p>
+      <h1 class="text-2xl font-bold text-text-primary tracking-tight">Recommandations</h1>
+      <p class="text-sm text-text-body mt-1">Suivi et gestion des recommandations d'audit</p>
     </div>
     {% if user.role == 'AUDIT' or user.is_superuser %}
     <button
@@ -18,20 +18,20 @@
       hx-get="{% url 'workflow:recommendation-create' %}"
       hx-target="#stepper-container"
       hx-swap="innerHTML"
-      class="inline-flex items-center gap-2 rounded-xl bg-[#E87722] hover:bg-[#C9631A] active:bg-[#A8500F] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-150"
+      class="btn btn-primary"
       id="btn-new-recommendation"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Nouvelle recommandation
     </button>
     {% endif %}
   </div>
 
   {# ── Filtres et Toolbar (HTMX) ── #}
-  <form id="filter-form" hx-indicator="#table-loading" class="bg-white rounded-xl border border-[#E8DFD6] shadow-sm mb-4">
+  <form id="filter-form" hx-indicator="#table-loading" class="bg-white rounded-xl border border-border-subtle shadow-sm mb-4">
     
     {# ── Ligne 1 : Onglets Historique / Récent (Alpine.js) ── #}
-    <div class="px-4 pt-3 border-b border-[#E8DFD6] bg-[#F8F8F5] rounded-t-xl" x-data="{ importStatus: '{{ current_import_status|default:'recent' }}' }">
+    <div class="px-4 pt-3 border-b border-border-subtle bg-surface-faint rounded-t-xl" x-data="{ importStatus: '{{ current_import_status|default:'recent' }}' }">
       <input type="hidden" name="import_status" x-model="importStatus" id="id_import_status"
         hx-get="{% url 'workflow:recommendation-list' %}"
         hx-target="#recommendation-table"
@@ -40,19 +40,19 @@
       
       <div class="flex gap-6">
         <button type="button" @click="importStatus = 'recent'; $nextTick(() => htmx.trigger('#id_import_status', 'change'))" 
-          :class="{'border-sentinel-orange text-sentinel-orange': importStatus === 'recent', 'border-transparent text-[#6F635B] hover:text-[#2D1F1E] hover:border-[#D8CBBE]': importStatus !== 'recent'}" 
+          :class="{'border-sentinel-orange text-sentinel-orange': importStatus === 'recent', 'border-transparent text-text-body hover:text-text-primary hover:border-border-strong': importStatus !== 'recent'}" 
           class="pb-3 text-sm font-semibold border-b-2 transition-colors relative top-[1px]">
           Nouvelles Recos
         </button>
 
         <button type="button" @click="importStatus = 'historical'; $nextTick(() => htmx.trigger('#id_import_status', 'change'))" 
-          :class="{'border-sentinel-orange text-sentinel-orange': importStatus === 'historical', 'border-transparent text-[#6F635B] hover:text-[#2D1F1E] hover:border-[#D8CBBE]': importStatus !== 'historical'}" 
+          :class="{'border-sentinel-orange text-sentinel-orange': importStatus === 'historical', 'border-transparent text-text-body hover:text-text-primary hover:border-border-strong': importStatus !== 'historical'}" 
           class="pb-3 text-sm font-semibold border-b-2 transition-colors relative top-[1px]">
           Backlog Historique
         </button>
         
         <button type="button" @click="importStatus = 'all'; $nextTick(() => htmx.trigger('#id_import_status', 'change'))" 
-          :class="{'border-sentinel-orange text-sentinel-orange': importStatus === 'all', 'border-transparent text-[#6F635B] hover:text-[#2D1F1E] hover:border-[#D8CBBE]': importStatus !== 'all'}" 
+          :class="{'border-sentinel-orange text-sentinel-orange': importStatus === 'all', 'border-transparent text-text-body hover:text-text-primary hover:border-border-strong': importStatus !== 'all'}" 
           class="pb-3 text-sm font-semibold border-b-2 transition-colors relative top-[1px]">
           Toutes
         </button>
@@ -69,7 +69,7 @@
           hx-target="#recommendation-table"
           hx-swap="innerHTML"
           hx-include="[name='source'],[name='status'],[name='priority'],[name='q'],[name='import_status']"
-          class="rounded-lg border border-[#D8CBBE] bg-white px-3 py-2 text-xs text-[#2D1F1E] focus:border-[#E87722] focus:ring-1 focus:ring-[#E87722]/20 transition-all min-w-[140px]"
+          class="rounded-lg border border-border-strong bg-white px-3 py-2 text-xs text-text-primary focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all min-w-[140px]"
           id="filter-source"
         >
           <option value="">Toutes les sources</option>
@@ -83,7 +83,7 @@
           hx-target="#recommendation-table"
           hx-swap="innerHTML"
           hx-include="[name='source'],[name='status'],[name='priority'],[name='q'],[name='import_status']"
-          class="rounded-lg border border-[#D8CBBE] bg-white px-3 py-2 text-xs text-[#2D1F1E] focus:border-[#E87722] focus:ring-1 focus:ring-[#E87722]/20 transition-all min-w-[140px]"
+          class="rounded-lg border border-border-strong bg-white px-3 py-2 text-xs text-text-primary focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all min-w-[140px]"
           id="filter-status"
         >
           <option value="">Tous les statuts</option>
@@ -98,7 +98,7 @@
           hx-swap="innerHTML"
           hx-trigger="change"
           hx-include="[name='source'],[name='status'],[name='priority'],[name='q'],[name='import_status']"
-          class="rounded-lg border border-[#D8CBBE] bg-white px-3 py-2 text-xs text-[#2D1F1E] focus:border-[#E87722] focus:ring-1 focus:ring-[#E87722]/20 transition-all min-w-[140px]"
+          class="rounded-lg border border-border-strong bg-white px-3 py-2 text-xs text-text-primary focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all min-w-[140px]"
           id="filter-priority"
         >
           <option value="">Toutes criticités</option>
@@ -110,14 +110,15 @@
 
       {# Barre de recherche #}
       <div class="relative w-full md:max-w-xs">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-[#968A80]"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" name="q" value="{{ current_search }}" placeholder="Rechercher par référence ou mission..."
+          aria-label="Rechercher par référence ou mission"
           hx-get="{% url 'workflow:recommendation-list' %}"
           hx-target="#recommendation-table"
           hx-swap="innerHTML"
           hx-trigger="keyup changed delay:400ms"
           hx-include="[name='source'],[name='status'],[name='priority'],[name='q'],[name='import_status']"
-          class="w-full rounded-lg border border-[#D8CBBE] bg-white pl-9 pr-4 py-2 text-xs text-[#2D1F1E] placeholder:text-[#968A80] focus:border-[#E87722] focus:ring-1 focus:ring-[#E87722]/20 transition-all"
+          class="w-full rounded-lg border border-border-strong bg-white pl-9 pr-4 py-2 text-xs text-text-primary placeholder:text-text-faint focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all"
           id="filter-search"
         >
       </div>
@@ -155,13 +156,14 @@
     <template x-teleport="body">
       <div x-show="deleteOpen" x-transition class="fixed inset-0 z-[100] flex items-center justify-center" style="display:none">
         <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" @click="deleteOpen = false"></div>
-        <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 animate-fade-in">
+        <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 animate-fade-in"
+          role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
           <div class="flex items-center gap-3 mb-4">
             <div class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
             </div>
             <div>
-              <h3 class="text-lg font-semibold text-gray-900">Supprimer la recommandation</h3>
+              <h3 id="delete-modal-title" class="text-lg font-semibold text-gray-900">Supprimer la recommandation</h3>
               <p class="text-sm text-gray-500">Réf. : <span x-text="deleteRef" class="font-medium text-gray-700"></span></p>
             </div>
           </div>

@@ -1,0 +1,13 @@
+{# Variables: priority (CRITIQUE | HAUTE | MOYENNE | FAIBLE), label (texte affiché — passer get_priority_display), extra_class (optionnel) #}
+{# Rendu outline (bordure 1.5px, fond blanc) — tokens prio-* de tailwind.config.js #}
+{% spaceless %}
+{% if priority == 'CRITIQUE' %}
+<span class="inline-flex items-center rounded-full border-[1.5px] bg-white px-2.5 py-[3px] text-[11.5px] font-semibold leading-[1.4] border-prio-critique text-prio-critique {{ extra_class }}">{{ label }}</span>
+{% elif priority == 'HAUTE' %}
+<span class="inline-flex items-center rounded-full border-[1.5px] bg-white px-2.5 py-[3px] text-[11.5px] font-semibold leading-[1.4] border-prio-haute text-prio-haute {{ extra_class }}">{{ label }}</span>
+{% elif priority == 'MOYENNE' %}
+<span class="inline-flex items-center rounded-full border-[1.5px] bg-white px-2.5 py-[3px] text-[11.5px] font-semibold leading-[1.4] border-prio-moyenne text-prio-moyenne {{ extra_class }}">{{ label }}</span>
+{% else %}
+<span class="inline-flex items-center rounded-full border-[1.5px] bg-white px-2.5 py-[3px] text-[11.5px] font-semibold leading-[1.4] border-prio-faible text-prio-faible {{ extra_class }}">{{ label }}</span>
+{% endif %}
+{% endspaceless %}

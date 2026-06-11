@@ -6,7 +6,7 @@
   {# ── Header ── #}
   <div class="flex items-center gap-3 mb-5">
     <div class="flex h-10 w-10 items-center justify-center rounded-full bg-sentinel-orange/10">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
     </div>
     <div>
       <h3 class="text-lg font-semibold text-gray-900">Déléguer ou prendre en charge</h3>
@@ -18,7 +18,7 @@
   {% if not has_etps %}
   <div class="rounded-xl bg-amber-50 border border-amber-200 p-4 mb-5">
     <div class="flex items-start gap-3">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600 mt-0.5 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600 mt-0.5 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <div>
         <p class="text-sm font-semibold text-amber-800">Aucun ETP actif dans votre direction</p>
         <p class="text-xs text-amber-700 mt-1">
@@ -34,9 +34,9 @@
   {# ── Informations contextuelles ── #}
   <div class="rounded-xl bg-gray-50 p-4 mb-5">
     <dl class="space-y-2 text-sm">
-      <div class="flex justify-between">
-        <dt class="text-gray-500">Direction concernée</dt>
-        <dd class="text-gray-900 font-medium">{{ recommendation.department.name|default:"—" }}</dd>
+      <div class="flex items-start justify-between gap-4">
+        <dt class="text-gray-500 whitespace-nowrap">Direction concernée</dt>
+        <dd class="text-gray-900 font-medium min-w-0 flex justify-end">{% include "components/org_unit_badge.html" with department=recommendation.department show_code=True %}</dd>
       </div>
       <div class="flex justify-between">
         <dt class="text-gray-500">Criticité</dt>
@@ -63,6 +63,7 @@
     hx-target="#delegate-modal-container"
     hx-swap="innerHTML"
     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    hx-disabled-elt="find button[type='submit']"
     x-data="{ selectedAction: 'delegate_etp' }"
   >
     {# ── Choix de l'action ── #}
@@ -81,7 +82,7 @@
           <div class="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
             :class="selectedAction === 'delegate_etp' ? 'bg-sentinel-orange text-white' : 'bg-gray-100 text-gray-500'"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
           </div>
           <div>
             <p class="text-sm font-semibold text-gray-900">Déléguer à un ETP</p>
@@ -100,7 +101,7 @@
           <div class="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
             :class="selectedAction === 'dm_porteur' ? 'bg-sentinel-orange text-white' : 'bg-gray-100 text-gray-500'"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
           <div>
             <p class="text-sm font-semibold text-gray-900">Devenir DM Porteur</p>
@@ -148,7 +149,7 @@
         type="submit"
         class="btn btn-primary"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         <span x-text="selectedAction === 'delegate_etp' ? 'Confirmer la délégation' : 'Confirmer la prise en charge'">Confirmer la délégation</span>
       </button>
     </div>

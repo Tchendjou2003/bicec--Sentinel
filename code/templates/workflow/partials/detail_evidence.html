@@ -8,7 +8,7 @@
   <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid #F5EDE6;">
     <div class="flex items-center gap-2.5">
       <span class="flex h-6 w-6 items-center justify-center rounded-md shrink-0" style="background:#E6F2F1;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
           stroke="#14746F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
           <polyline points="14 2 14 8 20 8"/>
@@ -69,7 +69,7 @@
       <div class="space-y-1.5">
         {% for ef in submission.files.all %}
         <div class="flex items-center gap-3 rounded-lg px-3 py-2" style="background:white;border:1px solid #E8DFD6;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="#968A80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0">
             <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -81,7 +81,7 @@
           <a href="{% url 'workflow:evidence-download' recommendation.pk ef.pk %}"
             class="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-semibold transition-colors"
             style="color:#14746F;" download title="Télécharger {{ ef.original_filename }}">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
@@ -111,7 +111,7 @@
     style="background:#FBEAE7;">
     <div class="flex items-center gap-2.5">
       <span class="flex h-6 w-6 items-center justify-center rounded-md shrink-0" style="background:#FDDDD8;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
           stroke="#C0392B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
           <path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>
@@ -123,7 +123,7 @@
       <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold"
         style="background:#FDDDD8;color:#C0392B;">{{ rejected_submissions|length }}</span>
     </div>
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
       stroke="#C0392B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
       class="transition-transform duration-200" :class="open ? 'rotate-180' : ''">
       <polyline points="6 9 12 15 18 9"/>
@@ -185,7 +185,7 @@
       <div class="space-y-1.5 mt-3">
         {% for ef in submission.files.all %}
         <div class="flex items-center gap-2 rounded-lg px-3 py-2" style="background:white;border:1px solid #EAC5BF;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke="#968A80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0">
             <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -197,7 +197,7 @@
           <a href="{% url 'workflow:evidence-download' recommendation.pk ef.pk %}"
             class="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-medium transition-colors"
             style="color:#968A80;" download title="Télécharger {{ ef.original_filename }}">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>

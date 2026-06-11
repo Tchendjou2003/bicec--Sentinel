@@ -1,32 +1,63 @@
-{# Variables: status (7 états FSM Sentinel), extra_class (optionnel) #}
+{# Variables: status (7 états FSM Sentinel), extra_class (optionnel), variant ("outline" : bordure 1.5px fond blanc — en-tête du détail reco) #}
+{# Couleurs : tokens status-* de tailwind.config.js — ne pas remettre de hex en dur #}
 {% spaceless %}
+{% if variant == 'outline' %}
 {% if status == 'DRAFT' %}
-<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold {{ extra_class }}" style="background-color:#F0ECE7;color:#968A80;">
-  <span class="h-1.5 w-1.5 rounded-full shrink-0" style="background-color:#968A80;"></span>Brouillon
+<span class="inline-flex items-center gap-1.5 rounded-full border-[1.5px] bg-white px-2.5 py-[3px] text-[11.5px] font-semibold leading-[1.4] border-status-draft text-status-draft {{ extra_class }}">
+  <span class="h-[5px] w-[5px] rounded-full shrink-0 bg-current"></span>Brouillon
 </span>
 {% elif status == 'ASSIGNED' %}
-<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold {{ extra_class }}" style="background-color:#E8F0F8;color:#2B6CB0;">
-  <span class="h-1.5 w-1.5 rounded-full shrink-0" style="background-color:#2B6CB0;"></span>Assignée
+<span class="inline-flex items-center gap-1.5 rounded-full border-[1.5px] bg-white px-2.5 py-[3px] text-[11.5px] font-semibold leading-[1.4] border-status-assigned text-status-assigned {{ extra_class }}">
+  <span class="h-[5px] w-[5px] rounded-full shrink-0 bg-current"></span>Assignée
 </span>
 {% elif status == 'IN_PROGRESS' %}
-<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold {{ extra_class }}" style="background-color:#FFF3EB;color:#C9631A;">
-  <span class="h-1.5 w-1.5 rounded-full shrink-0" style="background-color:#C9631A;"></span>En cours
+<span class="inline-flex items-center gap-1.5 rounded-full border-[1.5px] bg-white px-2.5 py-[3px] text-[11.5px] font-semibold leading-[1.4] border-sentinel-orange text-sentinel-orange {{ extra_class }}">
+  <span class="h-[5px] w-[5px] rounded-full shrink-0 bg-current"></span>En cours
 </span>
 {% elif status == 'PENDING_DM_REVIEW' %}
-<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold {{ extra_class }}" style="background-color:#FBF1DF;color:#C08A2D;">
-  <span class="h-1.5 w-1.5 rounded-full shrink-0" style="background-color:#C08A2D;"></span>Validation DM
+<span class="inline-flex items-center gap-1.5 rounded-full border-[1.5px] bg-white px-2.5 py-[3px] text-[11.5px] font-semibold leading-[1.4] border-status-dm-review text-status-dm-review {{ extra_class }}">
+  <span class="h-[5px] w-[5px] rounded-full shrink-0 bg-current"></span>Validation DM
 </span>
 {% elif status == 'PENDING_AUDIT_REVIEW' %}
-<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold {{ extra_class }}" style="background-color:#E6F2F1;color:#14746F;">
-  <span class="h-1.5 w-1.5 rounded-full shrink-0" style="background-color:#14746F;"></span>Validation Audit
+<span class="inline-flex items-center gap-1.5 rounded-full border-[1.5px] bg-white px-2.5 py-[3px] text-[11.5px] font-semibold leading-[1.4] border-status-audit-review text-status-audit-review {{ extra_class }}">
+  <span class="h-[5px] w-[5px] rounded-full shrink-0 bg-current"></span>Validation Audit
 </span>
 {% elif status == 'CLOSED_RESOLVED' %}
-<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold {{ extra_class }}" style="background-color:#E7F2EC;color:#2D8B56;">
-  <span class="h-1.5 w-1.5 rounded-full shrink-0" style="background-color:#2D8B56;"></span>Clôturée
+<span class="inline-flex items-center gap-1.5 rounded-full border-[1.5px] bg-white px-2.5 py-[3px] text-[11.5px] font-semibold leading-[1.4] border-status-closed-strong text-status-closed-strong {{ extra_class }}">
+  <span class="h-[5px] w-[5px] rounded-full shrink-0 bg-current"></span>Clôturée
 </span>
 {% elif status == 'OVERDUE' %}
-<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold {{ extra_class }}" style="background-color:#FBEAE7;color:#991B1B;">
-  <span class="h-1.5 w-1.5 rounded-full shrink-0" style="background-color:#991B1B;"></span>En retard
+<span class="inline-flex items-center gap-1.5 rounded-full border-[1.5px] bg-white px-2.5 py-[3px] text-[11.5px] font-semibold leading-[1.4] border-status-overdue-strong text-status-overdue-strong {{ extra_class }}">
+  <span class="h-[5px] w-[5px] rounded-full shrink-0 bg-current"></span>En retard
+</span>
+{% endif %}
+{% elif status == 'DRAFT' %}
+<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-status-draft-tint text-status-draft {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full shrink-0 bg-current"></span>Brouillon
+</span>
+{% elif status == 'ASSIGNED' %}
+<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-status-assigned-tint text-status-assigned {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full shrink-0 bg-current"></span>Assignée
+</span>
+{% elif status == 'IN_PROGRESS' %}
+<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-status-in-progress-tint text-status-in-progress-strong {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full shrink-0 bg-current"></span>En cours
+</span>
+{% elif status == 'PENDING_DM_REVIEW' %}
+<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-status-dm-review-tint text-status-dm-review {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full shrink-0 bg-current"></span>Validation DM
+</span>
+{% elif status == 'PENDING_AUDIT_REVIEW' %}
+<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-status-audit-review-tint text-status-audit-review {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full shrink-0 bg-current"></span>Validation Audit
+</span>
+{% elif status == 'CLOSED_RESOLVED' %}
+<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-status-closed-tint text-status-closed-strong {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full shrink-0 bg-current"></span>Clôturée
+</span>
+{% elif status == 'OVERDUE' %}
+<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-status-overdue-tint text-status-overdue-strong {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full shrink-0 bg-current"></span>En retard
 </span>
 {% else %}
 <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-gray-100 text-gray-500 {{ extra_class }}">

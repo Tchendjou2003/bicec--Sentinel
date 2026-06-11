@@ -60,7 +60,6 @@ class Command(BaseCommand):
         from apps.notifications.services import emit_notification
         from apps.users.models import User
         from apps.workflow.models import (
-            ExtensionRequest,
             Recommendation,
             RecommendationSource,
         )

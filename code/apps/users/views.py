@@ -14,7 +14,6 @@ Spécifications couvertes :
 import csv
 import json
 import uuid
-from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin

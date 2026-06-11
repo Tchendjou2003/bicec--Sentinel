@@ -19,8 +19,7 @@ from apps.users.form_fields import (
     department_option_label,
 )
 from apps.users.models import User
-from .models import Deliverable, EvidenceFile, Recommendation, RecommendationSource
-from .validators import validate_file_size, validate_magic_bytes
+from .models import Deliverable, Recommendation, RecommendationSource
 
 
 # ── Style Tailwind partagé ────────────────────────────────────────────

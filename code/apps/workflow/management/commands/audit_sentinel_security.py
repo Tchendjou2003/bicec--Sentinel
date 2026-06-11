@@ -358,7 +358,6 @@ class Command(BaseCommand):
     #  Chapitre 4 — Transitions FSM invalides
     # ════════════════════════════════════════════════════════════════════
     def _chapter_4_fsm(self):
-        from apps.workflow.models import Recommendation
 
         # submit-evidence sur DRAFT par un ETP non-AUDIT → 404
         # (une reco DRAFT est invisible aux non-AUDIT : on ne révèle pas son existence —
@@ -500,7 +499,6 @@ class Command(BaseCommand):
     #  Chapitre 7 — Immutabilité post-clôture
     # ════════════════════════════════════════════════════════════════════
     def _chapter_7_immutable(self):
-        from apps.workflow.models import Recommendation
         from apps.workflow.services import close_recommendation_by_audit
 
         # Clôturer une reco puis tenter des mutations → 422 _ensure_not_closed

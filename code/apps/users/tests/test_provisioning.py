@@ -7,9 +7,9 @@ contrôles d'accès, et cas EXT.
 Note : force_login() est utilisé car django-axes est incompatible avec login()
 dans les tests.
 """
-from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.hashers import check_password
 from django.contrib.auth.models import Group
-from django.test import Client, TestCase
+from django.test import TestCase
 from django.urls import reverse
 
 from apps.audit.models import AuditLog

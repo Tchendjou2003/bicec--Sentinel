@@ -12,7 +12,7 @@ import uuid
 from datetime import timedelta
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, Client
+from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -1040,7 +1040,6 @@ class EvidenceSubmissionViewTest(EvidenceSubmissionTestMixin, TestCase):
         """Le hash SHA-256 est calculé et stocké sur chaque fichier (AC1)."""
         import hashlib
         from django.core.files.uploadedfile import SimpleUploadedFile
-        from apps.workflow.models import EvidenceFile
         from apps.workflow import services
 
         self._login_as(self.etp_user)
@@ -1189,8 +1188,6 @@ class EvidenceImmutabilityTest(EvidenceSubmissionTestMixin, TestCase):
     def test_evidence_file_delete_raises_permission_denied_when_pending(self):
         """Appel de .delete() sur EvidenceFile PENDING lève PermissionDenied (AC4)."""
         from django.core.exceptions import PermissionDenied
-        from apps.workflow.models import EvidenceFile
-        from apps.workflow import services
 
         self._login_as(self.etp_user)
         rec = self._create_in_progress_recommendation_etp()
@@ -1207,7 +1204,6 @@ class EvidenceImmutabilityTest(EvidenceSubmissionTestMixin, TestCase):
     def test_evidence_file_can_be_deleted_when_draft(self):
         """Un fichier en brouillon DRAFT peut être supprimé (immutabilité conditionnelle)."""
         from apps.workflow.models import EvidenceFile
-        from apps.workflow import services
 
         self._login_as(self.etp_user)
         rec = self._create_in_progress_recommendation_etp()
@@ -1241,7 +1237,6 @@ class EvidenceDownloadViewTest(EvidenceSubmissionTestMixin, TestCase):
 
     def _submit_evidence_and_get_file(self, logged_in_as_etp=True):
         """Crée une reco, soumet une preuve via brouillon, retourne (rec, evidence_file)."""
-        from apps.workflow.models import EvidenceFile
         from apps.workflow import services
 
         rec = self._create_in_progress_recommendation_etp()

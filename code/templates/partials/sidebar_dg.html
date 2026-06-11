@@ -14,8 +14,8 @@
     <ul class="space-y-1">
       {% url 'dashboards:home' as u_dash %}
       {% include "partials/_sidebar_item.html" with href=u_dash icon="layout-dashboard" label="Dashboard Exécutif" route="dashboard" %}
-      {% include "partials/_sidebar_item.html" with href="#" icon="building" label="Vue par Direction" route="vue" %}
-      {% include "partials/_sidebar_item.html" with href="#" icon="bar-chart-3" label="Rapports & Exports" route="rapports" %}
+      {% include "partials/_sidebar_item.html" with soon=True icon="building" label="Vue par Direction" %}
+      {% include "partials/_sidebar_item.html" with soon=True icon="bar-chart-3" label="Rapports & Exports" %}
     </ul>
   </nav>
 

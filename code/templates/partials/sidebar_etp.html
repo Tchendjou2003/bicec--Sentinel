@@ -10,8 +10,8 @@
       {% include "partials/_sidebar_item.html" with href=u_dash icon="layout-dashboard" label="Mes Tâches" route="dashboard" %}
       {% url 'workflow:recommendation-list' as u_recs %}
       {% include "partials/_sidebar_item.html" with href=u_recs icon="file-text" label="Recommandations" route="recommandations" %}
-      {% include "partials/_sidebar_item.html" with href="#" icon="upload" label="Soumettre Preuves" route="soumettre" %}
-      {% include "partials/_sidebar_item.html" with href="#" icon="history" label="Historique" route="historique" %}
+      {% include "partials/_sidebar_item.html" with soon=True icon="upload" label="Soumettre Preuves" %}
+      {% include "partials/_sidebar_item.html" with soon=True icon="history" label="Historique" %}
     </ul>
   </nav>
 

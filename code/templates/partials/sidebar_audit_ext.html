@@ -6,9 +6,10 @@
   <nav class="flex-1 overflow-y-auto px-3 py-4">
     <p class="text-[10px] font-bold uppercase tracking-[0.08em] text-graphite-section px-3 mb-2 mt-1">Consultation</p>
     <ul class="space-y-1">
-      {% include "partials/_sidebar_item.html" with href="/audit-ext/" icon="layout-dashboard" label="Tableau de bord" route="dashboard" %}
-      {% include "partials/_sidebar_item.html" with href="/audit-ext/consultation/" icon="file-text" label="Recommandations" route="recommandations" %}
-      {% include "partials/_sidebar_item.html" with href="/audit-ext/export/" icon="archive" label="Export ZIP" route="export" %}
+      {% url "auth:external-dashboard" as ext_dashboard_url %}
+      {% include "partials/_sidebar_item.html" with href=ext_dashboard_url icon="layout-dashboard" label="Tableau de bord" route="dashboard" %}
+      {% include "partials/_sidebar_item.html" with soon=True icon="file-text" label="Recommandations" %}
+      {% include "partials/_sidebar_item.html" with soon=True icon="archive" label="Export ZIP" %}
     </ul>
   </nav>
 

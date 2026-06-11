@@ -10,13 +10,13 @@
       {% include "partials/_sidebar_item.html" with href=u_dash icon="layout-dashboard" label="Tableau de bord" route="dashboard" %}
       {% url 'workflow:recommendation-list' as u_recs %}
       {% include "partials/_sidebar_item.html" with href=u_recs icon="file-text" label="Recommandations" route="recommandations" %}
-      {% include "partials/_sidebar_item.html" with href="#" icon="upload" label="Import" route="import" %}
-      {% include "partials/_sidebar_item.html" with href="#" icon="check-circle-2" label="Validation" route="validation" %}
+      {% include "partials/_sidebar_item.html" with soon=True icon="upload" label="Import" %}
+      {% include "partials/_sidebar_item.html" with soon=True icon="check-circle-2" label="Validation" %}
       {% if user.can_manage_users or user.is_superuser %}
       {% url 'auth:audit-admin-members' as u_admins %}
       {% include "partials/_sidebar_item.html" with href=u_admins icon="user-cog" label="Admins Audit" route="audit-admin-members" %}
       {% endif %}
-      {% include "partials/_sidebar_item.html" with href="#" icon="history" label="Piste d'audit" route="piste" %}
+      {% include "partials/_sidebar_item.html" with soon=True icon="history" label="Piste d'audit" %}
     </ul>
 
     {% if user.can_manage_users or user.is_superuser %}

@@ -2,8 +2,9 @@
 Notifications App — Modèle Notification (Story 4.0)
 
 Socle channel-agnostic des notifications in-app. Toute notification est
-idempotente via ``idempotency_key`` (unique DB). Le futur canal e-mail
-(post-MVP) consommera les mêmes instances sans refonte du modèle.
+idempotente via la paire ``(recipient, idempotency_key)`` (contrainte unique
+composite). Le futur canal e-mail (post-MVP) consommera les mêmes instances
+sans refonte du modèle.
 """
 import uuid
 
@@ -16,8 +17,10 @@ class Notification(models.Model):
     """
     Notification in-app pour un utilisateur Sentinel.
 
-    Idempotente via ``idempotency_key`` : deux appels ``emit_notification()``
-    avec la même clé ne créent qu'une seule entrée (AC4).
+    Idempotente via la paire ``(recipient, idempotency_key)`` : deux appels
+    ``emit_notification()`` avec la même clé pour le même destinataire ne
+    créent qu'une seule entrée (AC4). La clé seule n'est plus unique : un
+    nouveau porteur (délégation) reçoit sa propre notification.
 
     Champ ``is_urgent`` : True pour les ruptures (OVERDUE, jalons, escalade)
     → affichage visuellement distinct dans le dropdown (AC2).
@@ -84,10 +87,12 @@ class Notification(models.Model):
     )
     is_read = models.BooleanField(_("Lu"), default=False, db_index=True)
     idempotency_key = models.CharField(
-        _("Clé d'idempotence"), max_length=255, unique=True,
+        _("Clé d'idempotence"), max_length=255,
         help_text=_(
             "Format : '{TYPE}:{recommendation_pk}[:{extra}]'. "
-            "Garantit l'unicité — aucun doublon même en cas d'appels répétés."
+            "Unique PAR DESTINATAIRE (contrainte composite) : après une "
+            "délégation, le nouveau porteur reçoit sa propre notification "
+            "pour le même événement — l'ancienne ne la bloque plus."
         ),
     )
     created_at = models.DateTimeField(_("Créée le"), auto_now_add=True, db_index=True)
@@ -96,6 +101,12 @@ class Notification(models.Model):
         verbose_name = _("Notification")
         verbose_name_plural = _("Notifications")
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recipient", "idempotency_key"],
+                name="uniq_notif_recipient_idem_key",
+            ),
+        ]
         indexes = [
             models.Index(fields=["recipient", "is_read"], name="idx_notif_recipient_read"),
             models.Index(fields=["recipient", "-created_at"], name="idx_notif_recipient_date"),

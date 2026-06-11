@@ -2,7 +2,7 @@
 Notifications App — Services (Story 4.0)
 
 Point d'entrée unique pour créer une notification in-app : ``emit_notification()``.
-Idempotent par construction (get_or_create sur idempotency_key).
+Idempotent par construction (get_or_create sur la paire recipient + idempotency_key).
 """
 from __future__ import annotations
 
@@ -23,10 +23,11 @@ def emit_notification(
     """
     Émet une notification in-app idempotente (Story 4.0 / AC4).
 
-    Si une notification avec la même ``idempotency_key`` existe déjà,
-    **aucune** nouvelle entrée n'est créée et la fonction retourne ``None``.
-    Cela garantit qu'un même événement n'est jamais notifié deux fois,
-    même en cas d'appels répétés ou de race condition légère.
+    Si une notification avec la même paire ``(recipient, idempotency_key)``
+    existe déjà, **aucune** nouvelle entrée n'est créée et la fonction
+    retourne ``None``. L'idempotence est par destinataire : après une
+    délégation, le nouveau porteur reçoit sa propre notification pour le
+    même événement (la notification de l'ancien porteur ne la bloque pas).
 
     Convention des clés (documentée en artifact 4.0) :
       - Événement workflow : ``"{TYPE}:{recommendation_pk}:{extra}"``
@@ -48,9 +49,9 @@ def emit_notification(
         La ``Notification`` créée, ou ``None`` si déjà existante.
     """
     notif, created = Notification.objects.get_or_create(
+        recipient=recipient,
         idempotency_key=idempotency_key,
         defaults={
-            "recipient": recipient,
             "notification_type": notification_type,
             "recommendation": recommendation,
             "title": title,

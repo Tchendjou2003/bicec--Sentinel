@@ -297,7 +297,6 @@ class Command(BaseCommand):
     # ════════════════════════════════════════════════════════════════════
     def _chapter_2_rbac(self):
         rec = self._new_reco()
-        detail = f"/audit/recommandations/{rec.pk}/"
 
         # Liste : workflow roles OK, EXT/ADMIN 403, shell 302
         for role, u in self.all_roles:
@@ -359,7 +358,6 @@ class Command(BaseCommand):
     #  Chapitre 4 — Transitions FSM invalides
     # ════════════════════════════════════════════════════════════════════
     def _chapter_4_fsm(self):
-        from apps.workflow.models import Recommendation
 
         # submit-evidence sur DRAFT par un ETP non-AUDIT → 404
         # (une reco DRAFT est invisible aux non-AUDIT : on ne révèle pas son existence —
@@ -458,7 +456,7 @@ class Command(BaseCommand):
             rec = self._new_reco()
             rec = assign_recommendation_to_dg(recommendation=rec, dg=self.u_dg, performed_by=self.u_audit)
             # Forcer une soumission ACCEPTED SANS fichier + statut PENDING_AUDIT_REVIEW
-            sub = EvidenceSubmission.objects.create(
+            EvidenceSubmission.objects.create(
                 recommendation=rec, submitted_by=self.u_dg,
                 status=EvidenceSubmission.SubmissionStatus.ACCEPTED, comment="sans fichier")
             Recommendation.all_objects.filter(pk=rec.pk).update(status="PENDING_AUDIT_REVIEW")
@@ -501,7 +499,6 @@ class Command(BaseCommand):
     #  Chapitre 7 — Immutabilité post-clôture
     # ════════════════════════════════════════════════════════════════════
     def _chapter_7_immutable(self):
-        from apps.workflow.models import Recommendation
         from apps.workflow.services import close_recommendation_by_audit
 
         # Clôturer une reco puis tenter des mutations → 422 _ensure_not_closed

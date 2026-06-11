@@ -14,8 +14,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.users.models import User
-from .models import Deliverable, EvidenceFile, Recommendation, RecommendationSource
-from .validators import validate_file_size, validate_magic_bytes
+from .models import Deliverable, Recommendation, RecommendationSource
 
 
 # ── Style Tailwind partagé ────────────────────────────────────────────

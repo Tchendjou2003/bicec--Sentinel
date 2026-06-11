@@ -61,9 +61,9 @@ class NotificationRuptureTestBase(TestCase):
 class RuptureNotificationTest(NotificationRuptureTestBase):
 
     def test_overdue_critique_notifies_porteur_urgent(self):
-        rec = self._reco(priority=Recommendation.Priority.CRITIQUE,
-                         status=Recommendation.Status.IN_PROGRESS,
-                         is_overdue=False, days_overdue=5, assigned_dm=self.dm)
+        self._reco(priority=Recommendation.Priority.CRITIQUE,
+                   status=Recommendation.Status.IN_PROGRESS,
+                   is_overdue=False, days_overdue=5, assigned_dm=self.dm)
         flag_overdue_recommendations()
         notif = Notification.objects.filter(
             recipient=self.dm, notification_type=Notification.Type.OVERDUE).first()
@@ -81,44 +81,44 @@ class RuptureNotificationTest(NotificationRuptureTestBase):
             Notification.objects.filter(notification_type=Notification.Type.OVERDUE).count(), 0)
 
     def test_overdue_porteur_is_etp_when_assigned(self):
-        rec = self._reco(priority=Recommendation.Priority.CRITIQUE,
-                         status=Recommendation.Status.IN_PROGRESS,
-                         is_overdue=False, days_overdue=3,
-                         assigned_dm=self.dm, assigned_etp=self.etp)
+        self._reco(priority=Recommendation.Priority.CRITIQUE,
+                   status=Recommendation.Status.IN_PROGRESS,
+                   is_overdue=False, days_overdue=3,
+                   assigned_dm=self.dm, assigned_etp=self.etp)
         flag_overdue_recommendations()
         self.assertTrue(Notification.objects.filter(
             recipient=self.etp, notification_type=Notification.Type.OVERDUE).exists())
 
     def test_j30_critique_notifies_dm(self):
-        rec = self._reco(priority=Recommendation.Priority.CRITIQUE,
-                         status=Recommendation.Status.IN_PROGRESS,
-                         is_overdue=True, days_overdue=35, assigned_dm=self.dm,
-                         assigned_etp=self.etp)
+        self._reco(priority=Recommendation.Priority.CRITIQUE,
+                   status=Recommendation.Status.IN_PROGRESS,
+                   is_overdue=True, days_overdue=35, assigned_dm=self.dm,
+                   assigned_etp=self.etp)
         flag_overdue_recommendations()
         self.assertTrue(Notification.objects.filter(
             recipient=self.dm, notification_type=Notification.Type.OVERDUE_J30).exists())
 
     def test_j30_non_critique_no_notification(self):
-        rec = self._reco(priority=Recommendation.Priority.HAUTE,
-                         status=Recommendation.Status.IN_PROGRESS,
-                         is_overdue=True, days_overdue=40, assigned_dm=self.dm)
+        self._reco(priority=Recommendation.Priority.HAUTE,
+                   status=Recommendation.Status.IN_PROGRESS,
+                   is_overdue=True, days_overdue=40, assigned_dm=self.dm)
         flag_overdue_recommendations()
         self.assertEqual(
             Notification.objects.filter(notification_type=Notification.Type.OVERDUE_J30).count(), 0)
 
     def test_no_j60_notification(self):
         """F5 — le jalon J60 a été retiré : aucune notif d'escalade 60j."""
-        rec = self._reco(priority=Recommendation.Priority.CRITIQUE,
-                         status=Recommendation.Status.IN_PROGRESS,
-                         is_overdue=True, days_overdue=70, assigned_dm=self.dm)
+        self._reco(priority=Recommendation.Priority.CRITIQUE,
+                   status=Recommendation.Status.IN_PROGRESS,
+                   is_overdue=True, days_overdue=70, assigned_dm=self.dm)
         flag_overdue_recommendations()
         self.assertEqual(Notification.objects.filter(
             notification_type=Notification.Type.OVERDUE_J60_ESCALATION).count(), 0)
 
     def test_idempotent_second_run_no_duplicate(self):
-        rec = self._reco(priority=Recommendation.Priority.CRITIQUE,
-                         status=Recommendation.Status.IN_PROGRESS,
-                         is_overdue=False, days_overdue=5, assigned_dm=self.dm)
+        self._reco(priority=Recommendation.Priority.CRITIQUE,
+                   status=Recommendation.Status.IN_PROGRESS,
+                   is_overdue=False, days_overdue=5, assigned_dm=self.dm)
         flag_overdue_recommendations()
         flag_overdue_recommendations()
         self.assertEqual(Notification.objects.filter(

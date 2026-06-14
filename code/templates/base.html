@@ -8,8 +8,38 @@
     <meta name="description" content="Sentinel — Plateforme de suivi des recommandations d'audit BICEC">
     <title>{% block title %}Sentinel{% endblock %}</title>
 
+    <!-- Fonts vendorisées (on-premise, aucun CDN) -->
+    <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+
     <!-- Tailwind CSS compilé -->
-    <link rel="stylesheet" href="{% static 'css/output.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/output.css' %}?v=24">
+
+    <!-- TomSelect — vendorisé local (Story 6.2.0 / aucun CDN) -->
+    <link rel="stylesheet" href="{% static 'vendor/tom-select/tom-select.min.css' %}">
+    <style>
+      /* Le dropdown TomSelect est rattaché au <body> (dropdownParent:'body')
+         pour échapper aux conteneurs overflow des slide-overs. Il doit donc
+         passer AU-DESSUS des slide-overs (z-[100]). */
+      .ts-dropdown { z-index: 200 !important; }
+      /* Hauteur bornée + scroll interne : sans cela le menu déborde du viewport
+         dans un slide-over et devient impossible à parcourir (Bug 6.2.0). */
+      .ts-dropdown .ts-dropdown-content {
+        max-height: min(18rem, 55vh);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      /* Harmoniser le contrôle TomSelect avec les inputs Sentinel (rayon, focus). */
+      .ts-wrapper.single .ts-control {
+        border-radius: 0.75rem;
+        min-height: 2.75rem;
+        border-color: #e5e7eb;
+        padding: 0.5rem 0.75rem;
+      }
+      .ts-wrapper.single .ts-control:focus-within {
+        border-color: #E87722;
+        box-shadow: 0 0 0 2px rgba(232, 119, 34, 0.2);
+      }
+    </style>
 
     {% block extra_css %}{% endblock %}
 </head>
@@ -38,7 +68,9 @@
 
     <!-- Scripts: HTMX + Alpine.js (LOCAL) + Sentinel Helpers -->
     <script src="{% static 'js/htmx.min.js' %}"></script>
-    <script src="{% static 'js/sentinel.js' %}" defer></script>
+    <!-- TomSelect — vendorisé local (Story 6.2.0 / aucun CDN) -->
+    <script src="{% static 'vendor/tom-select/tom-select.complete.min.js' %}?v=1"></script>
+    <script src="{% static 'js/sentinel.js' %}?v=6" defer></script>
     <script src="{% static 'js/alpine.min.js' %}" defer></script>
 
     <!-- Pont entre Django Messages et Alpine Toasts -->

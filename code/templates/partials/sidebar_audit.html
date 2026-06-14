@@ -1,95 +1,32 @@
-{% load static %}
-{# Sidebar — Profil Audit Interne. Active item via variable `active_route` ("dashboard", "users"...) #}
-<aside x-show="$store.sentinel.sidebarOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="-translate-x-full opacity-0" x-transition:enter-end="translate-x-0 opacity-100" class="fixed inset-y-0 left-0 z-50 lg:static w-64 shrink-0 bg-white shadow-[4px_0_24px_rgba(0,0,0,0.04)] border-r border-gray-100 flex flex-col" style="display:none">
+{# Sidebar — Profil Audit Interne (DS graphite). Actif via `active_route`. #}
+<aside x-show="$store.sentinel.sidebarOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="-translate-x-full opacity-0" x-transition:enter-end="translate-x-0 opacity-100" x-cloak class="fixed inset-y-0 left-0 z-50 lg:static w-64 shrink-0 bg-graphite text-graphite-fg border-r border-graphite-border flex flex-col" style="display:none">
 
-  {# ── Brand header ── #}
-  <div class="px-5 pt-5 pb-4">
-    <div class="flex items-center gap-3">
-      <div class="relative flex h-9 w-9 items-center justify-center shrink-0 rounded-lg overflow-hidden">
-        <img src="{% static 'img/logo.jpeg' %}" alt="BICEC" class="h-full w-full object-cover opacity-90">
-        <div class="absolute inset-0 rounded-lg ring-1 ring-inset ring-black/5"></div>
-      </div>
-      <div class="min-w-0 leading-none">
-        <p class="text-sm font-bold text-gray-900 tracking-tight leading-none">SENTINEL</p>
-        <p class="text-[10px] text-sentinel-orange font-semibold uppercase tracking-widest mt-0.5">Audit Interne</p>
-      </div>
-    </div>
-  </div>
+  {% include "partials/_sidebar_brand.html" with profile_label="Audit Interne" %}
 
-  <div class="mx-4 border-t border-gray-100"></div>
-
-  {# ── Navigation ── #}
   <nav class="flex-1 overflow-y-auto px-3 py-4">
-    <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 mb-2">Audit</p>
-    <ul class="space-y-0.5">
-      <li>
-        <a href="/audit/" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'dashboard' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-          <span>Dashboard</span>
-        </a>
-      </li>
-      <li>
-        <a href="/audit/recommandations/" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'recommandations' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          <span>Recommandations</span>
-        </a>
-      </li>
-      <li>
-        <a href="/audit/import/" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'import' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          <span>Import</span>
-        </a>
-      </li>
-      <li>
-        <a href="/audit/validation/" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'validation' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          <span>Validation</span>
-        </a>
-      </li>
+    <p class="text-[10px] font-bold uppercase tracking-[0.08em] text-graphite-section px-3 mb-2 mt-1">Audit</p>
+    <ul class="space-y-1">
+      {% url 'dashboards:home' as u_dash %}
+      {% include "partials/_sidebar_item.html" with href=u_dash icon="layout-dashboard" label="Tableau de bord" route="dashboard" %}
+      {% url 'workflow:recommendation-list' as u_recs %}
+      {% include "partials/_sidebar_item.html" with href=u_recs icon="file-text" label="Recommandations" route="recommandations" %}
+      {% include "partials/_sidebar_item.html" with soon=True icon="upload" label="Import" %}
+      {% include "partials/_sidebar_item.html" with soon=True icon="check-circle-2" label="Validation" %}
       {% if user.can_manage_users or user.is_superuser %}
-      <li>
-        <a href="{% url 'workflow:habilitation-list' %}" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'habilitation' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><circle cx="19" cy="11" r="2"/><path d="M19 8v1"/><path d="M19 13v1"/><path d="m21.6 9.5-.87.5"/><path d="m17.27 12-.87.5"/><path d="m21.6 12.5-.87-.5"/><path d="m17.27 10-.87-.5"/></svg>
-          <span>Habilitations</span>
-        </a>
-      </li>
+      {% url 'auth:audit-admin-members' as u_admins %}
+      {% include "partials/_sidebar_item.html" with href=u_admins icon="user-cog" label="Admins Audit" route="audit-admin-members" %}
       {% endif %}
-      <li>
-        <a href="/audit/audit-trail/" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'piste' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
-          <span>Piste d'audit</span>
-        </a>
-      </li>
+      {% include "partials/_sidebar_item.html" with soon=True icon="history" label="Piste d'audit" %}
     </ul>
 
-    {# ── Section Configuration (Audit Admin uniquement — Story 3.7.b) ── #}
     {% if user.can_manage_users or user.is_superuser %}
-    <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 mt-5 mb-2">Configuration</p>
-    <ul class="space-y-0.5">
-      <li>
-        <a href="{% url 'workflow:source-list' %}" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'sources-admin' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
-          <span>Sources</span>
-        </a>
-      </li>
-      <li>
-        <a href="{% url 'auth:org-unit-type-list' %}" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'org-unit-types' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
-          <span>Types d'unités</span>
-        </a>
-      </li>
-      <li>
-        <a href="{% url 'auth:organigramme-list' %}" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == 'organigramme' %}bg-gradient-to-r from-sentinel-orange to-[#C9631A] text-white shadow-md shadow-orange-500/20{% else %}text-gray-600 hover:bg-gray-50 hover:text-sentinel-orange{% endif %}">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
-          <span>Organigramme</span>
-        </a>
-      </li>
+    <p class="text-[10px] font-bold uppercase tracking-[0.08em] text-graphite-section px-3 mb-2 mt-5">Configuration</p>
+    <ul class="space-y-1">
+      {% url 'workflow:source-list' as u_sources %}
+      {% include "partials/_sidebar_item.html" with href=u_sources icon="globe" label="Sources" route="sources-admin" %}
     </ul>
     {% endif %}
   </nav>
 
-  {# ── Footer ── #}
-  <div class="px-5 py-4 border-t border-gray-100">
-    <p class="text-[10px] text-gray-400 font-medium text-center tracking-wide">© 2026 BICEC Sentinel</p>
-  </div>
+  {% include "partials/_sidebar_footer.html" %}
 </aside>

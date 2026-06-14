@@ -13,7 +13,8 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('notifications', '0002_alter_notification_notification_type'),
+       
+        ('notifications', '0003_add_provisioning_notification_types'),
         ('workflow', '0016_repoint_nightly_schedule'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]

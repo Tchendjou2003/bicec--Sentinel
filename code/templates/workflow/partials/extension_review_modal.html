@@ -7,7 +7,7 @@
   {# ── Header Approbation ── #}
   <div class="flex items-center gap-3 mb-5">
     <div class="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
     </div>
     <div>
       <h3 class="text-lg font-semibold text-gray-900">Approuver le report d'échéance</h3>
@@ -18,7 +18,7 @@
   {# ── Header Rejet ── #}
   <div class="flex items-center gap-3 mb-5">
     <div class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
     </div>
     <div>
       <h3 class="text-lg font-semibold text-gray-900">Rejeter la demande de report</h3>
@@ -53,7 +53,7 @@
   {# ── Info approbation ── #}
   <div class="rounded-xl bg-green-50 border border-green-200 p-3 mb-4">
     <div class="flex items-start gap-2.5">
-      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600 mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600 mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       <p class="text-xs text-green-800">
         L'échéance sera mise à jour à <strong>{{ extension.requested_date|date:"d/m/Y" }}</strong>.
         La date d'échéance originale ({{ recommendation.original_due_date|date:"d/m/Y" }}) est conservée pour le reporting COBAC.
@@ -64,7 +64,7 @@
   {# ── Avertissement rejet ── #}
   <div class="rounded-xl bg-red-50 border border-red-200 p-3 mb-4">
     <div class="flex items-start gap-2.5">
-      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600 mt-0.5 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600 mt-0.5 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <p class="text-xs text-red-800">
         L'échéance reste à <strong>{{ recommendation.due_date|date:"d/m/Y" }}</strong>. Le motif sera communiqué au demandeur.
       </p>
@@ -79,6 +79,7 @@
     hx-target="#extension-review-modal-container"
     hx-swap="innerHTML"
     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    hx-disabled-elt="find button[type='submit']"
   >
     <div class="mb-5">
       <label for="{{ form.audit_comment.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1.5">
@@ -93,12 +94,12 @@
     </div>
     <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
       <button type="button" @click="extensionReviewModalOpen = false"
-        class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">
+        class="btn btn-secondary">
         Annuler
       </button>
       <button type="submit"
-        class="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-green-700 shadow-md shadow-green-500/20 hover:shadow-lg transition-all duration-200">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        class="btn btn-primary">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         Approuver le report
       </button>
     </div>
@@ -109,6 +110,7 @@
     hx-target="#extension-review-modal-container"
     hx-swap="innerHTML"
     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    hx-disabled-elt="find button[type='submit']"
   >
     <div class="mb-5">
       <label for="{{ form.audit_comment.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1.5">
@@ -122,12 +124,12 @@
     </div>
     <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
       <button type="button" @click="extensionReviewModalOpen = false"
-        class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">
+        class="btn btn-secondary">
         Annuler
       </button>
       <button type="submit"
-        class="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-red-600 to-red-700 shadow-md shadow-red-500/20 hover:shadow-lg transition-all duration-200">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        class="btn btn-danger">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         Confirmer le rejet
       </button>
     </div>

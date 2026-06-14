@@ -28,7 +28,7 @@
       class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
       aria-label="Fermer"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
 
@@ -103,13 +103,13 @@
       <button
         type="button"
         @click="modalOpen = false"
-        class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+        class="btn btn-secondary"
       >
         Annuler
       </button>
       <button
         type="submit"
-        class="rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-sentinel-orange to-[#C9631A] shadow-sm hover:shadow-md shadow-orange-500/20 transition-all duration-200"
+        class="btn btn-primary"
       >
         {% if org_unit_type %}Enregistrer{% else %}Créer le type{% endif %}
       </button>

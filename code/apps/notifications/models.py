@@ -45,6 +45,10 @@ class Notification(models.Model):
         # ── Anticipations ─────────────────────────────────────────────────
         DUE_SOON_J7          = "DUE_SOON_J7",          _("Échéance dans 7 jours")
         DUE_SOON_J3          = "DUE_SOON_J3",          _("Échéance dans 3 jours")
+        # ── Provisioning Maker/Checker (Story 6.2.0) ──────────────────────
+        PROVISIONING_REQUESTED = "PROVISIONING_REQUESTED", _("Demande de compte à valider")
+        PROVISIONING_APPROVED  = "PROVISIONING_APPROVED",  _("Compte approuvé")
+        PROVISIONING_REJECTED  = "PROVISIONING_REJECTED",  _("Demande de compte rejetée")
 
     URGENT_TYPES = frozenset({"OVERDUE", "OVERDUE_J30", "OVERDUE_J60_ESCALATION"})
 

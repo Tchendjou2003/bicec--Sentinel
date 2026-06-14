@@ -1,0 +1,93 @@
+{% extends "layouts/app_shell.html" %}
+
+{% block title %}Sentinel — Sessions actives{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+
+  {# ── En-tête + retour ── #}
+  <div class="flex items-center justify-between">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <a href="{% url 'auth:admin-monitoring' %}" class="text-[12.5px] hover:underline text-text-faint">Surveillance</a>
+        <span class="text-border-strong">/</span>
+        <span class="text-[12.5px] text-text-body">Sessions actives</span>
+      </div>
+      <h1 class="text-2xl font-bold tracking-tight text-text-primary">Sessions actives</h1>
+      <p class="text-sm mt-0.5 text-text-body">{{ sessions|length }} session{{ sessions|length|pluralize }} en cours</p>
+    </div>
+  </div>
+
+  {# ── Table ── #}
+  <div class="bg-white rounded-xl overflow-hidden shadow-sm border border-border-subtle">
+    {% if sessions %}
+    <table class="w-full border-collapse text-sm">
+      <thead>
+        <tr class="bg-surface-sunken border-b border-border-subtle">
+          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Utilisateur</th>
+          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Rôle</th>
+          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Département</th>
+          <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Expire le</th>
+          <th class="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-text-faint">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sessions %}
+        <tr id="session-row-{{ forloop.counter }}" class="hover:bg-sentinel-orange-light transition-colors duration-100 border-b border-surface-warm">
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-3">
+              <div class="h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 bg-surface-warm text-text-body">
+                {{ s.user.username|slice:":1"|upper }}
+              </div>
+              <div>
+                <p class="text-[13px] font-medium text-text-primary">{{ s.user.username }}</p>
+                <p class="text-[12px] text-text-faint">{{ s.user.email }}</p>
+              </div>
+            </div>
+          </td>
+          <td class="px-4 py-3">
+            {% if s.user.role %}
+            <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold bg-sentinel-teal-tint text-sentinel-teal-darker">{{ s.user.role }}</span>
+            {% else %}
+            <span class="text-[12.5px] text-text-faint">—</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-[13px] text-text-body">
+            {{ s.user.department.name|default:"—" }}
+          </td>
+          <td class="px-4 py-3 text-[13px] text-text-body">
+            {{ s.expire_date|date:"d/m/Y H:i" }}
+          </td>
+          <td class="px-4 py-3 text-right">
+            {% if not s.is_superuser %}
+            <button
+              hx-post="{% url 'auth:admin-sessions' %}"
+              hx-vals='{"session_key": "{{ s.session_key }}", "target_username": "{{ s.user.username }}"}'
+              hx-target="#session-row-{{ forloop.counter }}"
+              hx-swap="outerHTML swap:200ms"
+              hx-confirm="Déconnecter {{ s.user.username }} ? Sa session active sera invalidée."
+              class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors duration-150 text-text-body border border-border-subtle hover:bg-surface-warm">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+              Déconnecter
+            </button>
+            {% else %}
+            <span class="text-[12px] text-border-strong">Protégé</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="flex flex-col items-center justify-center py-16">
+      <div class="h-12 w-12 rounded-full flex items-center justify-center mb-4 bg-surface-warm text-text-faint">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+      </div>
+      <p class="text-[14px] font-medium mb-1 text-text-primary">Aucune session active</p>
+      <p class="text-[13px] text-text-faint">Aucun utilisateur n'est connecté pour le moment.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

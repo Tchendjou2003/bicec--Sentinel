@@ -13,11 +13,62 @@ module.exports = {
         "sentinel-orange": "#E87722",
         "sentinel-orange-dark": "#C9631A",
         "sentinel-orange-light": "#FFF3EB",
+        "sentinel-orange-soft": "#F5C89A",
         "sentinel-brown": "#4A2C2A",
         "sentinel-brown-light": "#6B4A3A",
         "sentinel-brown-dark": "#3A1F1A",
 
-        // Semantic Statuses
+        // ═══ SENTINEL DESIGN SYSTEM — tokens additifs (handoff Claude Design) ═══
+        // Brand — orange-darker (actif) + sarcelle/teal (secondaire calme)
+        "sentinel-orange-darker": "#A8500F",
+        "sentinel-teal": "#14746F",
+        "sentinel-teal-dark": "#0E5B57",
+        "sentinel-teal-darker": "#0A4744",
+        "sentinel-teal-tint": "#E6F2F1",
+        "sentinel-brown-tint": "#F5EDE6",
+        // Sidebar graphite (rail institutionnel — orange plat actif, sans gradient)
+        "graphite": "#211C1B",
+        "graphite-hover": "#322B29",
+        "graphite-border": "#3A332F",
+        "graphite-fg": "#CFC6BF",
+        "graphite-fg-strong": "#F3EDE7",
+        "graphite-section": "#8A7F78",
+        // Surfaces & hairlines complémentaires
+        "surface-sunken": "#F3EFEA",
+        "surface-faint": "#F8F8F5",
+        "border-strong": "#D8CBBE",
+        // Texte atténué chaud (labels/corps) — centralise les hex jadis en dur
+        "text-faint": "#968A80",
+        "text-body": "#6F635B",
+        // Renforts sémantiques succès / danger (texte foncé + fond clair)
+        "success-strong": "#1E6B41",
+        "danger-surface": "#FEE2E2",
+        // Workflow status — FSM complet + tints (Recommendation.Status)
+        // status-draft : #6F635B (= text-body) et non #968A80 — contraste
+        // WCAG AA ≈ 4,6:1 sur la tint (correctif 2.3 du rapport UI/UX)
+        "status-draft": "#6F635B",        "status-draft-tint": "#F0ECE7",
+        "status-assigned": "#2B6CB0",     "status-assigned-tint": "#E8F0F8",
+        "status-in-progress-strong": "#C9631A", "status-in-progress-tint": "#FFF3EB",
+        "status-dm-review": "#C08A2D",    "status-dm-review-tint": "#FBF1DF",
+        "status-audit-review": "#14746F", "status-audit-review-tint": "#E6F2F1",
+        "status-closed-strong": "#2D8B56", "status-closed-tint": "#E7F2EC",
+        "status-overdue-strong": "#991B1B", "status-overdue-tint": "#FBEAE7",
+        // Criticité (priorité)
+        "prio-critique": "#C0392B", "prio-critique-tint": "#FBEAE7",
+        "prio-haute": "#C9631A",    "prio-haute-tint": "#FCEFE4",
+        "prio-moyenne": "#C08A2D",  "prio-moyenne-tint": "#FBF1DF",
+        "prio-faible": "#2D8B56",   "prio-faible-tint": "#E7F2EC",
+        // Sémantique — tints + danger (rouge DS calme, sans toucher l'objet HSL destructive)
+        "success-tint": "#E7F2EC",
+        "warning-tint": "#FBF1DF",
+        "destructive-tint": "#FBEAE7",
+        "info-tint": "#E8F0F8",
+        "danger": "#C0392B",
+        "danger-strong": "#991B1B",
+        "danger-tint": "#FBEAE7",
+        // ═══ fin tokens DS ═══
+
+        // Semantic Statuses (héritées — conservées pour compat ascendante)
         "status-in-progress": "#E87722",
         "status-pending": "#D4A843",
         "status-approved": "#2D8B56",
@@ -34,55 +85,27 @@ module.exports = {
         "text-secondary": "#8B7E74",
         "text-muted": "#B5A99E",
 
-        // Stitch Design / Material Design Tokens
-        "surface-dim": "#dcd9d9",
-        "on-secondary": "#ffffff",
-        "on-tertiary-fixed-variant": "#004b72",
-        "outline": "#8d7165",
-        "on-secondary-container": "#773615",
-        "secondary-fixed-dim": "#ffb595",
-        "on-surface": "#1c1b1b",
-        "primary-fixed-dim": "#ffb595",
-        "tertiary-fixed": "#cce5ff",
-        "on-primary": "#ffffff",
-        "on-primary-fixed": "#351000",
-        "error-container": "#ffdad6",
-        "surface-bright": "#fcf9f8",
-        "surface-container-low": "#f6f3f2",
-        "outline-variant": "#e1bfb2",
-        "on-error-container": "#93000a",
-        "error": "#ba1a1a",
-        "secondary": "#924b28",
+        // Tokens Material/Stitch LEGACY — encore consommés (lockout.html,
+        // shells bg-background, kpi_card accent="primary", provisioning,
+        // audit_admin_members). À migrer vers les tokens Sentinel au fil du
+        // Lot 3.5 ; les 33 tokens sans consommateur ont été purgés (3.6).
+        // ⚠ piège : text-primary (#a23f00) ≠ text-text-primary (#2D1F1E).
         "background": "#fcf9f8",
-        "on-primary-fixed-variant": "#7c2e00",
-        "inverse-on-surface": "#f3f0ef",
-        "on-secondary-fixed-variant": "#743413",
-        "surface-container-highest": "#e5e2e1",
-        "on-primary-container": "#541d00",
-        "surface-variant": "#e5e2e1",
-        "surface-container-high": "#eae7e7",
-        "on-background": "#1c1b1b",
-        "on-tertiary": "#ffffff",
-        "tertiary-container": "#009eea",
-        "tertiary-fixed-dim": "#91cdff",
-        "inverse-primary": "#ffb595",
-        "on-surface-variant": "#594137",
-        "secondary-fixed": "#ffdbcd",
-        "primary-fixed": "#ffdbcd",
-        "tertiary": "#006496",
-        "surface-container-lowest": "#ffffff",
-        "secondary-container": "#fea279",
-        "on-secondary-fixed": "#351000",
-        "surface-container": "#f0eded",
-        "inverse-surface": "#313030",
-        "primary-container": "#f76b1c",
-        "surface-tint": "#a23f00",
         "primary": "#a23f00",
+        "tertiary": "#006496",
+        "error": "#ba1a1a",
+        "error-container": "#ffdad6",
+        "on-error-container": "#93000a",
+        "on-surface": "#1c1b1b",
+        "on-surface-variant": "#594137",
+        "outline-variant": "#e1bfb2",
         "surface": "#fcf9f8",
-        "on-tertiary-container": "#00314d",
-        "on-error": "#ffffff",
-        "on-tertiary-fixed": "#001e31",
-        
+        "surface-container": "#f0eded",
+        "surface-container-low": "#f6f3f2",
+        "surface-container-high": "#eae7e7",
+        "surface-container-lowest": "#ffffff",
+
+
         // Tokens HSL du kit (Sentinel Export)
         "border": "hsl(var(--border))",
         "input": "hsl(var(--input))",
@@ -108,7 +131,7 @@ module.exports = {
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "monospace"],
-        headline: ["Plus Jakarta Sans", "sans-serif"],
+        display: ["Manrope", "system-ui", "sans-serif"],
         heading: ["Manrope", "sans-serif"],
         body: ["Inter", "sans-serif"],
         label: ["Inter", "sans-serif"],
@@ -118,11 +141,26 @@ module.exports = {
         "pulse-slow": { "0%, 100%": { opacity: "1" }, "50%": { opacity: "0.5" } },
         "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
         "slide-up": { from: { opacity: "0", transform: "translateY(12px)" }, to: { opacity: "1", transform: "translateY(0)" } },
+        "float": {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(-18px)" },
+        },
+        "card-in": {
+          from: { opacity: "0", transform: "translateY(14px) scale(0.98)" },
+          to: { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
+        "shake": {
+          "0%, 100%": { transform: "translateX(0)" },
+          "15%, 55%": { transform: "translateX(-5px)" },
+          "35%, 75%": { transform: "translateX(5px)" },
+        },
       },
       animation: {
         "pulse-slow": "pulse-slow 2s ease-in-out infinite",
         "fade-in": "fade-in 0.4s ease-out both",
         "slide-up": "slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both",
+        "card-in": "card-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both",
+        "shake": "shake 0.45s ease-in-out",
       },
     },
   },

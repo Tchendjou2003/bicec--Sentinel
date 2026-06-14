@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static widget_tweaks %}
+{% load static %}
 
 {% block title %}Sentinel — Connexion{% endblock %}
 
@@ -7,135 +7,212 @@
 {% block footer %}{% endblock %}
 
 {% block extra_css %}
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
-    .material-symbols-outlined {
-        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-    }
+  body { background: #FAF7F4 !important; }
 </style>
 {% endblock %}
 
 {% block main %}
-<!-- Ambient Background Lighting -->
-<div class="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden z-0">
-    <div class="absolute -top-40 -left-40 w-96 h-96 bg-primary opacity-30 rounded-full blur-[80px]"></div>
-    <div class="absolute bottom-[-10%] right-[-5%] w-[45rem] h-[45rem] bg-sentinel-orange opacity-20 rounded-full blur-[100px]"></div>
-    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50rem] h-[50rem] bg-surface-bright rounded-full blur-[100px] opacity-80"></div>
-    
-    <!-- Decorative Watermark -->
-    <div class="absolute top-1/2 right-[5%] -translate-y-1/2 w-[800px] h-[800px] opacity-10 flex items-center justify-center grayscale">
-        <img alt="Watermark" aria-hidden="true" class="w-full h-full object-contain opacity-50" src="{% static 'img/logo.jpeg' %}"/>
-    </div>
-    
-    <!-- Decorative Dots Bottom Right -->
-    <div class="absolute bottom-[15%] right-[10%] grid grid-cols-5 gap-3 opacity-40">
-        {% for i in "123456789012345"|make_list %}
-        <div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
-        {% endfor %}
-    </div>
-    
-    <!-- Decorative Dots Middle Left -->
-    <div class="absolute top-[45%] left-[5%] grid grid-cols-4 gap-3 opacity-40">
-        {% for i in "12345678"|make_list %}
-        <div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
-        {% endfor %}
-    </div>
-</div>
+<div class="min-h-screen flex relative overflow-hidden" style="background:#FAF7F4;">
 
-<main class="flex-grow flex flex-col items-center justify-center relative z-10 px-4 py-12 min-h-screen font-body text-on-surface antialiased">
-    <!-- Welcome Message -->
+  {# ── Blobs ambiants ── #}
+  <div class="absolute -top-40 -left-40 w-96 h-96 rounded-full blur-[80px] pointer-events-none"
+    style="background:#E87722;opacity:0.30;"></div>
+  <div class="absolute bottom-[-10%] right-[-5%] rounded-full blur-[100px] pointer-events-none"
+    style="width:45rem;height:45rem;background:#E87722;opacity:0.20;"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[100px] pointer-events-none"
+    style="width:50rem;height:50rem;background:#fcf9f8;opacity:0.80;"></div>
+
+  {# ── Filigrane logo BICEC — 800px, opacité 10%×50%=5% visible ── #}
+  <div class="absolute top-1/2 right-[5%] -translate-y-1/2 pointer-events-none select-none grayscale"
+    style="width:800px;height:800px;opacity:0.10;">
+    <img src="{% static 'img/logo.jpeg' %}" alt=""
+      class="w-full h-full object-contain" style="opacity:0.50;">
+  </div>
+
+  {# ── Points décoratifs gauche ── #}
+  <div class="absolute top-[45%] left-[5%] grid grid-cols-4 gap-3 pointer-events-none"
+    style="opacity:0.40;">
+    {% for i in "12345678"|make_list %}
+    <div class="w-1.5 h-1.5 rounded-full" style="background:#E87722;"></div>
+    {% endfor %}
+  </div>
+
+  {# ── Points décoratifs bas-droite ── #}
+  <div class="absolute bottom-[15%] right-[10%] grid grid-cols-5 gap-3 pointer-events-none"
+    style="opacity:0.40;">
+    {% for i in "1234567890ab"|make_list %}
+    <div class="w-1.5 h-1.5 rounded-full" style="background:#E87722;"></div>
+    {% endfor %}
+  </div>
+
+  {# ── Zone centrale ── #}
+  <main class="flex-grow flex flex-col items-center justify-center relative z-10 px-4 py-12 min-h-screen">
+
+    {# H1 centré au-dessus de la carte #}
     <div class="text-center mb-8">
-        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface-container-low border border-outline-variant/30 text-xs font-medium text-on-surface-variant mb-6 shadow-sm">
-            <span class="material-symbols-outlined text-[16px] text-primary">bar_chart</span>
-            Plateforme de suivi des recommandations d'audit
-        </div>
-        <h2 class="font-headline text-4xl sm:text-5xl font-bold tracking-tight text-on-surface mb-3">
-            <span class="text-sentinel-brown">Bienvenue sur</span> <span class="text-primary">Sentinel</span>
-        </h2>
-        <p class="font-body text-on-surface-variant text-sm sm:text-base">
-            Connectez-vous pour accéder à votre espace de travail sécurisé
-        </p>
+      <h1 class="font-display font-extrabold tracking-tight"
+        style="font-size:40px;line-height:1.1;letter-spacing:-0.02em;">
+        <span style="color:#4A2C2A;">Bienvenue sur</span>
+        <span style="color:#E87722;"> Sentinel</span>
+      </h1>
+      <p class="mt-2" style="font-size:14px;color:#6F635B;">
+        Connectez-vous pour accéder à votre espace de travail sécurisé
+      </p>
     </div>
 
-    <div class="w-full max-w-md bg-surface-container-lowest rounded-xl shadow-[0_4px_20px_rgba(141,113,101,0.08),0_15px_50px_rgba(0,0,0,0.04)] border-t-[3px] border-primary relative overflow-hidden">
-        <div class="p-8 sm:p-10">
-            <!-- Header -->
-            <div class="flex flex-row items-center gap-6 mb-8">
-                <div class="w-16 h-16 shrink-0 rounded-full border-2 border-primary/20 p-1 flex items-center justify-center">
-                    <div class="w-full h-full rounded-full bg-white overflow-hidden flex items-center justify-center">
-                        <img alt="Sentinel Logo" class="w-full h-full object-contain p-1.5" src="{% static 'img/logo.jpeg' %}"/>
-                    </div>
-                </div>
-                <div class="flex flex-col text-left">
-                    <h1 class="font-headline text-3xl font-bold tracking-tight text-on-surface">Connexion</h1>
-                    <p class="font-body text-on-surface-variant mt-1 text-sm">Accédez à votre espace sécurisé</p>
-                </div>
+    {# Carte — max-w-md, border-t orange 3px, shadow ── #}
+    <div class="w-full max-w-md bg-white rounded-xl overflow-hidden"
+      style="border-top:3px solid #E87722;
+             box-shadow:0 4px 20px rgba(141,113,101,0.08),0 15px 50px rgba(0,0,0,0.04);">
+      <div class="p-8 sm:p-10">
+
+        {# En-tête carte : logo rond + "Connexion" #}
+        <div class="flex items-center gap-6 mb-8">
+          <div class="w-16 h-16 shrink-0 rounded-full p-1 flex items-center justify-center"
+            style="border:2px solid rgba(232,119,34,0.25);">
+            <div class="w-full h-full rounded-full bg-white overflow-hidden flex items-center justify-center">
+              <img src="{% static 'img/logo.jpeg' %}" alt="Sentinel Logo"
+                class="w-full h-full object-contain p-1.5">
             </div>
-
-            <!-- Alert Message -->
-            {% if form.errors %}
-            <div class="bg-error-container/50 border border-error-container rounded-lg p-4 mb-6 flex items-start gap-3">
-                <span class="material-symbols-outlined text-error mt-0.5">error</span>
-                <div class="flex-grow">
-                    <p class="font-body text-sm font-medium text-on-error-container">Identifiants invalides</p>
-                    <p class="font-body text-xs text-on-error-container/80 mt-1">Veuillez vérifier votre nom d'utilisateur et votre mot de passe.</p>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Form -->
-            <form method="post" class="space-y-5">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ next }}">
-
-                <div class="space-y-1.5">
-                    <label class="font-body text-sm font-medium text-on-surface" for="id_username">Nom d'utilisateur</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant/50">
-                            <span class="material-symbols-outlined text-lg">account_circle</span>
-                        </div>
-                        {% render_field form.username class="block w-full pl-10 pr-3 py-2.5 border border-outline-variant/50 rounded-lg bg-surface-container-lowest text-on-surface focus:ring-1 focus:ring-primary focus:border-primary transition-colors text-sm" placeholder="Saisissez votre identifiant" autocomplete="username" %}
-                    </div>
-                </div>
-
-                <div class="space-y-1.5">
-                    <div class="flex justify-between items-center">
-                        <label class="font-body text-sm font-medium text-on-surface" for="id_password">Mot de passe</label>
-                        <a class="text-xs font-medium text-primary hover:text-primary-container transition-colors" href="#">Mot de passe oublié ?</a>
-                    </div>
-                    <div class="relative" x-data="{ show: false }" x-effect="$el.querySelector('input').type = show ? 'text' : 'password'">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-on-surface-variant/50">
-                            <span class="material-symbols-outlined text-lg">lock</span>
-                        </div>
-                        {% render_field form.password class="block w-full pl-10 pr-10 py-2.5 border border-outline-variant/50 rounded-lg bg-surface-container-lowest text-on-surface focus:ring-1 focus:ring-primary focus:border-primary transition-colors text-sm" placeholder="••••••••" autocomplete="current-password" %}
-                        <button class="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant/50 hover:text-on-surface-variant transition-colors" type="button" @click="show = !show">
-                            <span class="material-symbols-outlined text-lg" x-text="show ? 'visibility' : 'visibility_off'">visibility_off</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="flex items-center pt-2">
-                    <input class="h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface-container-lowest bg-surface-container-lowest" id="remember_me" name="remember_me" type="checkbox"/>
-                    <label class="ml-2 block text-sm text-on-surface-variant font-body cursor-pointer select-none" for="remember_me">
-                        Se souvenir de moi
-                    </label>
-                </div>
-
-                <button class="w-full mt-6 bg-gradient-to-br from-primary-container to-primary text-on-primary py-3 px-4 rounded-lg font-headline font-bold uppercase tracking-wider text-sm flex justify-center items-center gap-2 hover:opacity-95 shadow-md shadow-primary/20 transition-all hover:-translate-y-0.5 active:translate-y-0" type="submit">
-                    Se connecter
-                    <span class="material-symbols-outlined text-sm">arrow_forward</span>
-                </button>
-            </form>
-        </div>
-
-        <!-- Card Footer -->
-        <div class="bg-surface-container-low px-8 py-4 text-center border-t border-outline-variant/15">
-            <p class="text-[11px] font-body text-on-surface-variant/70 flex items-center justify-center gap-2">
-                <span class="material-symbols-outlined text-sm text-primary">verified_user</span>
-                <span class="font-bold text-on-surface-variant tracking-wider uppercase">BICEC</span> — Accès réservé au personnel autorisé
+          </div>
+          <div>
+            <h2 class="font-display font-bold"
+              style="font-size:28px;line-height:1.1;color:#2D1F1E;">Connexion</h2>
+            <p class="mt-1" style="font-size:13.5px;color:#6F635B;">
+              Accédez à votre espace sécurisé
             </p>
+          </div>
         </div>
+
+        {# Bloc erreur — animate-shake ── #}
+        {% if form.errors %}
+        <div class="flex items-start gap-3 rounded-lg p-4 mb-6 animate-shake"
+          role="alert" aria-live="assertive"
+          style="background:#FBEAE7;border:1px solid #EAC5BF;">
+          <svg aria-hidden="true" class="shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="#C0392B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <div>
+            <p class="font-medium" style="font-size:13px;color:#7A1A1A;">Identifiants invalides</p>
+            <p class="mt-0.5" style="font-size:12px;color:#C0392B;">
+              {{ form.non_field_errors.0|default:"Veuillez vérifier votre nom d'utilisateur et votre mot de passe." }}
+            </p>
+          </div>
+        </div>
+        {% endif %}
+
+        <form method="post" class="space-y-5">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}">
+
+          {# Nom d'utilisateur #}
+          <div class="space-y-1.5">
+            <label class="font-medium" for="id_username"
+              style="font-size:13.5px;color:#2D1F1E;display:block;">
+              Nom d'utilisateur
+            </label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                style="color:#968A80;">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+              </span>
+              <input type="text" name="username" id="id_username"
+                autocomplete="username"
+                placeholder="Saisissez votre identifiant"
+                class="w-full rounded-lg transition-all duration-200"
+                style="height:2.75rem;padding-left:2.5rem;padding-right:0.75rem;
+                       font-size:13.5px;border:1px solid rgba(141,113,101,0.50);
+                       color:#2D1F1E;background:white;outline:none;"
+                onfocus="this.style.borderColor='#E87722';this.style.boxShadow='0 0 0 1px #E87722'"
+                onblur="this.style.borderColor='rgba(141,113,101,0.50)';this.style.boxShadow='none'">
+            </div>
+          </div>
+
+          {# Mot de passe #}
+          <div class="space-y-1.5">
+            <label class="font-medium" for="id_password"
+              style="font-size:13.5px;color:#2D1F1E;display:block;">Mot de passe</label>
+            <div class="relative" x-data="{ show: false }">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                style="color:#968A80;">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </span>
+              <input :type="show ? 'text' : 'password'"
+                name="password" id="id_password"
+                autocomplete="current-password"
+                placeholder="••••••••"
+                class="w-full rounded-lg transition-all duration-200"
+                style="height:2.75rem;padding-left:2.5rem;padding-right:2.75rem;
+                       font-size:13.5px;border:1px solid rgba(141,113,101,0.50);
+                       color:#2D1F1E;background:white;outline:none;"
+                onfocus="this.style.borderColor='#E87722';this.style.boxShadow='0 0 0 1px #E87722'"
+                onblur="this.style.borderColor='rgba(141,113,101,0.50)';this.style.boxShadow='none'">
+              <button type="button" @click="show = !show"
+                class="absolute inset-y-0 right-0 px-3 flex items-center transition-colors"
+                style="color:#968A80;"
+                onmouseover="this.style.color='#4A2C2A'"
+                onmouseout="this.style.color='#968A80'">
+                <svg aria-hidden="true" x-show="!show" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <svg aria-hidden="true" x-show="show" style="display:none;" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {# Bouton SE CONNECTER → #}
+          <button type="submit"
+            class="w-full rounded-lg font-bold text-white flex items-center justify-center gap-2 uppercase tracking-wider transition-all duration-150 mt-2"
+            style="height:3rem;font-size:13.5px;
+                   background:#E87722;box-shadow:0 4px 14px rgba(232,119,34,0.30);"
+            onmouseover="this.style.background='#C9631A';this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 18px rgba(232,119,34,0.35)'"
+            onmouseout="this.style.background='#E87722';this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(232,119,34,0.30)'"
+            onmousedown="this.style.transform='translateY(0)'"
+            onmouseup="this.style.transform='translateY(-1px)'">
+            Se connecter
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+
+      {# Pied de carte #}
+      <div class="px-8 py-4 text-center"
+        style="background:#F8F5F2;border-top:1px solid rgba(232,119,34,0.10);">
+        <p class="flex items-center justify-center gap-2"
+          style="font-size:11px;color:#6F635B;">
+          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="#E87722" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <polyline points="9 12 11 14 15 10"/>
+          </svg>
+          <strong style="color:#4A2C2A;letter-spacing:0.06em;">BICEC</strong>
+          <span>— Accès réservé au personnel autorisé</span>
+        </p>
+      </div>
     </div>
-</main>
+  </main>
+</div>
 {% endblock %}

@@ -133,7 +133,7 @@ class UnreadCountContextTest(NotificationViewTestBase):
         self._notif(key="ctx:2")
         self._notif(key="ctx:3", is_read=True)
         self._login()
-        # On utilise la page home comme proxy — toute page injecte le contexte
-        response = self.client.get("/")
+        # follow=True : / redirige vers dashboards:home depuis Story 6.1a
+        response = self.client.get("/", follow=True)
         self.assertIn("unread_notifications_count", response.context)
         self.assertEqual(response.context["unread_notifications_count"], 2)

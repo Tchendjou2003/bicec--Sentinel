@@ -25,6 +25,9 @@ ENV/
 **/db.sqlite3
 **/postgres_data/
 
+# Instructions agent (local uniquement)
+CLAUDE.md
+
 # IDE & Tools
 .vscode/
 .idea/

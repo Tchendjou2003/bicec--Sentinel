@@ -1,30 +1,21 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static lucide %}
 
 {% block title %}Sentinel — Compte verrouillé{% endblock %}
 
 {% block navbar %}{% endblock %}
 {% block footer %}{% endblock %}
 
-{% block extra_css %}
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<style>
-    .material-symbols-outlined {
-        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-    }
-</style>
-{% endblock %}
-
 {% block main %}
 <main class="flex-grow flex flex-col items-center justify-center relative z-10 px-4 py-12 min-h-screen bg-surface font-body text-on-surface antialiased">
     <div class="w-full max-w-md bg-surface-container-lowest rounded-xl shadow-[0_4px_20px_rgba(141,113,101,0.08),0_15px_50px_rgba(0,0,0,0.04)] border-t-[3px] border-error relative overflow-hidden">
         <div class="p-8 sm:p-10 text-center">
             {# Icône de verrouillage #}
-            <div class="mx-auto w-16 h-16 rounded-full bg-error-container/30 flex items-center justify-center mb-6">
-                <span class="material-symbols-outlined text-4xl text-error">lock_person</span>
+            <div class="mx-auto w-16 h-16 rounded-full bg-error-container/30 flex items-center justify-center mb-6 text-error">
+                {% lucide "lock-keyhole" size=36 %}
             </div>
 
-            <h1 class="font-headline text-2xl font-bold tracking-tight text-on-surface mb-2">
+            <h1 class="font-display text-2xl font-bold tracking-tight text-on-surface mb-2">
                 Compte temporairement verrouillé
             </h1>
 
@@ -36,7 +27,7 @@
             {# Détails du verrouillage #}
             <div class="bg-error-container/20 border border-error-container/40 rounded-lg p-4 mb-6 text-left">
                 <div class="flex items-start gap-3">
-                    <span class="material-symbols-outlined text-error mt-0.5">info</span>
+                    <span class="text-error mt-0.5 shrink-0">{% lucide "info" size=20 %}</span>
                     <div>
                         <p class="font-body text-sm font-medium text-on-error-container">Que faire ?</p>
                         <ul class="font-body text-xs text-on-error-container/80 mt-2 space-y-1.5 list-disc list-inside">
@@ -51,7 +42,7 @@
             {# Bouton retour #}
             <a href="{% url 'auth:login' %}"
                class="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface font-medium text-sm hover:bg-surface-container-high transition-colors">
-                <span class="material-symbols-outlined text-sm">arrow_back</span>
+                {% lucide "arrow-left" size=16 %}
                 Retour à la page de connexion
             </a>
         </div>
@@ -59,7 +50,7 @@
         {# Footer #}
         <div class="bg-surface-container-low px-8 py-4 text-center border-t border-outline-variant/15">
             <p class="text-[11px] font-body text-on-surface-variant/70 flex items-center justify-center gap-2">
-                <span class="material-symbols-outlined text-sm text-error">shield</span>
+                <span class="text-error">{% lucide "shield" size=14 %}</span>
                 <span class="font-bold text-on-surface-variant tracking-wider uppercase">BICEC</span> — Protection contre les accès non autorisés
             </p>
         </div>

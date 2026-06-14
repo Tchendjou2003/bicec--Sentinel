@@ -78,17 +78,24 @@ development_status:
   epic-4-retrospective: optional
 
   # ── Epic 5: Confiance Réglementaire & Audit Trail ──
-  epic-5: in-progress
+  epic-5: done
   5-1-timeline-statique-audit-trail: done
-  5-2-compilation-archive-zip-audit-externe: backlog
   epic-5-retrospective: optional
 
   # ── Epic 6: Executive Supervision Dashboards ──
-  epic-6: backlog
-  6-1-dashboard-supervision-indicateurs-urgence: backlog
+  epic-6: in-progress
+  6-1a-socle-dashboard-dm: done
+  6-1b-dashboard-dg: done
+  6-1c-dashboard-audit: done
+  6-2-0-gouvernance-it-maker-checker: ready-for-dev
   6-2-todo-list-executive: backlog
   6-3-optimisation-impression-pdf-css-print: backlog
   6-4-configuration-interim-delegation: backlog
   6-5-importation-atomique-historique: backlog
   6-6-triage-auto-assignation: backlog
+  6-7-compilation-archive-zip-audit-externe: backlog
   epic-6-retrospective: optional
+
+  # ── Epic 7: Administration Technique & Surveillance ──
+  epic-7: in-progress
+  7-1-admin-it-monitoring-surveillance: ready-for-dev

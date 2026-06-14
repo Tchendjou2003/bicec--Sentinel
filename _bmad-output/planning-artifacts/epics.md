@@ -543,6 +543,20 @@ So that **je puisse identifier immédiatement les zones et services en alerte (F
 **Then** les recommandations sont groupées et triées par priorité et niveau d'urgence.
 **And** les indicateurs visuels (codes couleurs) reflètent l'urgence et le vieillissement de façon claire.
 
+#### Story 6.2.0: Gouvernance IT (Maker/Checker) & Refonte UX Sélecteurs
+
+As a **Responsable Sécurité / Gouvernance**,
+I want **que la création de comptes et la gestion de l'organigramme soient centralisées par l'IT via un flux Maker/Checker, et que la sélection des départements soit ergonomique**,
+So that **l'Audit Interne soit déchargé de la gestion des identités, tout en garantissant un contrôle strict à quatre yeux (IT crée, Administrateur valide) et une traçabilité parfaite, avec une UX optimale.**
+
+**Acceptance Criteria:**
+**Given** un besoin de création de compte ou de modification d'organisation,
+**When** un Admin IT soumet la demande,
+**Then** elle doit être validée par le groupe "Administrateurs Sentinel" avant d'être effective,
+**And** l'Audit Interne n'a plus accès à ces interfaces,
+**And** les sélecteurs organisationnels de l'application utilisent le composant TomSelect avec recherche et groupement.
+> **Note :** Cette story remplace et refond fonctionnellement les anciennes stories 1.4, 1.5 et 1.7.
+
 #### Story 6.2: To-Do List Executive
 
 As a **DG**,

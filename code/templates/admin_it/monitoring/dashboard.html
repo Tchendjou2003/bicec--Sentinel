@@ -1,0 +1,137 @@
+{% extends "layouts/app_shell.html" %}
+
+{% block title %}Sentinel — Monitoring{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-8">
+
+  {# ── En-tête ── #}
+  <div>
+    <h1 class="text-2xl font-bold tracking-tight text-text-primary">Surveillance opérationnelle</h1>
+    <p class="text-sm mt-1 text-text-body">État du système en temps réel</p>
+  </div>
+
+  {# ── KPI cards ── #}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+
+    {# Comptes verrouillés #}
+    <a href="{% url 'auth:provisioning-list' %}?pane=lockouts"
+       class="group bg-white rounded-xl p-5 hover:bg-sentinel-orange-light transition-colors duration-150 border border-border-subtle">
+      <div class="flex items-center justify-between mb-3">
+        <div class="h-10 w-10 rounded-lg flex items-center justify-center bg-surface-warm {% if lockouts_count > 0 %}text-danger{% else %}text-text-faint{% endif %}">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="text-border-strong" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+      </div>
+      <p class="text-3xl font-bold tabular-nums mb-1 {% if lockouts_count > 0 %}text-danger{% else %}text-text-primary{% endif %}">{{ lockouts_count }}</p>
+      <p class="text-[12px] font-medium text-text-body">Comptes verrouillés</p>
+    </a>
+
+    {# Sessions actives #}
+    <a href="{% url 'auth:admin-sessions' %}"
+       class="group bg-white rounded-xl p-5 hover:bg-sentinel-orange-light transition-colors duration-150 border border-border-subtle">
+      <div class="flex items-center justify-between mb-3">
+        <div class="h-10 w-10 rounded-lg flex items-center justify-center bg-sentinel-teal-tint text-sentinel-teal">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+        </div>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="text-border-strong" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+      </div>
+      <p class="text-3xl font-bold tabular-nums mb-1 text-text-primary">{{ sessions_count }}</p>
+      <p class="text-[12px] font-medium text-text-body">Sessions actives</p>
+    </a>
+
+    {# Comptes inactifs #}
+    <a href="{% url 'auth:admin-inactive-users' %}"
+       class="group bg-white rounded-xl p-5 hover:bg-sentinel-orange-light transition-colors duration-150 border border-border-subtle">
+      <div class="flex items-center justify-between mb-3">
+        <div class="h-10 w-10 rounded-lg flex items-center justify-center bg-sentinel-orange-light text-sentinel-orange-darker">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="text-border-strong" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+      </div>
+      <p class="text-3xl font-bold tabular-nums mb-1 text-text-primary">{{ inactive_count }}</p>
+      <p class="text-[12px] font-medium text-text-body">Inactifs &gt; 30j</p>
+    </a>
+
+    {# Demandes en attente #}
+    <a href="{% url 'auth:provisioning-list' %}"
+       class="group bg-white rounded-xl p-5 hover:bg-sentinel-orange-light transition-colors duration-150 border border-border-subtle">
+      <div class="flex items-center justify-between mb-3">
+        <div class="h-10 w-10 rounded-lg flex items-center justify-center bg-success-tint text-success-strong">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="22 11 16 17 13 14"/></svg>
+        </div>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="text-border-strong" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+      </div>
+      <p class="text-3xl font-bold tabular-nums mb-1 text-text-primary">{{ pending_count }}</p>
+      <p class="text-[12px] font-medium text-text-body">Demandes en attente</p>
+    </a>
+
+    {# Worker santé #}
+    <div class="bg-white rounded-xl p-5 border border-border-subtle">
+      <div class="flex items-center justify-between mb-3">
+        <div class="h-10 w-10 rounded-lg flex items-center justify-center {% if worker_health.status == 'ok' %}bg-success-tint text-success-strong{% elif worker_health.status == 'alert' %}bg-danger-surface text-danger{% else %}bg-surface-warm text-text-faint{% endif %}">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        </div>
+        <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold {% if worker_health.status == 'ok' %}bg-success-tint text-success-strong{% elif worker_health.status == 'alert' %}bg-danger-surface text-danger{% else %}bg-surface-warm text-text-faint{% endif %}">
+          {% if worker_health.status == 'ok' %}OK{% elif worker_health.status == 'alert' %}ALERTE{% else %}N/A{% endif %}
+        </span>
+      </div>
+      <p class="text-[12px] font-medium mb-1 text-text-body">Worker Django-Q</p>
+      <p class="text-xs text-text-faint">{{ worker_health.queued }} en file · {{ worker_health.failures_24h }} erreur{{ worker_health.failures_24h|pluralize }}/24h</p>
+    </div>
+  </div>
+
+  {# ── Deux colonnes : Santé worker + Stats utilisation ── #}
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    {# Détail worker #}
+    <div class="bg-white rounded-xl p-6 border border-border-subtle">
+      <h2 class="text-sm font-semibold mb-4 text-text-primary">Santé du worker (dernières 24h)</h2>
+      <dl class="space-y-3">
+        <div class="flex justify-between items-center py-2 border-b border-surface-warm">
+          <dt class="text-[13px] text-text-body">Tâches en file d'attente</dt>
+          <dd class="text-[13px] font-semibold text-text-primary">{{ worker_health.queued }}</dd>
+        </div>
+        <div class="flex justify-between items-center py-2 border-b border-surface-warm">
+          <dt class="text-[13px] text-text-body">Succès</dt>
+          <dd class="text-[13px] font-semibold text-prio-faible">{{ worker_health.successes_24h }}</dd>
+        </div>
+        <div class="flex justify-between items-center py-2 border-b border-surface-warm">
+          <dt class="text-[13px] text-text-body">Échecs</dt>
+          <dd class="text-[13px] font-semibold {% if worker_health.failures_24h > 0 %}text-danger{% else %}text-text-faint{% endif %}">{{ worker_health.failures_24h }}</dd>
+        </div>
+        <div class="flex justify-between items-center py-2">
+          <dt class="text-[13px] text-text-body">Dernier succès</dt>
+          <dd class="text-[12.5px] text-text-faint">
+            {% if worker_health.last_success %}{{ worker_health.last_success|date:"d/m/Y H:i" }}{% else %}—{% endif %}
+          </dd>
+        </div>
+      </dl>
+    </div>
+
+    {# Stats utilisation #}
+    <div class="bg-white rounded-xl p-6 border border-border-subtle">
+      <h2 class="text-sm font-semibold mb-4 text-text-primary">Statistiques d'utilisation</h2>
+      <div class="flex items-center gap-4 py-3 mb-3 border-b border-surface-warm">
+        <div class="h-10 w-10 rounded-lg flex items-center justify-center shrink-0 bg-sentinel-teal-tint text-sentinel-teal">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+        </div>
+        <div>
+          <p class="text-2xl font-bold tabular-nums text-text-primary">{{ usage_stats.active_30d }}</p>
+          <p class="text-[12px] text-text-body">utilisateurs actifs dans les 30 derniers jours</p>
+        </div>
+      </div>
+      <h3 class="text-[11px] font-semibold uppercase tracking-wider mb-2 text-text-faint">Répartition par rôle</h3>
+      <div class="space-y-1.5">
+        {% for r in usage_stats.role_breakdown %}
+        <div class="flex items-center justify-between py-1.5">
+          <span class="text-[12.5px] text-text-body">{{ r.role|default:"— Sans rôle" }}</span>
+          <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold bg-surface-warm text-text-body">{{ r.count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

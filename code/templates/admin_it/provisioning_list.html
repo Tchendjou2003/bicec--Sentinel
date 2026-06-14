@@ -1,0 +1,152 @@
+{% extends "layouts/app_shell.html" %}
+
+{% block title %}Sentinel — Provisioning des comptes{% endblock %}
+
+{% block content %}
+<div
+  class="max-w-7xl mx-auto space-y-6"
+  x-data="{ slideOverOpen: false, pane: window.location.search.includes('pane=lockouts') ? 'lockouts' : 'demandes' }"
+  @close-create-provisioning.window="slideOverOpen = false"
+  @provisioning-created.window="slideOverOpen = false; htmx.trigger(document.body, 'refresh-list')"
+>
+
+  {# ── En-tête ── #}
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold font-heading" style="color:#2D1F1E;">Gestion des utilisateurs</h1>
+      <p class="text-sm text-gray-500 mt-1">
+        {% if is_approver %}
+          {% if pending_count > 0 %}
+            <span class="font-semibold text-sentinel-orange">{{ pending_count }}</span> demande{{ pending_count|pluralize }} en attente de validation
+          {% else %}
+            Aucune demande en attente
+          {% endif %}
+        {% else %}
+          Vos demandes soumises
+        {% endif %}
+      </p>
+    </div>
+
+    {# Bouton Maker — Admin IT uniquement #}
+    {% if request.user.role == 'ADMIN' or request.user.is_staff or request.user.is_superuser %}
+    <button
+      @click="
+        slideOverOpen = true;
+        htmx.ajax('GET', '{% url "auth:provisioning-create" %}', {
+          target: '#provisioning-panel',
+          swap: 'innerHTML'
+        })
+      "
+      class="btn btn-primary"
+    >
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+        <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+      </svg>
+      Nouvelle demande
+    </button>
+    {% endif %}
+  </div>
+
+  {# ── Onglets Demandes / Comptes verrouillés ── #}
+  <div class="flex gap-0 border-b-2 border-border-subtle">
+    <button
+      @click="pane='demandes'"
+      :class="pane==='demandes' ? 'border-sentinel-orange text-sentinel-orange' : 'border-transparent text-text-faint'"
+      class="px-5 py-2.5 text-[13px] font-semibold transition-colors duration-150 border-b-2 -mb-0.5">
+      Demandes
+    </button>
+    <button
+      @click="pane='lockouts'"
+      :class="pane==='lockouts' ? 'border-sentinel-orange text-sentinel-orange' : 'border-transparent text-text-faint'"
+      class="px-5 py-2.5 text-[13px] font-semibold transition-colors duration-150 border-b-2 -mb-0.5 flex items-center gap-2">
+      Comptes verrouillés
+      {% if lockouts %}
+      <span class="inline-flex items-center justify-center h-5 min-w-5 rounded-full text-[10.5px] font-bold px-1.5 bg-danger-surface text-danger">{{ lockouts|length }}</span>
+      {% endif %}
+    </button>
+  </div>
+
+  {# ── Onglet Demandes ── #}
+  <div x-show="pane==='demandes'" style="display:block;">
+
+  {# ── Filtre statut — dropdown dynamique HTMX ── #}
+  <div class="flex items-center gap-3">
+    <label for="status-filter" class="text-sm font-medium text-gray-500 shrink-0">Filtrer :</label>
+    <select
+      id="status-filter"
+      name="status"
+      hx-get="{% url 'auth:provisioning-list' %}"
+      hx-trigger="change"
+      hx-target="#provisioning-table"
+      hx-swap="outerHTML"
+      hx-include="this"
+      class="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200 cursor-pointer"
+    >
+      <option value="" {% if not status_filter %}selected{% endif %}>Toutes les demandes</option>
+      {% for value, label in status_choices %}
+      <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    {% if status_filter %}
+    <span class="text-xs text-gray-400">
+      — <a href="{% url 'auth:provisioning-list' %}" class="text-sentinel-orange hover:underline">Tout voir</a>
+    </span>
+    {% endif %}
+  </div>
+
+  {# ── Tableau ── #}
+  {% include "admin_it/partials/provisioning_table_partial.html" %}
+
+  </div>{# /pane demandes #}
+
+  {# ── Onglet Comptes verrouillés ── #}
+  <div x-show="pane==='lockouts'" style="display:none;">
+    <div class="bg-white rounded-xl overflow-hidden shadow-sm border border-border-subtle">
+      {% include "admin_it/partials/lockouts_panel.html" %}
+    </div>
+  </div>
+
+  {# ── Slide-over Provisioning (calqué sur recommendation_list.html) ── #}
+  <template x-teleport="body">
+    <div
+      x-show="slideOverOpen"
+      x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-200"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="fixed inset-0 z-[100]"
+      style="display:none"
+      @keydown.escape.window="slideOverOpen = false"
+    >
+      {# Overlay backdrop #}
+      <div
+        class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+        @click="slideOverOpen = false"
+      ></div>
+
+      {# Panel — glisse depuis la droite #}
+      <div
+        x-show="slideOverOpen"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="translate-x-full"
+        class="absolute inset-y-0 right-0 h-full bg-white shadow-2xl rounded-tl-3xl flex flex-col overflow-hidden"
+        style="width: 35%; min-width: 480px; max-width: 640px;"
+        id="provisioning-panel"
+      >
+        {# Contenu injecté par HTMX (provisioning_create_modal.html) #}
+      </div>
+    </div>
+  </template>
+
+  {# ── Conteneur modale de rejet (injecté dynamiquement) ── #}
+  <div id="reject-modal-container"></div>
+
+</div>
+{% endblock %}

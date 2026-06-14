@@ -6,7 +6,7 @@
   {# ── Header ── #}
   <div class="flex items-center gap-3 mb-5">
     <div class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
     </div>
     <div>
       <h3 class="text-lg font-semibold text-gray-900">Rejeter</h3>
@@ -17,7 +17,7 @@
   {# ── Avertissement ── #}
   <div class="rounded-xl bg-red-50 border border-red-200 p-4 mb-5">
     <div class="flex items-start gap-3">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600 mt-0.5 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600 mt-0.5 shrink-0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <p class="text-sm text-red-800">
         Le dossier sera retourné <strong>En cours</strong> et le DM/ETP devra corriger sa soumission.
         Le motif saisi sera visible dans l'historique. Le brouillon existant est conservé.
@@ -31,6 +31,7 @@
     hx-target="#reject-audit-modal-container"
     hx-swap="innerHTML"
     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+    hx-disabled-elt="find button[type='submit']"
   >
 
     {# ── Textarea motif ── #}
@@ -64,15 +65,15 @@
       <button
         type="button"
         @click="rejectAuditModalOpen = false"
-        class="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+        class="btn btn-secondary"
       >
         Annuler
       </button>
       <button
         type="submit"
-        class="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-red-600 to-red-700 shadow-md shadow-red-500/20 hover:shadow-lg transition-all duration-200"
+        class="btn btn-danger"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         Rejeter
       </button>
     </div>

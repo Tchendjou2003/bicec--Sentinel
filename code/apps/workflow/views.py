@@ -1044,15 +1044,15 @@ def _render_submit_evidence_modal(
     draft,
     *,
     submit_url_name="workflow:recommendation-submit-evidence",
-    panel_close_state="submitEvidenceModalOpen",
     is_dg_direct=False,
 ):
     """Render le partial du slide-over de soumission de preuves.
 
     Composant unique réutilisé par l'ETP/DM et le DG (Story 3.7). Seuls
-    diffèrent l'endpoint de soumission (``submit_url_name``), l'état Alpine
-    de fermeture du conteneur (``panel_close_state``) et le bandeau de
-    destination (``is_dg_direct`` → soumission directe à l'Audit, FR33).
+    diffèrent l'endpoint de soumission (``submit_url_name``) et le bandeau
+    de destination (``is_dg_direct`` → soumission directe à l'Audit, FR33).
+    La fermeture passe par l'événement ``close-evidence-panel`` (lot 3.1/3.3),
+    mappé par la page hôte sur son état ``modal``.
     """
     from django.template.loader import render_to_string
 
@@ -1073,7 +1073,6 @@ def _render_submit_evidence_modal(
             "quota_max_mb": quota_max / (1024 * 1024),
             "quota_percentage": min(round((quota_used / quota_max) * 100), 100) if quota_max else 0,
             "submit_url_name": submit_url_name,
-            "panel_close_state": panel_close_state,
             "is_dg_direct": is_dg_direct,
         },
         request=request,
@@ -1918,7 +1917,6 @@ class EvidenceDGDirectSubmitView(WorkflowAccessMixin, View):
             self._rec,
             draft,
             submit_url_name="workflow:evidence-submit-dg",
-            panel_close_state="dgSubmitPanelOpen",
             is_dg_direct=True,
         )
 

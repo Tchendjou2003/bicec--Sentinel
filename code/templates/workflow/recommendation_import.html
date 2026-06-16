@@ -1,0 +1,241 @@
+{% extends "layouts/app_shell.html" %}
+{% load static %}
+
+{% block title %}Import Excel — Sentinel{% endblock %}
+
+{% block content %}
+{% comment %}
+  Page d'import massif de recommandations (Story 6.5 — FR7).
+  Un seul <form> multipart. "Analyser" swap uniquement le panneau #preview-panel
+  (le fichier reste sélectionné). "Confirmer" re-soumet le même form vers l'endpoint confirm.
+  Piège 4 : stateless — le serveur re-parse + re-valide des deux côtés.
+{% endcomment %}
+<div class="max-w-3xl mx-auto space-y-6"
+     x-data="{ step: 1, fileName: '' }">
+
+  {# ── Fil d'Ariane ── #}
+  <nav class="flex items-center gap-2 text-sm text-gray-500" aria-label="Breadcrumb">
+    <a href="{% url 'workflow:recommendation-list' %}"
+      class="hover:text-sentinel-orange transition-colors">Recommandations</a>
+    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+    <span class="font-medium text-gray-900">Import Excel</span>
+  </nav>
+
+  {# ── En-tête ── #}
+  <div>
+    <h1 class="text-2xl font-bold text-text-primary tracking-tight">Import Excel</h1>
+    <p class="text-sm text-text-body mt-1">Import massif de recommandations opérationnelles en brouillon</p>
+  </div>
+
+  {# ── Stepper horizontal (4 étapes) ── #}
+  <div class="bg-white rounded-xl border border-border-subtle shadow-sm px-6 py-4">
+    <ol class="flex items-center w-full">
+      {# Étape 1 #}
+      <li class="flex items-center flex-1">
+        <div class="flex flex-col items-center gap-1">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-colors"
+                :class="step > 1 ? 'bg-green-500 text-white' : (step === 1 ? 'bg-sentinel-orange text-white' : 'bg-surface-faint text-text-faint border border-border-subtle')">
+            <template x-if="step > 1">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </template>
+            <template x-if="step <= 1"><span>1</span></template>
+          </span>
+          <span class="text-xs whitespace-nowrap" :class="step > 1 ? 'text-green-600 font-medium' : (step === 1 ? 'text-sentinel-orange font-semibold' : 'text-text-faint')">Télécharger</span>
+        </div>
+        <div class="flex-1 h-px mx-2" :class="step > 1 ? 'bg-green-300' : 'bg-border-subtle'"></div>
+      </li>
+      {# Étape 2 #}
+      <li class="flex items-center flex-1">
+        <div class="flex flex-col items-center gap-1">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-colors"
+                :class="step > 2 ? 'bg-green-500 text-white' : (step === 2 ? 'bg-sentinel-orange text-white' : 'bg-surface-faint text-text-faint border border-border-subtle')">
+            <template x-if="step > 2">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </template>
+            <template x-if="step <= 2"><span>2</span></template>
+          </span>
+          <span class="text-xs whitespace-nowrap" :class="step > 2 ? 'text-green-600 font-medium' : (step === 2 ? 'text-sentinel-orange font-semibold' : 'text-text-faint')">Uploader</span>
+        </div>
+        <div class="flex-1 h-px mx-2" :class="step > 2 ? 'bg-green-300' : 'bg-border-subtle'"></div>
+      </li>
+      {# Étape 3 #}
+      <li class="flex items-center flex-1">
+        <div class="flex flex-col items-center gap-1">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-colors"
+                :class="step > 3 ? 'bg-green-500 text-white' : (step === 3 ? 'bg-sentinel-orange text-white' : 'bg-surface-faint text-text-faint border border-border-subtle')">
+            <template x-if="step > 3">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </template>
+            <template x-if="step <= 3"><span>3</span></template>
+          </span>
+          <span class="text-xs whitespace-nowrap" :class="step > 3 ? 'text-green-600 font-medium' : (step === 3 ? 'text-sentinel-orange font-semibold' : 'text-text-faint')">Vérifier</span>
+        </div>
+        <div class="flex-1 h-px mx-2" :class="step > 3 ? 'bg-green-300' : 'bg-border-subtle'"></div>
+      </li>
+      {# Étape 4 #}
+      <li class="flex items-center">
+        <div class="flex flex-col items-center gap-1">
+          <span class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-colors"
+                :class="step === 4 ? 'bg-sentinel-orange text-white' : (step > 4 ? 'bg-green-500 text-white' : 'bg-surface-faint text-text-faint border border-border-subtle')">
+            4
+          </span>
+          <span class="text-xs whitespace-nowrap" :class="step === 4 ? 'text-sentinel-orange font-semibold' : (step > 4 ? 'text-green-600 font-medium' : 'text-text-faint')">Confirmer</span>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  {# ── Conteneur principal du Wizard ── #}
+  <div class="space-y-4">
+
+    {# ── Étape 1 : Téléchargement du modèle ── #}
+    <div x-show="step === 1" x-transition.opacity class="space-y-4">
+      <div class="bg-white rounded-xl border border-border-subtle shadow-sm p-6">
+        <h2 class="text-base font-semibold text-text-primary mb-2">Étape 1 — Préparer le fichier</h2>
+        <p class="text-sm text-text-body mb-4">
+          Téléchargez le modèle Excel, remplissez-le en respectant le format attendu, puis cliquez sur continuer.
+        </p>
+
+        <div class="bg-surface-faint rounded-xl border border-border-subtle p-4 mb-4">
+          <p class="text-xs font-semibold text-text-primary mb-2">Colonnes obligatoires (*)</p>
+          <ul class="text-xs text-text-body space-y-1">
+            <li>Référence · Source · Criticité · Description · Date cible</li>
+          </ul>
+          <p class="text-xs font-semibold text-text-primary mt-3 mb-1">Limite</p>
+          <p class="text-xs text-text-body">Maximum 50 recommandations par fichier.</p>
+        </div>
+
+        <div class="flex items-center gap-3 mt-6">
+          <a href="{% url 'workflow:recommendation-import-template' %}"
+             class="btn btn-secondary text-sm justify-center gap-2">
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Télécharger le modèle .xlsx
+          </a>
+
+          <button @click="step = 2" type="button" class="btn btn-primary text-sm justify-center">
+            J'ai rempli le modèle, passer à l'upload
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {# ── Étape 2 : Formulaire d'upload ── #}
+    <div x-show="step === 2" x-transition.opacity x-cloak>
+      <div class="bg-white rounded-xl border border-border-subtle shadow-sm p-6">
+        <h2 class="text-base font-semibold text-text-primary mb-4">Étape 2 — Déposer le fichier</h2>
+
+        <form id="import-form"
+              enctype="multipart/form-data"
+              x-data="importDropzone()"
+              @submit.prevent
+              @clear-file.window="clearFile()">
+          {% csrf_token %}
+
+          {# Dropzone #}
+          <div class="border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer select-none"
+               :class="dragging ? 'border-sentinel-orange bg-sentinel-orange/5' : 'border-border-subtle hover:border-sentinel-orange/40 bg-surface-faint'"
+               @dragover.prevent="dragging = true"
+               @dragleave.prevent="dragging = false"
+               @drop.prevent="handleDrop($event)"
+               @click="$refs.fileInput.click()">
+
+            <input type="file"
+                   name="import_file"
+                   id="import_file"
+                   x-ref="fileInput"
+                   accept=".xlsx"
+                   class="hidden"
+                   @change="handleChange($event)">
+
+            <div x-show="!fileName">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-3 text-text-faint"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>
+              <p class="text-sm text-text-body">Glissez votre fichier ici ou <span class="text-sentinel-orange font-medium">cliquez pour parcourir</span></p>
+              <p class="text-xs text-text-faint mt-2">Format accepté : .xlsx uniquement — taille max 6 Mo</p>
+            </div>
+
+            <div x-show="fileName" x-cloak class="flex flex-col items-center justify-center gap-3">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <div class="flex items-center gap-2">
+                <span x-text="fileName" class="text-sm font-medium text-text-primary truncate max-w-[250px]"></span>
+                <button type="button"
+                        @click.stop="clearFile()"
+                        class="text-text-faint hover:text-red-500 transition-colors ml-1 p-1 rounded-md hover:bg-red-50">
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex gap-3">
+            <button type="button" @click="step = 1" class="btn btn-secondary text-sm">
+              Retour
+            </button>
+            <button type="button"
+                    id="btn-analyze"
+                    :disabled="!fileName"
+                    hx-post="{% url 'workflow:recommendation-import' %}"
+                    hx-encoding="multipart/form-data"
+                    hx-include="#import-form"
+                    hx-target="#preview-panel"
+                    hx-swap="innerHTML"
+                    hx-indicator="#analyze-spinner"
+                    @htmx:after-request="if ($event.detail.successful) { step = 3 }"
+                    class="btn btn-primary text-sm disabled:opacity-40 disabled:cursor-not-allowed justify-center">
+              <span id="analyze-spinner" class="htmx-indicator">
+                <svg aria-hidden="true" class="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              </span>
+              Analyser le fichier
+            </button>
+          </div>
+        </form>
+        <p class="text-xs text-text-faint mt-3 text-center">
+          Aucune recommandation ne sera créée avant validation.
+        </p>
+      </div>
+    </div>
+
+    {# ── Étape 3 & 4 : Panneau de prévisualisation ── #}
+    <div x-show="step >= 3" x-transition.opacity x-cloak>
+      <div id="preview-panel">
+        {# L'état initial vide n'est plus utile puisqu'on ne voit ce panel qu'après l'analyse, mais par sécurité : #}
+        <div class="bg-white rounded-xl border border-border-subtle shadow-sm p-8 text-center text-text-faint">
+           En attente d'analyse...
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function importDropzone() {
+  return {
+    dragging: false,
+    fileName: '',
+    handleDrop(event) {
+      this.dragging = false;
+      const files = event.dataTransfer.files;
+      if (files.length > 0) {
+        this.$refs.fileInput.files = files;
+        this.fileName = files[0].name;
+      }
+    },
+    handleChange(event) {
+      const files = event.target.files;
+      if (files.length > 0) {
+        this.fileName = files[0].name;
+      } else {
+        this.fileName = '';
+      }
+    },
+    clearFile() {
+      this.$refs.fileInput.value = '';
+      this.fileName = '';
+    }
+  };
+}
+</script>
+{% endblock %}

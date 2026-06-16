@@ -130,6 +130,11 @@ def get_recommendations_for_user(*, user, filters: dict | None = None) -> QueryS
         elif import_status == "all":
             pass
 
+        # Filtre lot d'import (Story 6.5 — ?batch=<uuid>)
+        batch = filters.get("batch")
+        if batch:
+            qs = qs.filter(import_batch_id=batch)
+
     # 3. Tri optimisé
     return qs.order_by("-is_overdue", "-created_at")
 
@@ -195,7 +200,7 @@ def get_department_and_descendants_ids(department) -> list:
         return []
     ids = [department.id]
     current_level_ids = [department.id]
-    
+
     from apps.users.models import Department
     while current_level_ids:
         children_ids = list(
@@ -204,7 +209,7 @@ def get_department_and_descendants_ids(department) -> list:
         )
         ids.extend(children_ids)
         current_level_ids = children_ids
-        
+
     return ids
 
 
@@ -391,4 +396,3 @@ def get_extension_history_for_recommendation(
         .select_related("requested_by", "reviewed_by")
         .order_by("-reviewed_at")
     )
-

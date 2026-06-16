@@ -146,8 +146,9 @@ class OrganigrammeTest(TestCase):
             "type": str(self.type_dg.pk),
         })
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(Department.objects.count(), 1)
-        dept = Department.objects.first()
+        # Exclut l'entité système seedée (« Support Applicatif », Story 7.2).
+        self.assertEqual(Department.objects.filter(is_system=False).count(), 1)
+        dept = Department.objects.filter(is_system=False).first()
         self.assertEqual(dept.name, "Direction Générale")
         self.assertEqual(dept.type, self.type_dg)
         self.assertIsNone(dept.parent)
@@ -279,22 +280,22 @@ class ITUserListTest(TestCase):
             is_staff=True,
         )
         self.client.force_login(self.admin_user)
-        self.list_url = reverse("auth:admin-user-list")
+        self.list_url = reverse("auth:user-management")
 
-    def test_user_list_renders(self):
-        """La page liste utilisateurs s'affiche."""
+    def test_user_management_renders(self):
+        """La page gestion unifiée des utilisateurs s'affiche."""
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "admin_it/user_list.html")
+        self.assertTemplateUsed(response, "admin_it/user_management.html")
 
-    def test_user_list_filter_shell(self):
-        """Le filtre 'shell' ne montre que les coquilles vides."""
-        User.objects.create_user(username="shell1", password="x")
-        User.objects.create_user(username="actif1", password="x", role=User.Role.DM)
-        response = self.client.get(f"{self.list_url}?filtre=shell")
-        users = response.context["users"]
+    def test_user_management_filter_inactive(self):
+        """Le filtre 'inactive' ne montre que les comptes désactivés."""
+        User.objects.create_user(username="actif1", password="x", role=User.Role.DM, is_active=True)
+        User.objects.create_user(username="inact1", password="x", role=User.Role.DM, is_active=False)
+        response = self.client.get(f"{self.list_url}?status=inactive")
+        users = list(response.context["users"])
         for u in users:
-            self.assertEqual(u.role, "")
+            self.assertFalse(u.is_active)
 
     def test_create_user_route_removed(self):
         """La route admin-user-create ne doit plus exister (SoD enforcement)."""

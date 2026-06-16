@@ -49,29 +49,12 @@
       x-transition:leave="transition ease-in duration-100"
       x-transition:leave-start="opacity-100 scale-100 translate-y-0"
       x-transition:leave-end="opacity-0 scale-95 -translate-y-1"
-      style="
-        position: absolute;
-        right: 0;
-        top: calc(100% + 8px);
-        z-index: 50;
-        transform-origin: top right;
-        display: none;
-      "
+      x-cloak
+      class="absolute right-0 top-full mt-2 z-50 origin-top-right"
     >
       <div id="notif-panel-container">
         {# Chargé en lazy par HTMX au 1er clic #}
-        <div style="
-          width: 360px;
-          max-width: calc(100vw - 2rem);
-          height: 60px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #FFFFFF;
-          border: 1px solid #E8DFD6;
-          border-radius: 12px;
-          box-shadow: var(--shadow-lg);
-        ">
+        <div class="w-[360px] max-w-[calc(100vw-2rem)] h-[60px] flex items-center justify-center rounded-xl bg-surface-card border border-border-subtle shadow-premium-lg">
           {% lucide "loader-2" size=16 class="animate-spin text-text-muted" %}
         </div>
       </div>
@@ -94,7 +77,7 @@
       </div>
     </button>
     <div x-show="open" @click.outside="open = false" @keydown.escape.window="open = false" x-transition x-cloak class="absolute right-0 mt-2 w-48 rounded-lg border border-border-subtle bg-surface-card shadow-premium-lg py-1 z-40" style="display:none">
-      <button type="button" disabled class="block w-full text-left px-3 py-2 text-sm text-text-muted cursor-not-allowed opacity-60">Mon profil <span class="text-[10px] uppercase ml-1">(Bientôt)</span></button>
+      <a href="{% url 'auth:user-profile' %}" class="block w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-surface-warm transition-colors">Mon profil</a>
       <button type="button" disabled class="block w-full text-left px-3 py-2 text-sm text-text-muted cursor-not-allowed opacity-60">Paramètres <span class="text-[10px] uppercase ml-1">(Bientôt)</span></button>
       <hr class="my-1 border-border-subtle" />
       {% comment %}

@@ -12,11 +12,12 @@ Spécifications couvertes :
     - AC8  : Page Centre de Contrôle
     - AC9  : Modification via stepper prérempli
 """
+import io
 import json
 
 from django.core.exceptions import PermissionDenied, ValidationError as DjangoValidationError
 from django.http import FileResponse, HttpResponse, HttpResponseForbidden
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.views import View
 from django.views.generic import DetailView, ListView
 
@@ -37,14 +38,20 @@ from .forms import (
     ExtensionRequestForm,
     RecommendationForm,
 )
-from .models import EvidenceFile, EvidenceSubmission, ExtensionRequest, Recommendation, RecommendationSource
+from .import_excel import ImportReport, parse_workbook, validate_rows, build_import_template, create_recommendations_bulk, get_existing_references
+from .models import EvidenceFile, EvidenceSubmission, ExtensionRequest, ImportBatch, Recommendation, RecommendationSource
 
 
 def _get_client_ip(request) -> str | None:
-    """Extrait l'adresse IP du client depuis les headers."""
-    x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-    if x_forwarded:
-        return x_forwarded.split(",")[0].strip()
+    """Extrait l'adresse IP du client.
+
+    Préfère HTTP_X_REAL_IP (positionné par Nginx via $remote_addr — non
+    falsifiable côté client) plutôt que HTTP_X_FORWARDED_FOR dont le
+    premier segment peut être injecté par le client avant le proxy.
+    """
+    x_real_ip = request.META.get("HTTP_X_REAL_IP")
+    if x_real_ip:
+        return x_real_ip.strip()
     return request.META.get("REMOTE_ADDR")
 
 
@@ -87,6 +94,7 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
             "priority": self.request.GET.get("priority"),
             "q": self.request.GET.get("q"),
             "import_status": self.request.GET.get("import_status", "recent"),
+            "batch": self.request.GET.get("batch"),
         }
         return selectors.get_recommendations_for_user(user=self.request.user, filters=filters)
 
@@ -105,6 +113,15 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
         context["current_priority"] = self.request.GET.get("priority", "")
         context["current_search"] = self.request.GET.get("q", "")
         context["current_import_status"] = self.request.GET.get("import_status", "recent")
+        # Filtre lot d'import (Story 6.5)
+        batch_id = self.request.GET.get("batch")
+        context["current_batch"] = batch_id
+        if batch_id:
+            from .models import ImportBatch
+            try:
+                context["import_batch"] = ImportBatch.objects.get(pk=batch_id)
+            except (ImportBatch.DoesNotExist, Exception):
+                context["import_batch"] = None
         return context
 
     def get_template_names(self):
@@ -2299,3 +2316,120 @@ class RecommendationSourceToggleView(AuditAdminRequiredMixin, View):
         response["HX-Refresh"] = "true"
         return response
 
+
+# =============================================================================
+# Import Excel massif de recommandations (Story 6.5 — FR7)
+# =============================================================================
+
+
+class ImportTemplateDownloadView(AuditRequiredMixin, View):
+    """
+    Téléchargement du modèle Excel généré dynamiquement (AC1).
+
+    Le fichier est généré à chaque clic depuis la base (sources et directions
+    actives au moment du téléchargement). Jamais un fichier figé.
+    """
+
+    def get(self, request):
+        wb = build_import_template()
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        response = HttpResponse(
+            buf.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = (
+            'attachment; filename="modele-import-recommandations.xlsx"'
+        )
+        return response
+
+
+class RecommendationImportView(AuditRequiredMixin, View):
+    """
+    Page d'import Excel — upload et prévisualisation (AC2, AC3, AC4, AC7).
+
+    GET  → Page pleine largeur avec dropzone et stepper.
+    POST → Endpoint HTMX preview : parse + validate → partial import_preview.html.
+           Rien n'est créé. Le fichier reste sélectionné côté client (form stateless).
+    """
+
+    def get(self, request):
+        return render(request, "workflow/recommendation_import.html", {
+            "active_route": "recommandations",
+            "topbar_title": "Import Excel",
+            "topbar_subtitle": "Import massif de recommandations",
+        })
+
+    def post(self, request):
+        uploaded_file = request.FILES.get("import_file")
+        if not uploaded_file:
+            return render(request, "workflow/partials/import_preview.html", {
+                "format_error": "Aucun fichier sélectionné.",
+                "report": None,
+            })
+
+        try:
+            rows = parse_workbook(uploaded_file)
+        except DjangoValidationError as exc:
+            return render(request, "workflow/partials/import_preview.html", {
+                "format_error": exc.message if hasattr(exc, "message") else str(exc),
+                "report": None,
+            })
+
+        existing_refs = get_existing_references(rows)
+        report = validate_rows(rows, existing_refs=existing_refs)
+
+        return render(request, "workflow/partials/import_preview.html", {
+            "report": report,
+            "format_error": None,
+            "file_name": uploaded_file.name,
+        })
+
+
+class RecommendationImportConfirmView(AuditRequiredMixin, View):
+    """
+    Confirmation de l'import — création atomique (AC5, AC6, AC8).
+
+    POST → Re-reçoit le même fichier (form multipart stateless, Piège 4).
+    Re-parse + re-valide dans transaction.atomic() pour couvrir la concurrence (AC8).
+    Succès → écran de succès + lien ?batch=<uuid>.
+    Erreur → message dédié (concurrence ou fichier invalide).
+    """
+
+    def post(self, request):
+        uploaded_file = request.FILES.get("import_file")
+        if not uploaded_file:
+            return render(request, "workflow/partials/import_preview.html", {
+                "format_error": "Aucun fichier reçu à la confirmation.",
+                "report": None,
+            })
+
+        try:
+            rows = parse_workbook(uploaded_file)
+        except DjangoValidationError as exc:
+            return render(request, "workflow/partials/import_preview.html", {
+                "format_error": exc.message if hasattr(exc, "message") else str(exc),
+                "report": None,
+            })
+
+        try:
+            uploaded_file.seek(0)
+            batch = create_recommendations_bulk(
+                rows=rows,
+                performed_by=request.user,
+                uploaded_file=uploaded_file,
+                file_name=uploaded_file.name,
+                ip_address=_get_client_ip(request),
+            )
+        except DjangoValidationError as exc:
+            error_msg = exc.message if hasattr(exc, "message") else str(exc)
+            return render(request, "workflow/partials/import_preview.html", {
+                "confirm_error": error_msg,
+                "report": None,
+                "format_error": None,
+            })
+
+        return render(request, "workflow/partials/import_success.html", {
+            "batch": batch,
+        })

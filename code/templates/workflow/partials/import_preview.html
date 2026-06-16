@@ -1,0 +1,187 @@
+{% load static %}
+{% comment %}
+  Partial HTMX — Panneau de prévisualisation et de résultat d'import (Story 6.5).
+  Swappé dans #preview-panel par "Analyser". Ne touche pas le form#import-form.
+  Contexte : report (ImportReport | None), format_error (str | None),
+             confirm_error (str | None), file_name (str | None).
+{% endcomment %}
+
+{# ── Erreur de format (magic-bytes, taille, onglet manquant) ── #}
+{% if format_error %}
+<div class="bg-white rounded-xl border border-red-200 shadow-sm p-6">
+  <div class="flex items-start gap-3">
+    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 flex-shrink-0">
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <div>
+      <h3 class="text-sm font-semibold text-red-800">Erreur de format</h3>
+      <p class="text-sm text-red-700 mt-1">{{ format_error }}</p>
+      <p class="text-xs text-text-faint mt-2">Utilisez le modèle .xlsx fourni par Sentinel. Les fichiers .xlsm (macros) ne sont pas acceptés.</p>
+    </div>
+  </div>
+</div>
+
+{# ── Erreur de concurrence / re-validation à la confirmation ── #}
+{% elif confirm_error %}
+<div class="bg-white rounded-xl border border-amber-200 shadow-sm p-6">
+  <div class="flex items-start gap-3">
+    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 flex-shrink-0">
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-600"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+      <h3 class="text-sm font-semibold text-amber-800">Import refusé</h3>
+      <p class="text-sm text-amber-700 mt-1">{{ confirm_error }}</p>
+    </div>
+  </div>
+</div>
+
+{# ── Rapport de validation ── #}
+{% elif report %}
+<div class="bg-white rounded-xl border border-border-subtle shadow-sm"
+     x-data="{ errorsOnly: {{ report.error_count|yesno:'true,false' }} }">
+
+  {# En-tête du rapport #}
+  <div class="px-5 py-4 border-b border-border-subtle">
+    <div class="flex items-center justify-between">
+      <h3 class="text-sm font-semibold text-text-primary">Rapport de validation</h3>
+      <p class="text-xs text-text-faint">{{ file_name }}</p>
+    </div>
+
+    {# Compteurs #}
+    <div class="flex gap-4 mt-3">
+      <div class="flex items-center gap-2">
+        <span class="tabular-nums text-lg font-bold text-text-primary">{{ report.total }}</span>
+        <span class="text-xs text-text-body">détectée{{ report.total|pluralize }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="tabular-nums text-lg font-bold text-green-600">{{ report.valid_count }}</span>
+        <span class="text-xs text-text-body">valide{{ report.valid_count|pluralize }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="tabular-nums text-lg font-bold {% if report.error_count > 0 %}text-red-600{% else %}text-text-faint{% endif %}">{{ report.error_count }}</span>
+        <span class="text-xs text-text-body">en erreur</span>
+      </div>
+    </div>
+
+    {# Mini-récap des types d'erreur #}
+    {% if report.error_count > 0 %}
+    <div class="mt-2 p-2 bg-red-50 rounded-lg border border-red-100">
+      <p class="text-xs text-red-700 font-medium">{{ report.error_type_summary }}</p>
+    </div>
+    {% endif %}
+
+    {# Message informatif aucune création avant confirmation #}
+    {% if report.valid_count > 0 and report.error_count == 0 %}
+    <div class="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-100">
+      <p class="text-xs text-blue-700">Aucune recommandation n'est créée tant que vous ne confirmez pas.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {# Toggle erreurs uniquement #}
+  {% if report.error_count > 0 %}
+  <div class="px-5 py-3 border-b border-border-subtle bg-surface-faint flex items-center justify-between">
+    <label class="flex items-center gap-2 cursor-pointer select-none">
+      <input type="checkbox" x-model="errorsOnly" class="h-3.5 w-3.5 rounded border-border-strong text-sentinel-orange focus:ring-sentinel-orange/20">
+      <span class="text-xs text-text-body">Afficher uniquement les lignes en erreur</span>
+    </label>
+    <span class="text-xs text-text-faint tabular-nums">{{ report.error_count }} erreur{{ report.error_count|pluralize }}</span>
+  </div>
+  {% endif %}
+
+  {# Tableau résumé #}
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs">
+      <thead class="bg-surface-faint border-b border-border-subtle">
+        <tr>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold text-text-secondary w-16">Ligne</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold text-text-secondary">Référence</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold text-text-secondary hidden md:table-cell">Description (aperçu)</th>
+          <th class="px-4 py-2.5 text-center text-xs font-semibold text-text-secondary w-16">Statut</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold text-text-secondary">Motif(s)</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-border-subtle">
+        {# Lignes valides #}
+        {% for valid_row in report.valid_rows %}
+        <tr x-show="!errorsOnly" class="hover:bg-surface-faint transition-colors">
+          <td class="px-4 py-2.5 text-text-faint tabular-nums"></td>
+          <td class="px-4 py-2.5 font-medium text-text-primary font-mono text-xs">{{ valid_row.data.reference }}</td>
+          <td class="px-4 py-2.5 text-text-body truncate max-w-[200px] hidden md:table-cell">{{ valid_row.data.description|truncatechars:60 }}</td>
+          <td class="px-4 py-2.5 text-center">
+            <span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-green-100">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+          </td>
+          <td class="px-4 py-2.5 text-text-faint">—</td>
+        </tr>
+        {% endfor %}
+        {# Lignes en erreur #}
+        {% for row_number, errors in report.errors_by_row.items %}
+        <tr class="hover:bg-surface-faint transition-colors bg-red-50/30">
+          <td class="px-4 py-2.5 text-text-faint tabular-nums font-mono">{{ row_number }}</td>
+          <td class="px-4 py-2.5 font-medium text-text-primary">—</td>
+          <td class="px-4 py-2.5 text-text-faint hidden md:table-cell">—</td>
+          <td class="px-4 py-2.5 text-center">
+            <span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-red-100">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </span>
+          </td>
+          <td class="px-4 py-3">
+            <ul class="space-y-0.5">
+              {% for err in errors %}
+              <li class="text-red-700">{{ err }}</li>
+              {% endfor %}
+            </ul>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not report.valid_rows and not report.errors_by_row %}
+        <tr>
+          <td colspan="5" class="px-4 py-8 text-center text-text-faint">Aucune ligne de données détectée dans le fichier.</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  {# Actions en bas du panneau #}
+  <div class="px-5 py-4 border-t border-border-subtle bg-surface-faint flex items-center justify-between gap-3 flex-wrap">
+    <div class="flex gap-2">
+      {# Bouton "Uploader un fichier corrigé" — réinitialise le panneau #}
+      <button type="button"
+              class="btn btn-secondary text-xs"
+              @click="step = 2; $dispatch('clear-file')">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Fichier corrigé
+      </button>
+      <a href="{% url 'workflow:recommendation-list' %}" class="btn btn-secondary text-xs">Annuler</a>
+    </div>
+
+    {# Bouton Confirmer — désactivé si erreurs #}
+    {% if report.error_count == 0 and report.valid_count > 0 %}
+    <button type="button"
+            hx-post="{% url 'workflow:recommendation-import-confirm' %}"
+            hx-encoding="multipart/form-data"
+            hx-include="#import-form"
+            hx-target="#preview-panel"
+            hx-swap="innerHTML"
+            hx-indicator="#confirm-spinner"
+            hx-disabled-elt="this"
+            @htmx:after-request="if ($event.detail.successful) { $dispatch('step-update', { step: 4 }) }"
+            class="btn btn-primary text-sm">
+      <span id="confirm-spinner" class="htmx-indicator">
+        <svg aria-hidden="true" class="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+      </span>
+      Confirmer l'import ({{ report.valid_count }} reco{{ report.valid_count|pluralize }})
+    </button>
+    {% else %}
+    <button type="button" disabled
+            class="btn btn-primary text-sm opacity-40 cursor-not-allowed">
+      Confirmer l'import
+      <span class="ml-1 text-xs opacity-75">({{ report.error_count }} erreur{{ report.error_count|pluralize }})</span>
+    </button>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

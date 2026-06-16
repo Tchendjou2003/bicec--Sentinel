@@ -13,7 +13,15 @@
       </span>
       {% endwith %}
       <div>
-        <p class="text-[13px] font-semibold" style="color:#2D1F1E;">{{ node.name }}</p>
+        <p class="text-[13px] font-semibold flex items-center gap-1.5" style="color:#2D1F1E;">
+          {{ node.name }}
+          {% if node.is_system %}
+          <span class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
+                style="background:#F5EDE6;color:#6F635B;" title="Entité système — non supprimable">
+            ⚙️ Système
+          </span>
+          {% endif %}
+        </p>
         <p class="text-[11.5px]" style="color:#968A80;">{{ node.code }}</p>
       </div>
     </div>

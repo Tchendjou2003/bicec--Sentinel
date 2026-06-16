@@ -1,0 +1,7 @@
+{# Pastille de rôle — design system centralisé (tokens, pas de hex inline).
+   Param : user (objet User). Affiche le rôle, ou « Coquille vide » si sans rôle. #}
+{% if user.role %}
+<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold bg-success-tint text-success-strong">{{ user.get_role_display }}</span>
+{% else %}
+<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold bg-sentinel-orange-light text-sentinel-orange-darker">Coquille vide</span>
+{% endif %}

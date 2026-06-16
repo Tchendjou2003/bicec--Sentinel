@@ -8,6 +8,7 @@
   x-data="{ slideOverOpen: false, pane: window.location.search.includes('pane=lockouts') ? 'lockouts' : 'demandes' }"
   @close-create-provisioning.window="slideOverOpen = false"
   @provisioning-created.window="slideOverOpen = false; htmx.trigger(document.body, 'refresh-list')"
+  @provisioning-updated.window="htmx.trigger(document.body, 'refresh-list')"
 >
 
   {# ── En-tête ── #}

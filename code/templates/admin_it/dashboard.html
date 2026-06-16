@@ -13,6 +13,72 @@
     </div>
   </div>
 
+  {# ── Onboarding guidé (Story 7.2) — masqué une fois la config initiale terminée ── #}
+  {% if not onboarding.complete %}
+  <section aria-label="Prise en main" class="rounded-2xl border border-sentinel-orange/30 bg-sentinel-orange/5 p-6">
+    <div class="flex items-start gap-3 mb-4">
+      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-sentinel-orange/15 text-sentinel-orange shrink-0">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="m6.41 6.41 2.83 2.83"/><path d="M2 12h4"/><path d="m6.41 17.59 2.83-2.83"/><path d="M12 22v-4"/><path d="m17.59 17.59-2.83-2.83"/><path d="M22 12h-4"/><path d="m17.59 6.41-2.83 2.83"/></svg>
+      </div>
+      <div>
+        <h2 class="text-base font-bold text-gray-900">Configurons votre organisation</h2>
+        <p class="text-sm text-gray-500 mt-0.5">Trois étapes pour rendre Sentinel opérationnel.</p>
+      </div>
+    </div>
+
+    <ol class="space-y-3">
+      {# Étape 1 — Organigramme #}
+      <li class="flex items-center gap-3">
+        {% if onboarding.has_org %}
+          <span class="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 text-green-600 shrink-0" aria-label="Terminé">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+        {% else %}
+          <span class="flex h-7 w-7 items-center justify-center rounded-full bg-sentinel-orange text-white text-xs font-bold shrink-0">1</span>
+        {% endif %}
+        <span class="flex-1 text-sm {% if onboarding.has_org %}text-gray-400 line-through{% else %}text-gray-700{% endif %}">
+          Matérialisez votre organigramme (Direction Générale, Directions, Services).
+        </span>
+        {% if not onboarding.has_org %}
+          <a href="{% url 'auth:organigramme-list' %}" class="text-sm font-medium text-sentinel-orange hover:underline shrink-0">Organigramme →</a>
+        {% endif %}
+      </li>
+      {# Étape 2 — Audit #}
+      <li class="flex items-center gap-3">
+        {% if onboarding.has_audit %}
+          <span class="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 text-green-600 shrink-0" aria-label="Terminé">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+        {% else %}
+          <span class="flex h-7 w-7 items-center justify-center rounded-full {% if onboarding.has_org %}bg-sentinel-orange text-white{% else %}bg-gray-200 text-gray-500{% endif %} text-xs font-bold shrink-0">2</span>
+        {% endif %}
+        <span class="flex-1 text-sm {% if onboarding.has_audit %}text-gray-400 line-through{% else %}text-gray-700{% endif %}">
+          Créez le Directeur de l'Audit et les auditeurs internes.
+        </span>
+        {% if not onboarding.has_audit %}
+          <a href="{% url 'auth:provisioning-list' %}" class="text-sm font-medium text-sentinel-orange hover:underline shrink-0">Comptes →</a>
+        {% endif %}
+      </li>
+      {# Étape 3 — Comptes métier #}
+      <li class="flex items-center gap-3">
+        {% if onboarding.has_business %}
+          <span class="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 text-green-600 shrink-0" aria-label="Terminé">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+        {% else %}
+          <span class="flex h-7 w-7 items-center justify-center rounded-full {% if onboarding.has_audit %}bg-sentinel-orange text-white{% else %}bg-gray-200 text-gray-500{% endif %} text-xs font-bold shrink-0">3</span>
+        {% endif %}
+        <span class="flex-1 text-sm {% if onboarding.has_business %}text-gray-400 line-through{% else %}text-gray-700{% endif %}">
+          Créez les Directeurs Métier, Employés Traitants et la Direction Générale.
+        </span>
+        {% if not onboarding.has_business %}
+          <a href="{% url 'auth:provisioning-list' %}" class="text-sm font-medium text-sentinel-orange hover:underline shrink-0">Comptes →</a>
+        {% endif %}
+      </li>
+    </ol>
+  </section>
+  {% endif %}
+
   {# ── Indicateurs clés ── #}
   <section aria-label="Indicateurs clés">
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">

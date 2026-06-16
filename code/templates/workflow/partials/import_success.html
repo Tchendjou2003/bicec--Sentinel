@@ -1,0 +1,50 @@
+{% load static %}
+{% comment %}
+  Partial HTMX — Écran de succès après import confirmé (Story 6.5 — AC6).
+  Remplace le panneau #preview-panel après create_recommendations_bulk.
+  Contexte : batch (ImportBatch).
+{% endcomment %}
+<div class="bg-white rounded-xl border border-green-200 shadow-sm p-8 text-center"
+     x-init="$dispatch('step-update', { step: 4 })">
+
+  {# Icône succès #}
+  <div class="flex items-center justify-center mb-4">
+    <div class="flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+  </div>
+
+  <h2 class="text-xl font-bold text-text-primary mb-2">
+    {{ batch.recommendation_count }} recommandation{{ batch.recommendation_count|pluralize }} créée{{ batch.recommendation_count|pluralize }} en brouillon
+  </h2>
+  <p class="text-sm text-text-body mb-1">
+    Fichier importé : <span class="font-medium text-text-primary">{{ batch.file_name }}</span>
+  </p>
+  <p class="text-xs text-text-faint mb-6">
+    Lot d'import : <span class="font-mono">{{ batch.pk }}</span>
+  </p>
+
+  {# Rappel — statut DRAFT #}
+  <div class="bg-surface-faint rounded-lg border border-border-subtle p-4 mb-6 text-left">
+    <h3 class="text-xs font-semibold text-text-primary mb-1">Prochaines étapes</h3>
+    <ul class="text-xs text-text-body space-y-1">
+      <li>Les recommandations sont en statut <strong>Brouillon</strong> — elles ne sont pas encore assignées.</li>
+      <li>Complétez ou corrigez les champs éventuellement manquants (Direction, Observations…).</li>
+      <li>Assignez chaque recommandation à un DM via le workflow normal.</li>
+    </ul>
+  </div>
+
+  {# Liens d'action #}
+  <div class="flex flex-col sm:flex-row gap-3 justify-center">
+    <a href="{% url 'workflow:recommendation-list' %}?batch={{ batch.pk }}&import_status=all"
+       class="btn btn-primary text-sm">
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Voir les {{ batch.recommendation_count }} recommandations importées
+    </a>
+    <a href="{% url 'workflow:recommendation-import' %}"
+       class="btn btn-secondary text-sm">
+      Nouvel import
+    </a>
+    <a href="{% url 'workflow:recommendation-list' %}" class="btn btn-secondary text-sm">Retour à la liste</a>
+  </div>
+</div>

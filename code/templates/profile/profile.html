@@ -1,0 +1,110 @@
+{% extends "layouts/app_shell.html" %}
+{% load lucide %}
+
+{% block title %}Sentinel — Mon profil{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+  {# ── Carte de profil (lecture seule) ── #}
+  <div class="bg-white rounded-xl border border-border-subtle shadow-sm overflow-hidden">
+    <div class="px-6 py-5 border-b border-border-subtle bg-gradient-to-r from-surface-sunken to-white">
+      <div class="flex items-center gap-4">
+        {% include "components/_avatar.html" with user=request.user size_class="h-16 w-16" text_class="text-2xl" %}
+        <div>
+          <h2 class="text-xl font-bold tracking-tight text-text-primary">
+            {{ request.user.get_full_name|default:request.user.username }}
+          </h2>
+          {% if request.user.job_title %}
+          <p class="text-sm text-text-muted mt-0.5">{{ request.user.job_title }}</p>
+          {% endif %}
+          <div class="flex flex-wrap gap-2 mt-1.5">
+            {% if request.user.role %}
+            {% include "components/_role_badge.html" with user=request.user %}
+            {% endif %}
+            {% if request.user.department %}
+            <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-medium bg-surface-warm text-text-body">{{ request.user.department.name }}</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 space-y-2">
+      <div class="flex items-center gap-2 text-[13px] text-text-body">
+        {% lucide "at-sign" size=14 class="text-text-faint shrink-0" %}
+        <span>{{ request.user.email|default:"—" }}</span>
+      </div>
+      <div class="flex items-center gap-2 text-[13px] text-text-body">
+        {% lucide "user" size=14 class="text-text-faint shrink-0" %}
+        <span class="text-text-faint">Identifiant :</span>
+        <code class="text-xs bg-surface-warm px-1.5 py-0.5 rounded font-mono">{{ request.user.username }}</code>
+      </div>
+      {% if request.user.last_login %}
+      <div class="flex items-center gap-2 text-[13px] text-text-body">
+        {% lucide "clock" size=14 class="text-text-faint shrink-0" %}
+        <span class="text-text-faint">Dernière connexion :</span>
+        <span>{{ request.user.last_login|date:"d/m/Y à H:i" }}</span>
+      </div>
+      {% endif %}
+      <p class="text-xs text-text-faint mt-2 pt-2 border-t border-border-subtle">
+        Pour modifier votre rôle ou département, contactez votre Administrateur IT.
+      </p>
+    </div>
+  </div>
+
+  {# ── Changement de mot de passe ── #}
+  <div class="bg-white rounded-xl border border-border-subtle shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-border-subtle">
+      <h3 class="text-base font-semibold text-text-primary">Changer mon mot de passe</h3>
+      <p class="text-xs text-text-muted mt-0.5">Votre session reste active après le changement.</p>
+    </div>
+
+    {% if success %}
+    <div class="mx-6 mt-5 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800 flex items-center gap-2">
+      {% lucide "check-circle" size=16 %}
+      Mot de passe modifié avec succès.
+    </div>
+    {% endif %}
+
+    <form method="post" class="px-6 py-5 space-y-4">
+      {% csrf_token %}
+
+      <div>
+        <label class="block text-xs font-medium text-text-secondary mb-1.5" for="id_old_password">
+          Mot de passe actuel <span class="text-danger">*</span>
+        </label>
+        {{ form.old_password }}
+        {% if form.old_password.errors %}<p class="mt-1 text-xs text-danger">{{ form.old_password.errors.0 }}</p>{% endif %}
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-text-secondary mb-1.5" for="id_new_password">
+          Nouveau mot de passe <span class="text-danger">*</span>
+        </label>
+        {{ form.new_password }}
+        {% if form.new_password.errors %}<p class="mt-1 text-xs text-danger">{{ form.new_password.errors.0 }}</p>{% endif %}
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-text-secondary mb-1.5" for="id_confirm_password">
+          Confirmer le nouveau mot de passe <span class="text-danger">*</span>
+        </label>
+        {{ form.confirm_password }}
+        {% if form.confirm_password.errors %}<p class="mt-1 text-xs text-danger">{{ form.confirm_password.errors.0 }}</p>{% endif %}
+      </div>
+
+      {% if form.non_field_errors %}
+      <div class="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-xs text-danger space-y-1">
+        {% for e in form.non_field_errors %}<p>{{ e }}</p>{% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="flex justify-end pt-2">
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

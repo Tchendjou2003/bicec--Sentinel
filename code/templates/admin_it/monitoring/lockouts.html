@@ -1,0 +1,31 @@
+{% extends "layouts/app_shell.html" %}
+
+{% block title %}Sentinel — Comptes verrouillés{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <a href="{% url 'auth:admin-monitoring' %}" class="text-[12.5px] hover:underline text-text-faint">Surveillance</a>
+        <span class="text-border-strong">/</span>
+        <span class="text-[12.5px] text-text-body">Comptes verrouillés</span>
+      </div>
+      <h1 class="text-2xl font-bold tracking-tight text-text-primary">Comptes verrouillés</h1>
+      <p class="text-sm mt-0.5 text-text-body">
+        {% if lockouts %}
+        <span class="font-semibold text-danger">{{ lockouts|length }}</span> compte{{ lockouts|length|pluralize }} bloqué{{ lockouts|length|pluralize }} par le système de protection
+        {% else %}
+        Aucun compte verrouillé
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl overflow-hidden shadow-sm border border-border-subtle">
+    {% include "admin_it/partials/lockouts_panel.html" %}
+  </div>
+
+</div>
+{% endblock %}

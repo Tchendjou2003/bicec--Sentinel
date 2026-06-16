@@ -228,37 +228,15 @@ class UserProvisioningRequestForm(forms.Form):
     et haché dans le service ``create_provisioning_request``.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Charger dynamiquement les organisations externes (Story 6.2.0)
-        try:
-            from apps.workflow.models import RecommendationSource
-            sources = RecommendationSource.objects.filter(
-                is_external=True, is_active=True
-            ).order_by("label")
-            choices = [("", "— Sélectionner une organisation —")]
-            for s in sources:
-                choices.append((s.label, s.label))
-        except Exception:
-            choices = [("", "— Sélectionner une organisation —")]
-
-        # Pour les tests unitaires et la tolérance aux données historiques,
-        # si la valeur soumise ou initiale n'est pas dans les choix, on l'ajoute.
-        initial_val = self.initial.get("mission_organization")
-        if not initial_val and self.data:
-            initial_val = self.data.get("mission_organization")
-        if initial_val and not any(initial_val == c[0] for c in choices):
-            choices.append((initial_val, initial_val))
-
-        self.fields["mission_organization"].choices = choices
-
-        # Optgroups par type d'unité + libellé « Nom (CODE) » (lot Sélecteurs).
-        # Ré-affecter le queryset APRÈS l'itérateur : le setter de queryset
-        # fige widget.choices avec l'itérateur courant.
-        dept_field = self.fields["requested_department"]
-        dept_field.iterator = GroupedByTypeIterator
-        dept_field.label_from_instance = department_option_label  # type: ignore[method-assign]
-        dept_field.queryset = dept_field.queryset
+    # ── Champs cachés pour le mode MODIFY ────────────────────────────
+    request_type = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(),
+    )
+    target_user = forms.UUIDField(
+        required=False,
+        widget=forms.HiddenInput(),
+    )
 
     # ── Identité ─────────────────────────────────────────────────────
     requested_username = forms.CharField(
@@ -308,13 +286,38 @@ class UserProvisioningRequestForm(forms.Form):
     )
     requested_department = forms.ModelChoiceField(
         label="Département",
-        queryset=Department.objects.filter(is_active=True).select_related("parent", "type"),
+        # Exclut l'entité système (is_system) : « Support Applicatif » n'est
+        # jamais proposé pour un profil métier. Le profil ADMIN soumet un
+        # département vide, rattaché côté service (cf. create_provisioning_request).
+        queryset=Department.objects.filter(is_active=True)
+        .exclude(is_system=True)
+        .select_related("parent", "type"),
         required=False,
         empty_label="— Aucun / Non requis —",
         widget=forms.Select(attrs={
             "class": _SELECT_CLASS + " js-tomselect",
             "data-placeholder": "Rechercher un département…",
         }),
+    )
+    requested_is_audit_admin = forms.BooleanField(
+        label="Administrateur Audit",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": _CHECKBOX_CLASS}),
+        help_text="Coché automatiquement par le profil « Directeur de l'Audit » (rôle AUDIT requis).",
+    )
+    requested_job_title = forms.CharField(
+        label="Fonction / Poste",
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            "class": _INPUT_CLASS,
+            "placeholder": "Ex : Directeur de l'Audit Interne",
+        }),
+        help_text="Titre officiel affiché — purement informatif.",
+    )
+    requested_profile = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(),
     )
 
     # ── Mission externe (conditionnelle EXT) ─────────────────────────
@@ -354,14 +357,77 @@ class UserProvisioningRequestForm(forms.Form):
         }),
     )
 
+    def __init__(self, *args, **kwargs):
+        # Capture mode MODIFY before calling super (fields already declared)
+        self._is_modify = kwargs.pop("is_modify", False)
+        target_user_obj = kwargs.pop("target_user", None)
+        super().__init__(*args, **kwargs)
+
+        if self._is_modify:
+            # Identity + password are non-editable in MODIFY mode
+            self.fields["requested_username"].required = False
+            self.fields["requested_email"].required = False
+            self.fields["password"].required = False
+            # Pre-fill hidden identity from target_user
+            if target_user_obj:
+                self.fields["target_user"].initial = str(target_user_obj.pk)
+                self.initial.setdefault("requested_username", target_user_obj.username)
+                self.initial.setdefault("requested_email", target_user_obj.email)
+
+        self.fields["request_type"].initial = (
+            "MODIFY" if self._is_modify else "CREATE"
+        )
+
+        # Charger dynamiquement les organisations externes (Story 6.2.0)
+        try:
+            from apps.workflow.models import RecommendationSource
+            sources = RecommendationSource.objects.filter(
+                is_external=True, is_active=True
+            ).order_by("label")
+            choices = [("", "— Sélectionner une organisation —")]
+            for s in sources:
+                choices.append((s.label, s.label))
+        except Exception:
+            choices = [("", "— Sélectionner une organisation —")]
+
+        # Pour les tests unitaires et la tolérance aux données historiques,
+        # si la valeur soumise ou initiale n'est pas dans les choix, on l'ajoute.
+        initial_val = self.initial.get("mission_organization")
+        if not initial_val and self.data:
+            initial_val = self.data.get("mission_organization")
+        if initial_val and not any(initial_val == c[0] for c in choices):
+            choices.append((initial_val, initial_val))
+
+        self.fields["mission_organization"].choices = choices
+
+        # Optgroups par type d'unité + libellé « Nom (CODE) » (lot Sélecteurs).
+        dept_field = self.fields["requested_department"]
+        dept_field.iterator = GroupedByTypeIterator
+        dept_field.label_from_instance = department_option_label  # type: ignore[method-assign]
+        dept_field.queryset = dept_field.queryset
+
+    def clean_target_user(self):
+        """Résout l'UUID du champ caché en objet User (contrat attendu par le service)."""
+        uid = self.cleaned_data.get("target_user")
+        if not uid:
+            return None
+        try:
+            return User.objects.get(pk=uid)
+        except User.DoesNotExist:
+            raise ValidationError("L'utilisateur cible de la modification est introuvable.")
+
     def clean_requested_username(self):
         username = self.cleaned_data.get("requested_username", "").strip()
+        if self._is_modify or not username:
+            return username
         if User.objects.filter(username__iexact=username).exists():
             raise ValidationError("Un compte avec cet identifiant existe déjà.")
         return username
 
     def clean_requested_email(self):
         email = self.cleaned_data.get("requested_email", "").strip()
+        if self._is_modify or not email:
+            return email
         if User.objects.filter(email__iexact=email).exists():
             raise ValidationError("Un compte avec cet e-mail existe déjà.")
         return email
@@ -377,6 +443,14 @@ class UserProvisioningRequestForm(forms.Form):
             self.add_error(
                 "requested_department",
                 "Le département est obligatoire pour ce rôle.",
+            )
+
+        # Le flag « Administrateur Audit » n'a de sens que pour un Auditeur Interne
+        if cleaned.get("requested_is_audit_admin") and role != User.Role.AUDIT:
+            self.add_error(
+                "requested_is_audit_admin",
+                "Le flag « Administrateur Audit » ne peut être attribué "
+                "qu'à un Auditeur Interne (rôle AUDIT).",
             )
 
         # Champs EXT conditionnellement requis
@@ -399,4 +473,78 @@ class UserProvisioningRequestForm(forms.Form):
                     "La date de fin ne peut pas être antérieure à la date de début.",
                 )
 
+        return cleaned
+
+
+# =============================================================================
+# Actions rapides Admin IT + auto-service (Story 8.x)
+# =============================================================================
+
+class ResetPasswordForm(forms.Form):
+    """Formulaire de réinitialisation de mot de passe par l'admin."""
+
+    new_password = forms.CharField(
+        label="Nouveau mot de passe",
+        min_length=8,
+        widget=forms.PasswordInput(attrs={
+            "class": _INPUT_CLASS,
+            "autocomplete": "new-password",
+            "placeholder": "Minimum 8 caractères",
+        }),
+    )
+    confirm_password = forms.CharField(
+        label="Confirmer le mot de passe",
+        min_length=8,
+        widget=forms.PasswordInput(attrs={
+            "class": _INPUT_CLASS,
+            "autocomplete": "new-password",
+            "placeholder": "Répéter le mot de passe",
+        }),
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        pw = cleaned.get("new_password")
+        confirm = cleaned.get("confirm_password")
+        if pw and confirm and pw != confirm:
+            self.add_error("confirm_password", "Les deux mots de passe ne correspondent pas.")
+        return cleaned
+
+
+class ChangeOwnPasswordForm(forms.Form):
+    """Formulaire de changement de mot de passe en auto-service (Mon profil)."""
+
+    old_password = forms.CharField(
+        label="Mot de passe actuel",
+        widget=forms.PasswordInput(attrs={
+            "class": _INPUT_CLASS,
+            "autocomplete": "current-password",
+            "placeholder": "Votre mot de passe actuel",
+        }),
+    )
+    new_password = forms.CharField(
+        label="Nouveau mot de passe",
+        min_length=8,
+        widget=forms.PasswordInput(attrs={
+            "class": _INPUT_CLASS,
+            "autocomplete": "new-password",
+            "placeholder": "Minimum 8 caractères",
+        }),
+    )
+    confirm_password = forms.CharField(
+        label="Confirmer le nouveau mot de passe",
+        min_length=8,
+        widget=forms.PasswordInput(attrs={
+            "class": _INPUT_CLASS,
+            "autocomplete": "new-password",
+            "placeholder": "Répéter le nouveau mot de passe",
+        }),
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        pw = cleaned.get("new_password")
+        confirm = cleaned.get("confirm_password")
+        if pw and confirm and pw != confirm:
+            self.add_error("confirm_password", "Les deux mots de passe ne correspondent pas.")
         return cleaned

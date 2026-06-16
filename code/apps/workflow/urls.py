@@ -163,6 +163,22 @@ urlpatterns = [
         views.RecommendationSourceToggleView.as_view(),
         name="source-toggle",
     ),
+    # ── Import Excel massif de recommandations (Story 6.5 — FR7) ──
+    path(
+        "recommandations/import/",
+        views.RecommendationImportView.as_view(),
+        name="recommendation-import",
+    ),
+    path(
+        "recommandations/import/template/",
+        views.ImportTemplateDownloadView.as_view(),
+        name="recommendation-import-template",
+    ),
+    path(
+        "recommandations/import/confirm/",
+        views.RecommendationImportConfirmView.as_view(),
+        name="recommendation-import-confirm",
+    ),
     # ── Habilitation Audit (Story 1.5 + 1.7) ──
     path(
         "habilitation/",

@@ -38,6 +38,8 @@ class AuditLog(models.Model):
         EXTENSION_REQUESTED = "EXTENSION_REQUESTED", _("Demande de report soumise")
         EXTENSION_APPROVED  = "EXTENSION_APPROVED",  _("Demande de report approuvée")
         EXTENSION_REJECTED  = "EXTENSION_REJECTED",  _("Demande de report rejetée")
+        # Story 6.5 — Import massif de recommandations en DRAFT (FR7)
+        IMPORT = "IMPORT", _("Import Excel")
 
     id = models.UUIDField(
         primary_key=True,

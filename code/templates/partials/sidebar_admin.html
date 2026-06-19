@@ -22,6 +22,8 @@
     <ul class="space-y-1">
       {% url 'auth:admin-monitoring' as u_monitoring %}
       {% include "partials/_sidebar_item.html" with href=u_monitoring icon="activity" label="Monitoring" route="monitoring" %}
+      {% url 'auth:admin-audit-trail' as u_audit %}
+      {% include "partials/_sidebar_item.html" with href=u_audit icon="shield-check" label="Journal d'audit" route="audit-trail" %}
     </ul>
   </nav>
 

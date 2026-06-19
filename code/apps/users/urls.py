@@ -44,6 +44,11 @@ urlpatterns = [
         name="admin-monitoring",
     ),
     path(
+        "admin/audit-trail/",
+        views.AdminAuditTrailView.as_view(),
+        name="admin-audit-trail",
+    ),
+    path(
         "admin/monitoring/sessions/",
         views.AdminActiveSessionsView.as_view(),
         name="admin-sessions",

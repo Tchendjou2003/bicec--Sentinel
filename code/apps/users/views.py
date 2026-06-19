@@ -1319,6 +1319,107 @@ class AdminLockoutsView(AdminRequiredMixin, TemplateView):
         return context
 
 
+class AdminAuditTrailView(AdminRequiredMixin, View):
+    """Journal d'audit global — toutes les entrées AuditLog, filtrables (Story 5.1)."""
+
+    template_name = "admin_it/audit_trail.html"
+    PAGINATE_BY = 50
+
+    def get(self, request):
+        import urllib.parse
+        from datetime import date as date_type
+
+        from django.db.models import Case, CharField, Value, When
+
+        from apps.audit.models import AuditLog
+        from apps.audit.selectors import (
+            CONTENT_TYPE_LABEL,
+            MODULE_CHOICES,
+            MODULE_LABELS,
+            get_audit_logs,
+        )
+
+        # ── Parsing des filtres GET ──
+        action_filter = request.GET.get("action") or None
+        module_filter = request.GET.get("module") or None
+        user_filter   = request.GET.get("user")   or None
+        date_from_str = request.GET.get("date_from") or ""
+        date_to_str   = request.GET.get("date_to")   or ""
+
+        date_from = None
+        date_to   = None
+        try:
+            if date_from_str:
+                date_from = date_type.fromisoformat(date_from_str)
+        except ValueError:
+            date_from_str = ""
+        try:
+            if date_to_str:
+                date_to = date_type.fromisoformat(date_to_str)
+        except ValueError:
+            date_to_str = ""
+
+        # ── QuerySet filtré ──
+        qs = get_audit_logs(
+            action=action_filter,
+            content_type=module_filter,
+            user_id=user_filter,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        # Annotation module_label : libellé FR pour chaque ligne (évite lookup dict en template)
+        whens = [
+            When(content_type__in=cts, then=Value(MODULE_LABELS[group]))
+            for group, cts in MODULE_CHOICES.items()
+        ]
+        qs = qs.annotate(
+            module_label=Case(*whens, default=Value("Autre"), output_field=CharField())
+        )
+
+        # ── Pagination ──
+        paginator = Paginator(qs, self.PAGINATE_BY)
+        page_obj  = paginator.get_page(request.GET.get("page"))
+
+        # ── Acteurs récents pour le <select> (50 max) ──
+        recent_actor_ids = list(
+            AuditLog.objects.filter(user__isnull=False)
+            .order_by("-created_at")
+            .values_list("user_id", flat=True)
+            .distinct()[:50]
+        )
+        recent_actors = (
+            User.objects.filter(pk__in=recent_actor_ids)
+            .order_by("last_name", "first_name")
+        )
+
+        # Querystring des filtres actifs (pour les liens de pagination)
+        filter_params = {k: v for k, v in request.GET.items() if k != "page" and v}
+        filter_querystring = urllib.parse.urlencode(filter_params)
+
+        filters = {
+            "action":     action_filter or "",
+            "module":     module_filter or "",
+            "user":       user_filter   or "",
+            "date_from":  date_from_str,
+            "date_to":    date_to_str,
+        }
+
+        return render(request, self.template_name, {
+            "page_obj":          page_obj,
+            "paginator":         paginator,
+            "is_paginated":      paginator.num_pages > 1,
+            "action_choices":    AuditLog.Action.choices,
+            "module_choices":    MODULE_LABELS,
+            "users":             recent_actors,
+            "filters":           filters,
+            "filter_querystring": filter_querystring,
+            "active_route":      "audit-trail",
+            "topbar_title":      "Journal d'audit",
+            "topbar_subtitle":   "Traçabilité complète des actions système",
+        })
+
+
 class UserProfileView(LoginRequiredMixin, View):
     """Page Mon Profil — infos en lecture seule + changement de mot de passe auto-service."""
 

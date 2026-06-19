@@ -20,9 +20,11 @@ SECURE_HSTS_PRELOAD = True
 
 # Domaines autorisés (ex: sentinel.intra.bicec.local)
 # Le HTTPS est forcé ici pour faire correspondre le referer du front TLS Nginx.
+# Ne PAS inclure localhost en production (origine CSRF de confiance exploitable
+# depuis un poste du réseau interne). Le dev local définit ses propres origines
+# dans dev.py.
 CSRF_TRUSTED_ORIGINS = [
     "https://sentinel.intra.bicec.local",
-    "https://localhost",
 ]
 
 # HTTPS redirect (géré par Nginx, mais safety net)

@@ -145,3 +145,50 @@ def verify_recommendation_seal(recommendation) -> bool:
         return False
     _, _, recomputed = _build_seal_payload(recommendation)
     return hmac.compare_digest(recomputed, seal.hmac_hash)
+
+
+# ---------------------------------------------------------------------------
+# Services de traçabilité d'authentification (signaux Django)
+# ---------------------------------------------------------------------------
+
+def log_user_login(*, user, ip_address: str | None = None) -> None:
+    """Trace une connexion réussie (appelé depuis le signal user_logged_in)."""
+    from .models import AuditLog
+    AuditLog.objects.create(
+        action=AuditLog.Action.LOGIN,
+        user=user,
+        content_type="User",
+        object_id=user.pk,
+        ip_address=ip_address,
+        description=f"Connexion réussie — {user.get_full_name() or user.username}",
+    )
+
+
+def log_user_logout(*, user, ip_address: str | None = None) -> None:
+    """Trace une déconnexion (appelé depuis le signal user_logged_out)."""
+    from .models import AuditLog
+    AuditLog.objects.create(
+        action=AuditLog.Action.LOGOUT,
+        user=user,
+        content_type="User",
+        object_id=user.pk,
+        ip_address=ip_address,
+        description=f"Déconnexion — {user.get_full_name() or user.username}",
+    )
+
+
+def log_login_failed(*, username: str, ip_address: str | None = None) -> None:
+    """Trace une tentative de connexion échouée (appelé depuis le signal user_login_failed).
+
+    L'utilisateur n'est pas résolu à ce stade — on stocke l'identifiant saisi,
+    sans FK user ni object_id.
+    """
+    from .models import AuditLog
+    AuditLog.objects.create(
+        action=AuditLog.Action.LOGIN_FAILED,
+        user=None,
+        content_type="User",
+        object_id=None,
+        ip_address=ip_address,
+        description=f"Échec de connexion — identifiant : « {username} »",
+    )

@@ -7,6 +7,8 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from apps.audit.models import AuditLog
+
 User = get_user_model()
 
 
@@ -16,14 +18,14 @@ class SentinelLoginViewTest(TestCase):
     def setUp(self):
         self.client = Client()
         self.login_url = reverse("auth:login")
-        
+
         # Utilisateur "coquille vide" (sans rôle)
         self.shell_user = User.objects.create_user(
             username="shell",
             password="testpass123",
             email="shell@bicec.cm",
         )
-        
+
         # Utilisateur Admin
         self.admin_user = User.objects.create_user(
             username="admin_user",
@@ -32,7 +34,7 @@ class SentinelLoginViewTest(TestCase):
             role=User.Role.ADMIN,
             is_staff=True,
         )
-        
+
         # Utilisateur classique (DM)
         self.dm_user = User.objects.create_user(
             username="dm",
@@ -88,7 +90,7 @@ class PendingActivationViewTest(TestCase):
         self.client = Client()
         self.pending_url = reverse("auth:pending")
         self.home_url = reverse("home")
-        
+
         self.shell_user = User.objects.create_user(
             username="shell",
             password="testpass123",
@@ -116,3 +118,49 @@ class PendingActivationViewTest(TestCase):
         self.client.force_login(self.dm_user)
         response = self.client.get(self.pending_url)
         self.assertRedirects(response, self.home_url, fetch_redirect_response=False)
+
+
+class AuthSignalsAuditLogTest(TestCase):
+    """Vérifie que les signaux Django créent les entrées AuditLog attendues."""
+
+    def setUp(self):
+        self.client = Client()
+        self.login_url = reverse("auth:login")
+        self.logout_url = reverse("auth:logout")
+        self.user = User.objects.create_user(
+            username="testuser",
+            password="testpass123",
+            email="testuser@bicec.cm",
+            role=User.Role.DM,
+        )
+
+    def test_login_success_cree_auditlog(self):
+        """Une connexion réussie écrit une entrée AuditLog LOGIN."""
+        self.client.post(self.login_url, {"username": "testuser", "password": "testpass123"})
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.LOGIN,
+                content_type="User",
+                user=self.user,
+            ).exists()
+        )
+
+    def test_login_failed_cree_auditlog(self):
+        """Un échec de connexion écrit une entrée AuditLog LOGIN_FAILED."""
+        self.client.post(self.login_url, {"username": "testuser", "password": "mauvais"})
+        log = AuditLog.objects.filter(action=AuditLog.Action.LOGIN_FAILED).first()
+        self.assertIsNotNone(log)
+        self.assertIsNone(log.user)
+        self.assertIn("testuser", log.description)
+
+    def test_logout_cree_auditlog(self):
+        """Une déconnexion écrit une entrée AuditLog LOGOUT."""
+        self.client.force_login(self.user)
+        self.client.post(self.logout_url)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.LOGOUT,
+                content_type="User",
+                user=self.user,
+            ).exists()
+        )

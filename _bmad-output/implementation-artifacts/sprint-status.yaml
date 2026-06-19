@@ -65,6 +65,7 @@ development_status:
   3-5-validation-dm-envoi-audit-exemption-pv: done
   3-6-demande-report-echeance: done
   3-7-soumission-exclusive-dg: done
+  3-7-b-parametrage-metier-sources-organigramme: done
   3-8-cloture-definitive-audit-interne: done
   3-9-bascule-automatique-overdue-cron: done
   3-10-generation-sceau-hmac-sha256-cloture: done
@@ -94,11 +95,11 @@ development_status:
   6-4-configuration-interim-delegation: backlog
   6-5-import-massif-recommandations-draft: review
   6-6-triage-auto-assignation: cancelled # Dropped: redundant with DRAFT state backlog mechanism
-  6-7-compilation-archive-zip-audit-externe: backlog
-  6-8-import-historique-massif-recommandations: backlog
+  6-7-compilation-archive-zip-audit-externe: ready-for-dev
+  6-8-import-historique-massif-recommandations: in-progress
   epic-6-retrospective: optional
 
   # ── Epic 7: Administration Technique & Surveillance ──
   epic-7: in-progress
   7-1-admin-it-monitoring-surveillance: done
-  7-2-onboarding-grc-bootstrap-comptes: ready-for-dev
+  7-2-onboarding-grc-bootstrap-comptes: done

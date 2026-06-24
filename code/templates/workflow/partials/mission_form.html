@@ -20,7 +20,7 @@
   <div class="relative flex-1 px-6 py-6 sm:px-8 overflow-y-auto">
     <form id="missionForm" hx-post="{{ action_url }}" hx-target="#stepper-container" hx-swap="outerHTML" class="space-y-6">
       {% csrf_token %}
-      
+
       {% if form.non_field_errors %}
       <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 text-sm">
         {{ form.non_field_errors }}
@@ -30,13 +30,13 @@
       {# Informations générales #}
       <div class="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-4">
         <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-2">Informations Générales</h3>
-        
+
         <div>
           <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Nom de la mission *</label>
           {{ form.name }}
           {% if form.name.errors %}<p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>{% endif %}
         </div>
-        
+
         <div>
           <label for="{{ form.organisation.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Organisation *</label>
           {{ form.organisation }}
@@ -100,7 +100,7 @@
       Enregistrer la mission
     </button>
   </div>
-  
+
   {# Initialisation TomSelect pour les champs multiples #}
   <script>
     if (typeof TomSelect !== 'undefined') {

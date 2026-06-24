@@ -102,7 +102,7 @@
                 >
                   <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                 </button>
-                
+
                 {% if mission.status == 'PREPARATION' %}
                 <form method="post" action="{% url 'workflow:mission-toggle-status' mission.pk %}" class="inline">
                   {% csrf_token %}
@@ -130,7 +130,7 @@
         </tbody>
       </table>
     </div>
-    
+
     {# ── Pagination ── #}
     {% if page_obj.has_other_pages %}
     <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-between">

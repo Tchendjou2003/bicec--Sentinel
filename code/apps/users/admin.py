@@ -164,4 +164,3 @@ class ExternalMissionAdmin(admin.ModelAdmin):
             },
         ),
     )
-

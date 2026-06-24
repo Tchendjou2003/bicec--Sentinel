@@ -348,7 +348,7 @@ class EXTProvisioningServiceTest(TestCase):
 
         self.assertTrue(user.is_external)
         self.assertEqual(user.role, User.Role.EXT)
-        
+
         # Le compte est créé nu, sans mission
         self.assertFalse(ExternalMission.objects.filter(auditors=user).exists())
 

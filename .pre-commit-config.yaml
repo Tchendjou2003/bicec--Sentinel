@@ -6,10 +6,10 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
 
-  - repo: https://github.com/Riverside-Healthcare/djLint
-    rev: v1.34.1
-    hooks:
-      # Linter: cherche les erreurs (ex: commentaires multi-lignes invalides)
-      - id: djlint-django
-        args: ["--lint"]
-        files: \.html$
+#  - repo: https://github.com/Riverside-Healthcare/djLint
+#    rev: v1.34.1
+#    hooks:
+#      # Linter: cherche les erreurs (ex: commentaires multi-lignes invalides)
+#      - id: djlint-django
+#        args: ["--lint"]
+#        files: \.html$

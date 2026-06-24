@@ -167,7 +167,7 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
             if self.request.headers.get("HX-Request"):
                 return ["workflow/external/partials/recommendation_table_ext.html"]
             return ["workflow/external/external_portal.html"]
-            
+
         if self.request.headers.get("HX-Request"):
             return ["workflow/partials/recommendation_table.html"]
         return [self.template_name]

@@ -128,7 +128,7 @@ def notify_porteur(recommendation, *, type, title, actor, is_urgent=False, body=
     recipient = recommendation.assigned_etp or recommendation.assigned_dm
     if not recipient or recipient == actor:
         return None
-        
+
     return emit_notification(
         recipient=recipient,
         notification_type=type,
@@ -149,7 +149,7 @@ def notify_dm(recommendation, *, type, title, actor, is_urgent=False, body="", k
     recipient = recommendation.assigned_dm
     if not recipient or recipient == actor:
         return None
-        
+
     return emit_notification(
         recipient=recipient,
         notification_type=type,

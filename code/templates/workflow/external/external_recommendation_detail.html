@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="px-4 py-8 sm:px-6 lg:px-8 max-w-5xl mx-auto space-y-8">
-  
+
   {# En-tête Navigation #}
   <div class="flex items-center justify-between">
     <a href="{% url 'workflow:recommendation-list' %}" class="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
@@ -25,13 +25,13 @@
         </span>
         {% include "components/status_badge.html" with status=recommendation.status variant="outline" %}
       </div>
-      
+
       <div>
         <h1 class="text-xl font-bold text-gray-900">{{ recommendation.mission_label }}</h1>
         <p class="mt-2 text-gray-600 text-sm whitespace-pre-wrap">{{ recommendation.description }}</p>
       </div>
     </div>
-    
+
     <div class="shrink-0 bg-gray-50 rounded-lg p-4 border border-gray-100 min-w-[200px] space-y-3 text-sm">
       <div>
         <span class="block text-xs font-semibold text-gray-500 uppercase">Direction</span>
@@ -57,7 +57,7 @@
         Télécharger (ZIP)
       </a>
     </div>
-    
+
     <div class="p-6">
       {% if submissions_approved %}
       <div class="space-y-6">
@@ -72,11 +72,11 @@
                 <h3 class="font-bold text-gray-900 text-sm">Livrable soumis par {{ sub.submitted_by.get_full_name|default:sub.submitted_by.username }}</h3>
               </div>
               <p class="text-xs text-gray-500 mb-3">Accepté le {{ sub.updated_at|date:"d/m/Y à H:i" }}</p>
-              
+
               {% if sub.comment %}
               <div class="text-sm text-gray-700 bg-white p-3 rounded border border-gray-100 mb-4 whitespace-pre-wrap">{{ sub.comment }}</div>
               {% endif %}
-              
+
               {% if sub.files.all %}
               <ul class="space-y-2 mt-2">
                 {% for f in sub.files.all %}

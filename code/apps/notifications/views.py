@@ -53,7 +53,7 @@ class NotificationDropdownView(LoginRequiredMixin, View):
 class NotificationListView(LoginRequiredMixin, ListView):
     """
     GET /notifications/ → Page dédiée affichant l'historique complet.
-    
+
     Pagination élégante et vue exhaustive des notifications.
     """
     model = Notification
@@ -63,11 +63,11 @@ class NotificationListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = Notification.objects.filter(recipient=self.request.user).select_related("recommendation")
-        
+
         q = self.request.GET.get("q", "").strip()
         if q:
             qs = qs.filter(Q(title__icontains=q) | Q(body__icontains=q))
-            
+
         return qs.order_by("-created_at")
 
     def get_context_data(self, **kwargs):
@@ -162,7 +162,7 @@ class NotificationMarkAllReadView(LoginRequiredMixin, View):
 class NotificationDeleteView(LoginRequiredMixin, View):
     """
     POST /notifications/{pk}/delete/ → Supprime la notification de l'historique.
-    
+
     Retourne un 200 vide pour que HTMX retire l'élément du DOM fluide.
     """
 
@@ -178,4 +178,3 @@ class NotificationDeleteView(LoginRequiredMixin, View):
         response = HttpResponse("")
         response["HX-Trigger"] = json.dumps({"badge-refresh": True})
         return response
-

@@ -30,7 +30,7 @@ _TEXTAREA_CLASS = (
 class ExternalMissionForm(forms.ModelForm):
     """
     Formulaire HTMX de création/édition d'une mission d'audit externe.
-    
+
     Affiche les informations générales de la mission (nom, type, organisation)
     ainsi que les relations (auditeurs et recommandations).
     """

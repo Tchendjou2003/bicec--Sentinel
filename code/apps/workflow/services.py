@@ -155,12 +155,12 @@ def update_recommendation(
         update_fields = []
         for field_name, new_value in data.items():
             old_value = getattr(recommendation, field_name)
-            
+
             if old_value != new_value:
                 # Extraire les IDs pour les clés étrangères
                 old_val_rep = str(old_value.pk) if hasattr(old_value, "pk") else str(old_value) if old_value is not None else None
                 new_val_rep = str(new_value.pk) if hasattr(new_value, "pk") else str(new_value) if new_value is not None else None
-                
+
                 delta[field_name] = [old_val_rep, new_val_rep]
                 setattr(recommendation, field_name, new_value)
                 update_fields.append(field_name)
@@ -456,7 +456,7 @@ def delegate_recommendation_to_etp(
         # Vérifier l'appartenance au même département (ou ses enfants)
         from apps.workflow.selectors import get_department_and_descendants_ids
         valid_dept_ids = get_department_and_descendants_ids(recommendation.department)
-        
+
         if etp.department_id not in valid_dept_ids:
             raise ValueError(
                 "L'ETP sélectionné n'appartient pas à la Direction concernée."

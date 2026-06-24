@@ -32,10 +32,10 @@ class DashboardView(WorkflowAccessMixin, TemplateView):
     def dispatch(self, request, *args, **kwargs):
         from django.shortcuts import redirect
         from apps.users.models import User
-        
+
         if request.user.is_authenticated and request.user.role == User.Role.EXT:
             return redirect("workflow:recommendation-list")
-            
+
         return super().dispatch(request, *args, **kwargs)
 
     def get_template_names(self) -> list[str]:

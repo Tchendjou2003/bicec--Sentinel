@@ -84,7 +84,7 @@ class ExternalMissionListView(AuditRequiredMixin, ListView):
         status = self.request.GET.get("status", "")
         if status:
             qs = qs.filter(status=status)
-            
+
         return qs.order_by("-start_date")
 
     def get_context_data(self, **kwargs):
@@ -157,7 +157,7 @@ class ExternalMissionUpdateView(AuditRequiredMixin, View):
             response = HttpResponse()
             response["HX-Redirect"] = reverse("workflow:mission-list")
             return response
-            
+
         return render(request, "workflow/partials/mission_form.html", {
             "form": form,
             "action_url": reverse("workflow:mission-update", args=[pk]),

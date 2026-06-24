@@ -133,10 +133,6 @@ class ProvisioningDAITest(TestCase):
             "requested_is_audit_admin": True,
             "requested_job_title": "Directeur de l'Audit Interne",
             "requested_profile": "DIRECTEUR_AUDIT",
-            "mission_organization": "",
-            "mission_scope": "",
-            "mission_start_date": None,
-            "mission_end_date": None,
         }
         data.update(overrides)
         return data

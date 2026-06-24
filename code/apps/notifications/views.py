@@ -17,6 +17,7 @@ from django.views import View
 from django.views.generic import ListView
 
 from .models import Notification
+from . import services as notif_services
 
 # Nombre de notifications affichées dans le dropdown
 DROPDOWN_LIMIT = 10
@@ -96,12 +97,11 @@ class NotificationMarkReadView(LoginRequiredMixin, View):
 
     def post(self, request, pk):
         try:
-            notif = Notification.objects.get(pk=pk, recipient=request.user)
+            notif = notif_services.mark_notification_read(
+                notification_id=pk, user=request.user
+            )
         except Notification.DoesNotExist:
             raise Http404
-
-        notif.is_read = True
-        notif.save(update_fields=["is_read"])
 
         if request.POST.get("inline"):
             # Swap in-place : la carte re-rendue à l'état « Lu », pas de redirection.
@@ -135,9 +135,7 @@ class NotificationMarkAllReadView(LoginRequiredMixin, View):
     """
 
     def post(self, request):
-        Notification.objects.filter(
-            recipient=request.user, is_read=False
-        ).update(is_read=True)
+        notif_services.mark_all_notifications_read(user=request.user)
 
         if request.headers.get("HX-Target") == "notif-panel-container":
             # Origine dropdown : re-rendre le dropdown (maintenant tout lu).
@@ -170,8 +168,9 @@ class NotificationDeleteView(LoginRequiredMixin, View):
 
     def post(self, request, pk):
         try:
-            notif = Notification.objects.get(pk=pk, recipient=request.user)
-            notif.delete()
+            notif_services.delete_notification(
+                notification_id=pk, user=request.user
+            )
         except Notification.DoesNotExist:
             raise Http404
 

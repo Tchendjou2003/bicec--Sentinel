@@ -8,104 +8,200 @@
    ============================================ */
 
 @layer base {
-  :root {
-    --background: 210 20% 98%;
-    --foreground: 15 30% 15%;
-    --card: 0 0% 100%;
-    --card-foreground: 15 30% 15%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 15 30% 15%;
-    --primary: 25 80% 53%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 15 30% 22%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 210 20% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 20% 96%;
-    --accent-foreground: 15 30% 22%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    --info: 217 91% 60%;
-    --info-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 25 80% 53%;
-    --radius: 0.5rem;
-    --sidebar-background: 15 30% 22%;
-    --sidebar-foreground: 30 20% 85%;
-    --sidebar-primary: 25 80% 53%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 15 25% 28%;
-    --sidebar-accent-foreground: 30 20% 90%;
-    --sidebar-border: 15 20% 30%;
-    --surface: 210 20% 98%;
-    --gradient-primary: linear-gradient(135deg, hsl(25 85% 58%) 0%, hsl(20 80% 48%) 100%);
-    --gradient-hero: radial-gradient(ellipse at top, hsl(25 80% 53% / 0.08), transparent 60%);
-    --shadow-xs: 0 1px 2px 0 hsl(15 30% 15% / 0.04);
-    --shadow-sm: 0 1px 3px 0 hsl(15 30% 15% / 0.06), 0 1px 2px -1px hsl(15 30% 15% / 0.04);
-    --shadow-md: 0 4px 12px -2px hsl(15 30% 15% / 0.08), 0 2px 4px -2px hsl(15 30% 15% / 0.04);
-    --shadow-lg: 0 12px 32px -8px hsl(15 30% 15% / 0.12), 0 4px 12px -4px hsl(15 30% 15% / 0.06);
-    --shadow-glow: 0 0 24px -4px hsl(25 80% 53% / 0.35);
-  }
-  .dark {
-    --background: 15 30% 8%;
-    --foreground: 30 20% 90%;
-    --card: 15 25% 12%;
-    --card-foreground: 30 20% 90%;
-    --muted: 15 15% 18%;
-    --muted-foreground: 215 16% 60%;
-    --border: 15 15% 22%;
-    --input: 15 15% 22%;
-    --sidebar-background: 15 30% 6%;
-  }
-  * { border-color: hsl(var(--border)); }
-  body { background: hsl(var(--background)); color: hsl(var(--foreground)); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
-  h1, h2, h3, h4, h5, h6 { font-family: 'Manrope', sans-serif; letter-spacing: -0.02em; }
-  /* Échelle typographique DS (s'applique aux <hN> nus ; les classes utilitaires
+    :root {
+        --background: 210 20% 98%;
+        --foreground: 15 30% 15%;
+        --card: 0 0% 100%;
+        --card-foreground: 15 30% 15%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 15 30% 15%;
+        --primary: 25 80% 53%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 15 30% 22%;
+        --secondary-foreground: 0 0% 98%;
+        --muted: 210 20% 96%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 210 20% 96%;
+        --accent-foreground: 15 30% 22%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 100%;
+        --success: 142 71% 45%;
+        --success-foreground: 0 0% 100%;
+        --warning: 38 92% 50%;
+        --warning-foreground: 0 0% 100%;
+        --info: 217 91% 60%;
+        --info-foreground: 0 0% 100%;
+        --border: 214 32% 91%;
+        --input: 214 32% 91%;
+        --ring: 25 80% 53%;
+        --radius: 0.5rem;
+        --sidebar-background: 15 30% 22%;
+        --sidebar-foreground: 30 20% 85%;
+        --sidebar-primary: 25 80% 53%;
+        --sidebar-primary-foreground: 0 0% 100%;
+        --sidebar-accent: 15 25% 28%;
+        --sidebar-accent-foreground: 30 20% 90%;
+        --sidebar-border: 15 20% 30%;
+        --surface: 210 20% 98%;
+        --gradient-primary: linear-gradient(135deg, hsl(25 85% 58%) 0%, hsl(20 80% 48%) 100%);
+        --gradient-hero: radial-gradient(ellipse at top, hsl(25 80% 53% / 0.08), transparent 60%);
+        --shadow-xs: 0 1px 2px 0 hsl(15 30% 15% / 0.04);
+        --shadow-sm: 0 1px 3px 0 hsl(15 30% 15% / 0.06), 0 1px 2px -1px hsl(15 30% 15% / 0.04);
+        --shadow-md: 0 4px 12px -2px hsl(15 30% 15% / 0.08), 0 2px 4px -2px hsl(15 30% 15% / 0.04);
+        --shadow-lg: 0 12px 32px -8px hsl(15 30% 15% / 0.12), 0 4px 12px -4px hsl(15 30% 15% / 0.06);
+        --shadow-glow: 0 0 24px -4px hsl(25 80% 53% / 0.35);
+    }
+
+    .dark {
+        --background: 15 30% 8%;
+        --foreground: 30 20% 90%;
+        --card: 15 25% 12%;
+        --card-foreground: 30 20% 90%;
+        --muted: 15 15% 18%;
+        --muted-foreground: 215 16% 60%;
+        --border: 15 15% 22%;
+        --input: 15 15% 22%;
+        --sidebar-background: 15 30% 6%;
+    }
+
+    * {
+        border-color: hsl(var(--border));
+    }
+
+    body {
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        font-family: 'Inter', sans-serif;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-family: 'Manrope', sans-serif;
+        letter-spacing: -0.02em;
+    }
+
+    /* Échelle typographique DS (s'applique aux <hN> nus ; les classes utilitaires
      text-* gardent priorité → aucune régression sur les pages existantes). */
-  h1 { font-size: 24px; line-height: 30px; font-weight: 700; }
-  h2 { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.01em; }
-  h3 { font-size: 14px; line-height: 20px; font-weight: 600; letter-spacing: -0.01em; }
-  ::selection { background: hsl(var(--primary) / 0.2); color: hsl(var(--primary)); }
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.2); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
-  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); background-clip: content-box; }
+    h1 {
+        font-size: 24px;
+        line-height: 30px;
+        font-weight: 700;
+    }
+
+    h2 {
+        font-size: 18px;
+        line-height: 24px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+    }
+
+    h3 {
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+    }
+
+    ::selection {
+        background: hsl(var(--primary) / 0.2);
+        color: hsl(var(--primary));
+    }
+
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: hsl(var(--muted-foreground) / 0.2);
+        border-radius: 8px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: hsl(var(--muted-foreground) / 0.4);
+        background-clip: content-box;
+    }
 }
 
 @layer utilities {
+
     /* Hide Alpine.js elements before initialization */
     [x-cloak] {
         display: none !important;
     }
 
-    .bg-gradient-primary { background: var(--gradient-primary); }
-    .bg-gradient-hero { background: var(--gradient-hero); }
-    .shadow-xs { box-shadow: var(--shadow-xs); }
-    .shadow-premium-sm { box-shadow: var(--shadow-sm); }
-    .shadow-premium-md { box-shadow: var(--shadow-md); }
-    .shadow-premium-lg { box-shadow: var(--shadow-lg); }
-    .shadow-glow { box-shadow: var(--shadow-glow); }
-    .transition-smooth { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
-    .glass { background: hsl(var(--card) / 0.7); backdrop-filter: blur(12px) saturate(180%); -webkit-backdrop-filter: blur(12px) saturate(180%); }
-    .text-gradient-primary { background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .bg-gradient-primary {
+        background: var(--gradient-primary);
+    }
+
+    .bg-gradient-hero {
+        background: var(--gradient-hero);
+    }
+
+    .shadow-xs {
+        box-shadow: var(--shadow-xs);
+    }
+
+    .shadow-premium-sm {
+        box-shadow: var(--shadow-sm);
+    }
+
+    .shadow-premium-md {
+        box-shadow: var(--shadow-md);
+    }
+
+    .shadow-premium-lg {
+        box-shadow: var(--shadow-lg);
+    }
+
+    .shadow-glow {
+        box-shadow: var(--shadow-glow);
+    }
+
+    .transition-smooth {
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .glass {
+        background: hsl(var(--card) / 0.7);
+        backdrop-filter: blur(12px) saturate(180%);
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
+    }
+
+    .text-gradient-primary {
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
 
     /* ── Sentinel DS — utilitaires typographiques & états ── */
     .eyebrow {
         font-family: 'Inter', sans-serif;
-        font-size: 11px; line-height: 14px;
-        font-weight: 700; text-transform: uppercase;
+        font-size: 11px;
+        line-height: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
         letter-spacing: 0.06em;
-        color: #968A80; /* text-muted DS */
+        color: #968A80;
+        /* text-muted DS */
     }
+
     .ref-mono {
         font-family: 'JetBrains Mono', ui-monospace, monospace;
-        font-size: 12px; font-weight: 500;
-        color: #6F635B; /* text-secondary DS */
+        font-size: 12px;
+        font-weight: 500;
+        color: #6F635B;
+        /* text-secondary DS */
     }
+
     .skeleton {
         background: linear-gradient(90deg, #F5EDE6 25%, #EDE3D9 50%, #F5EDE6 75%);
         background-size: 400px 100%;
@@ -115,19 +211,23 @@
 }
 
 @layer components {
+
     /* ── Animated Background Orbs ────────────────────── */
     .login-orb {
         @apply absolute rounded-full opacity-20 blur-3xl;
         animation: float 8s ease-in-out infinite;
     }
+
     .login-orb-1 {
         @apply w-72 h-72 bg-sentinel-orange -top-20 -right-20;
         animation-delay: 0s;
     }
+
     .login-orb-2 {
         @apply w-96 h-96 bg-sentinel-brown -bottom-32 -left-32;
         animation-delay: 3s;
     }
+
     .login-orb-3 {
         @apply w-48 h-48 bg-sentinel-orange bottom-20 right-10;
         animation-delay: 5s;
@@ -141,7 +241,7 @@
 
     /* ── Shake for errors ───────────────────────────── */
     .animate-shake {
-        animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
     }
 
     /* ── Subtle pulse for the security badge ─────────── */
@@ -150,7 +250,7 @@
     }
 
     /* ══════════════════════════════════════════════════
-       Sentinel DS — composants de base (handoff Claude Design)
+       Sentinel DS — composants de base 
        Usage : class="card", class="btn btn-primary", class="input"
        ══════════════════════════════════════════════════ */
     .card {
@@ -162,7 +262,11 @@
         @apply w-full rounded-lg border border-border-strong bg-surface-card px-3 text-sm text-text-primary transition-colors;
         height: 2.75rem;
     }
-    .input::placeholder { color: #968A80; }
+
+    .input::placeholder {
+        color: #968A80;
+    }
+
     .input:focus {
         @apply border-sentinel-orange outline-none;
         box-shadow: 0 0 0 3px hsl(var(--ring) / 0.25);
@@ -172,24 +276,57 @@
     .btn {
         @apply inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors;
     }
-    .btn-primary { @apply px-4 py-2.5 bg-sentinel-orange text-white; box-shadow: var(--shadow-sm); }
-    .btn-primary:hover  { @apply bg-sentinel-orange-dark; }
-    .btn-primary:active { @apply bg-sentinel-orange-darker; }
 
-    .btn-secondary { @apply px-4 py-2.5 border border-border-strong bg-surface-card text-text-secondary; }
-    .btn-secondary:hover { @apply bg-surface-warm; }
+    .btn-primary {
+        @apply px-4 py-2.5 bg-sentinel-orange text-white;
+        box-shadow: var(--shadow-sm);
+    }
 
-    .btn-tertiary { @apply px-3 py-2 bg-sentinel-teal-tint text-sentinel-teal-darker; }
-    .btn-tertiary:hover { filter: brightness(0.97); }
+    .btn-primary:hover {
+        @apply bg-sentinel-orange-dark;
+    }
 
-    .btn-destructive { @apply px-4 py-2.5 border border-danger text-danger; }
-    .btn-destructive:hover { @apply bg-danger-tint; }
+    .btn-primary:active {
+        @apply bg-sentinel-orange-darker;
+    }
 
-    .btn-danger { @apply px-4 py-2.5 bg-danger text-white; box-shadow: var(--shadow-sm); }
-    .btn-danger:hover { @apply bg-danger-strong; }
+    .btn-secondary {
+        @apply px-4 py-2.5 border border-border-strong bg-surface-card text-text-secondary;
+    }
+
+    .btn-secondary:hover {
+        @apply bg-surface-warm;
+    }
+
+    .btn-tertiary {
+        @apply px-3 py-2 bg-sentinel-teal-tint text-sentinel-teal-darker;
+    }
+
+    .btn-tertiary:hover {
+        filter: brightness(0.97);
+    }
+
+    .btn-destructive {
+        @apply px-4 py-2.5 border border-danger text-danger;
+    }
+
+    .btn-destructive:hover {
+        @apply bg-danger-tint;
+    }
+
+    .btn-danger {
+        @apply px-4 py-2.5 bg-danger text-white;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .btn-danger:hover {
+        @apply bg-danger-strong;
+    }
 
     /* État désactivé (hx-disabled-elt pendant les requêtes) */
-    .btn:disabled { @apply opacity-60 cursor-not-allowed; }
+    .btn:disabled {
+        @apply opacity-60 cursor-not-allowed;
+    }
 }
 
 /* ── Spinner inline pendant les requêtes HTMX (Lot 1.2) ─────────
@@ -212,9 +349,19 @@ button[hx-post].htmx-request::after {
 
 /* ── Keyframes ───────────────────────────────────────── */
 @keyframes float {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    33%      { transform: translate(15px, -20px) scale(1.05); }
-    66%      { transform: translate(-10px, 15px) scale(0.95); }
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    33% {
+        transform: translate(15px, -20px) scale(1.05);
+    }
+
+    66% {
+        transform: translate(-10px, 15px) scale(0.95);
+    }
 }
 
 @keyframes cardIn {
@@ -222,6 +369,7 @@ button[hx-post].htmx-request::after {
         opacity: 0;
         transform: translateY(24px) scale(0.96);
     }
+
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -229,25 +377,56 @@ button[hx-post].htmx-request::after {
 }
 
 @keyframes shake {
-    10%, 90%  { transform: translateX(-1px); }
-    20%, 80%  { transform: translateX(2px); }
-    30%, 50%, 70% { transform: translateX(-3px); }
-    40%, 60%  { transform: translateX(3px); }
+
+    10%,
+    90% {
+        transform: translateX(-1px);
+    }
+
+    20%,
+    80% {
+        transform: translateX(2px);
+    }
+
+    30%,
+    50%,
+    70% {
+        transform: translateX(-3px);
+    }
+
+    40%,
+    60% {
+        transform: translateX(3px);
+    }
 }
 
 @keyframes pulseSlow {
-    0%, 100% { opacity: 1; }
-    50%      { opacity: 0.6; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
 }
 
 /* Sentinel DS — skeleton shimmer */
 @keyframes shimmer {
-    from { background-position: -400px 0; }
-    to   { background-position: 400px 0; }
+    from {
+        background-position: -400px 0;
+    }
+
+    to {
+        background-position: 400px 0;
+    }
 }
 
 @keyframes spinnerRotate {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* HTMX — indicateur de chargement (non injecté automatiquement par HTMX) */
@@ -256,6 +435,7 @@ button[hx-post].htmx-request::after {
     transition: opacity 200ms ease-in-out;
     pointer-events: none;
 }
+
 .htmx-request .htmx-indicator,
 .htmx-indicator.htmx-request {
     opacity: 1;

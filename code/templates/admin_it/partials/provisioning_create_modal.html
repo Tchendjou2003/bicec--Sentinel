@@ -2,7 +2,7 @@
   Slide-over de création d'une demande de provisioning (Story 6.2.0 / AC1 + AC7).
 
   Pattern calqué sur stepper_slideover.html + recommendation_list.html :
-  - Overlay bg-gray-900/40 backdrop-blur-sm
+  - Overlay bg-black/40 backdrop-blur-sm
   - Panel qui glisse de la droite, pleine hauteur
   - Header fixe + body scrollable + footer sticky
   - Fermeture via Échap, clic overlay, ou bouton ×
@@ -46,13 +46,13 @@
 
   {# ── Header ── #}
   <div
-    class="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white shrink-0"
+    class="flex items-center justify-between px-6 py-5 border-b border-border-subtle bg-gradient-to-r from-surface-faint to-white shrink-0"
     style="border-top-left-radius: 1.5rem;"
   >
     <div class="flex items-center gap-3">
-      <div class="flex h-10 w-10 items-center justify-center rounded-full {% if is_modify %}bg-blue-100{% else %}bg-sentinel-orange/10{% endif %} shrink-0">
+      <div class="flex h-10 w-10 items-center justify-center rounded-full {% if is_modify %}bg-status-assigned-tint{% else %}bg-sentinel-orange/10{% endif %} shrink-0">
         {% if is_modify %}
-        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue-600">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-status-assigned">
           <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
         </svg>
         {% else %}
@@ -63,10 +63,10 @@
         {% endif %}
       </div>
       <div>
-        <h2 id="provisioning-panel-title" class="text-lg font-bold text-gray-900 tracking-tight">
+        <h2 id="provisioning-panel-title" class="text-lg font-bold text-text-primary tracking-tight">
           {% if is_modify %}Demande de modification de profil{% else %}Nouvelle demande de compte{% endif %}
         </h2>
-        <p class="text-sm text-gray-500 mt-0.5">
+        <p class="text-sm text-text-body mt-0.5">
           {% if is_modify %}
           Modification soumise pour validation par un checker.
           {% else %}
@@ -78,7 +78,7 @@
     <button
       type="button"
       @click="window.dispatchEvent(new CustomEvent('close-create-provisioning'))"
-      class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+      class="rounded-lg p-2 text-text-faint hover:bg-surface-sunken hover:text-text-body transition-colors"
       aria-label="Fermer"
     >
       <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -106,13 +106,13 @@
 
       {# ── Identité en lecture seule (mode MODIFY) ── #}
       {% if is_modify and target_user %}
-      <div class="px-6 py-4 border-b border-gray-100 bg-blue-50/50">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-blue-600 mb-2">Compte ciblé (lecture seule)</p>
+      <div class="px-6 py-4 border-b border-border-subtle bg-status-assigned-tint/50">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-status-assigned mb-2">Compte ciblé (lecture seule)</p>
         <div class="flex items-center gap-3">
           {% include "components/_avatar.html" with user=target_user %}
           <div>
-            <p class="text-[13px] font-semibold text-gray-900">{{ target_user.get_full_name|default:target_user.username }}</p>
-            <p class="text-[11.5px] text-gray-500">{{ target_user.username }} · {{ target_user.email }}</p>
+            <p class="text-[13px] font-semibold text-text-primary">{{ target_user.get_full_name|default:target_user.username }}</p>
+            <p class="text-[11.5px] text-text-body">{{ target_user.username }} · {{ target_user.email }}</p>
           </div>
         </div>
       </div>
@@ -120,15 +120,15 @@
 
       {# ── Profil de compte (mode CREATE uniquement) ── #}
       {% if not is_modify %}
-      <div class="px-6 py-5 border-b border-gray-100">
-        <label class="block text-sm font-medium text-gray-700 mb-1.5" for="profile-select">
+      <div class="px-6 py-5 border-b border-border-subtle">
+        <label class="block text-sm font-medium text-text-body mb-1.5" for="profile-select">
           Profil de compte
-          <span class="text-xs font-normal text-gray-400">(pré-remplit le rôle et les droits)</span>
+          <span class="text-xs font-normal text-text-faint">(pré-remplit le rôle et les droits)</span>
         </label>
         <select
           id="profile-select"
           @change="selectProfile($event.target.value)"
-          class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200"
+          class="w-full rounded-xl border border-border-subtle bg-white px-4 py-3 text-sm text-text-primary focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200"
         >
           <option value="">— Choisir un profil (optionnel) —</option>
           {% for group in account_templates %}
@@ -145,70 +145,70 @@
       {# ── Identité (masquée en mode MODIFY) ── #}
       {% if not is_modify %}
       <div class="px-6 py-5 space-y-4">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Identité</p>
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-text-faint">Identité</p>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_first_name">Prénom</label>
+            <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_first_name">Prénom</label>
             {{ form.requested_first_name }}
-            {% if form.requested_first_name.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_first_name.errors.0 }}</p>{% endif %}
+            {% if form.requested_first_name.errors %}<p class="mt-1 text-xs text-danger">{{ form.requested_first_name.errors.0 }}</p>{% endif %}
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_last_name">Nom</label>
+            <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_last_name">Nom</label>
             {{ form.requested_last_name }}
-            {% if form.requested_last_name.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_last_name.errors.0 }}</p>{% endif %}
+            {% if form.requested_last_name.errors %}<p class="mt-1 text-xs text-danger">{{ form.requested_last_name.errors.0 }}</p>{% endif %}
           </div>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_username">
-            Identifiant de connexion <span class="text-red-500">*</span>
+          <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_username">
+            Identifiant de connexion <span class="text-danger">*</span>
           </label>
           {{ form.requested_username }}
-          {% if form.requested_username.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_username.errors.0 }}</p>{% endif %}
+          {% if form.requested_username.errors %}<p class="mt-1 text-xs text-danger">{{ form.requested_username.errors.0 }}</p>{% endif %}
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_email">
-            E-mail professionnel <span class="text-red-500">*</span>
+          <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_email">
+            E-mail professionnel <span class="text-danger">*</span>
           </label>
           {{ form.requested_email }}
-          {% if form.requested_email.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_email.errors.0 }}</p>{% endif %}
+          {% if form.requested_email.errors %}<p class="mt-1 text-xs text-danger">{{ form.requested_email.errors.0 }}</p>{% endif %}
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_password">
-            Mot de passe initial <span class="text-red-500">*</span>
+          <label class="block text-sm font-medium text-text-body mb-1.5" for="id_password">
+            Mot de passe initial <span class="text-danger">*</span>
           </label>
           {{ form.password }}
-          <p class="mt-1 text-xs text-gray-400">{{ form.password.help_text }}</p>
-          {% if form.password.errors %}<p class="mt-1 text-xs text-red-500">{{ form.password.errors.0 }}</p>{% endif %}
+          <p class="mt-1 text-xs text-text-faint">{{ form.password.help_text }}</p>
+          {% if form.password.errors %}<p class="mt-1 text-xs text-danger">{{ form.password.errors.0 }}</p>{% endif %}
         </div>
       </div>
       {% endif %}{# /not is_modify #}
 
-      <div class="mx-6 border-t border-gray-100"></div>
+      <div class="mx-6 border-t border-border-subtle"></div>
 
       {# ── Habilitation ── #}
       <div class="px-6 py-5 space-y-4">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Habilitation</p>
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-text-faint">Habilitation</p>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_role">
-            Rôle <span class="text-red-500">*</span>
+          <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_role">
+            Rôle <span class="text-danger">*</span>
           </label>
           <select
             name="requested_role"
             id="id_requested_role"
             x-model="role"
-            class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200"
+            class="w-full rounded-xl border border-border-subtle bg-white px-4 py-3 text-sm text-text-primary focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200"
           >
             <option value="">— Sélectionner un rôle —</option>
             {% for value, label in form.requested_role.field.choices %}
               {% if value %}<option value="{{ value }}"{% if form.requested_role.value == value %} selected{% endif %}>{{ label }}</option>{% endif %}
             {% endfor %}
           </select>
-          {% if form.requested_role.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_role.errors.0 }}</p>{% endif %}
+          {% if form.requested_role.errors %}<p class="mt-1 text-xs text-danger">{{ form.requested_role.errors.0 }}</p>{% endif %}
         </div>
 
         {# Case « Administrateur Audit » — visible uniquement pour le rôle AUDIT #}
@@ -218,20 +218,20 @@
               type="checkbox"
               name="requested_is_audit_admin"
               x-model="isAuditAdmin"
-              class="h-5 w-5 rounded border-gray-300 text-sentinel-orange focus:ring-sentinel-orange/50 mt-0.5"
+              class="h-5 w-5 rounded border-border-strong text-sentinel-orange focus:ring-sentinel-orange/50 mt-0.5"
             >
             <span>
-              <span class="block text-sm font-medium text-gray-700">Administrateur Audit (Directeur de l'Audit / délégué)</span>
-              <span class="block text-xs text-gray-400">Permet de gérer les habilitations de l'équipe audit.</span>
+              <span class="block text-sm font-medium text-text-body">Administrateur Audit (Directeur de l'Audit / délégué)</span>
+              <span class="block text-xs text-text-faint">Permet de gérer les habilitations de l'équipe audit.</span>
             </span>
           </label>
-          {% if form.requested_is_audit_admin.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_is_audit_admin.errors.0 }}</p>{% endif %}
+          {% if form.requested_is_audit_admin.errors %}<p class="mt-1 text-xs text-danger">{{ form.requested_is_audit_admin.errors.0 }}</p>{% endif %}
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_job_title">
+          <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_job_title">
             Fonction / Poste
-            <span class="text-xs font-normal text-gray-400">(informatif)</span>
+            <span class="text-xs font-normal text-text-faint">(informatif)</span>
           </label>
           <input
             type="text"
@@ -240,72 +240,32 @@
             x-model="jobTitle"
             maxlength="100"
             placeholder="Ex : Directeur de l'Audit Interne"
-            class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200"
+            class="w-full rounded-xl border border-border-subtle bg-white px-4 py-3 text-sm text-text-primary placeholder-text-faint focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200"
           >
-          {% if form.requested_job_title.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_job_title.errors.0 }}</p>{% endif %}
+          {% if form.requested_job_title.errors %}<p class="mt-1 text-xs text-danger">{{ form.requested_job_title.errors.0 }}</p>{% endif %}
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_department">
+          <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_department">
             Département
-            <span class="text-xs font-normal text-gray-400">(requis sauf AUDIT, ADMIN, EXT)</span>
+            <span class="text-xs font-normal text-text-faint">(requis sauf AUDIT, ADMIN, EXT)</span>
           </label>
           {{ form.requested_department }}
-          <p x-show="deptLocked" x-cloak class="mt-1 text-xs text-gray-500">
+          <p x-show="deptLocked" x-cloak class="mt-1 text-xs text-text-body">
             Rattaché automatiquement à l'entité système « Support Applicatif ».
           </p>
-          {% if form.requested_department.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_department.errors.0 }}</p>{% endif %}
+          {% if form.requested_department.errors %}<p class="mt-1 text-xs text-danger">{{ form.requested_department.errors.0 }}</p>{% endif %}
         </div>
       </div>
 
-      {# ── Mission externe — visible uniquement si rôle EXT ── #}
-      <div
-        x-show="role === 'EXT'"
-        x-cloak
-        x-transition:enter="transition ease-out duration-200"
-        x-transition:enter-start="opacity-0 -translate-y-1"
-        x-transition:enter-end="opacity-100 translate-y-0"
-      >
-        <div class="mx-6 border-t border-gray-100"></div>
-        <div class="px-6 py-5 space-y-4 bg-amber-50/40">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-amber-700">
-            Mission externe
-            <span class="normal-case font-normal text-amber-600">(obligatoire pour EXT)</span>
-          </p>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_mission_organization">
-              Organisation d'origine <span class="text-red-500">*</span>
-            </label>
-            {{ form.mission_organization }}
-            <p class="mt-1 text-xs text-gray-400">{{ form.mission_organization.help_text }}</p>
-            {% if form.mission_organization.errors %}<p class="mt-1 text-xs text-red-500">{{ form.mission_organization.errors.0 }}</p>{% endif %}
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_mission_start_date">
-                Date de début <span class="text-red-500">*</span>
-              </label>
-              {{ form.mission_start_date }}
-              {% if form.mission_start_date.errors %}<p class="mt-1 text-xs text-red-500">{{ form.mission_start_date.errors.0 }}</p>{% endif %}
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_mission_end_date">
-                Date de fin
-              </label>
-              {{ form.mission_end_date }}
-              {% if form.mission_end_date.errors %}<p class="mt-1 text-xs text-red-500">{{ form.mission_end_date.errors.0 }}</p>{% endif %}
-            </div>
-          </div>
-        </div>
-      </div>
+      {# Les missions externes des comptes EXT sont gérées séparément par
+         l'Audit Interne (Story 6.7) — plus aucun champ mission ici. #}
 
       {# ── Erreurs globales ── #}
       {% if form.non_field_errors %}
-      <div class="mx-6 mt-2 mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+      <div class="mx-6 mt-2 mb-4 rounded-xl bg-danger-tint border border-danger-border px-4 py-3">
         {% for error in form.non_field_errors %}
-        <p class="text-xs text-red-600">{{ error }}</p>
+        <p class="text-xs text-danger">{{ error }}</p>
         {% endfor %}
       </div>
       {% endif %}
@@ -313,7 +273,7 @@
     </div>{# /corps scrollable #}
 
     {# ── Footer sticky — toujours visible ── #}
-    <div class="sticky bottom-0 border-t border-gray-100 bg-white px-6 py-4 flex items-center justify-between shrink-0">
+    <div class="sticky bottom-0 border-t border-border-subtle bg-white px-6 py-4 flex items-center justify-between shrink-0">
       <button
         type="button"
         @click="window.dispatchEvent(new CustomEvent('close-create-provisioning'))"

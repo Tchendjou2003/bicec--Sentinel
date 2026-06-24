@@ -320,43 +320,7 @@ class UserProvisioningRequestForm(forms.Form):
         widget=forms.HiddenInput(),
     )
 
-    # ── Mission externe (conditionnelle EXT) ─────────────────────────
-    mission_organization = forms.ChoiceField(
-        label="Organisation d'origine",
-        required=False,
-        choices=[],
-        widget=forms.Select(attrs={
-            "class": _SELECT_CLASS + " js-tomselect",
-            "data-placeholder": "Rechercher une organisation…",
-        }),
-        help_text="Requis pour un auditeur externe (EXT).",
-    )
-    mission_scope = forms.CharField(
-        label="Périmètre de la mission",
-        required=False,
-        widget=forms.Textarea(attrs={
-            "class": _TEXTAREA_CLASS,
-            "rows": 3,
-            "placeholder": "Description du périmètre d'intervention…",
-        }),
-    )
-    mission_start_date = forms.DateField(
-        label="Date de début",
-        required=False,
-        widget=forms.DateInput(attrs={
-            "class": _DATE_CLASS,
-            "type": "date",
-        }),
-    )
-    mission_end_date = forms.DateField(
-        label="Date de fin (optionnel)",
-        required=False,
-        widget=forms.DateInput(attrs={
-            "class": _DATE_CLASS,
-            "type": "date",
-        }),
-    )
-
+    # (Les champs mission_* ont été supprimés suite au découplage)
     def __init__(self, *args, **kwargs):
         # Capture mode MODIFY before calling super (fields already declared)
         self._is_modify = kwargs.pop("is_modify", False)
@@ -377,28 +341,6 @@ class UserProvisioningRequestForm(forms.Form):
         self.fields["request_type"].initial = (
             "MODIFY" if self._is_modify else "CREATE"
         )
-
-        # Charger dynamiquement les organisations externes (Story 6.2.0)
-        try:
-            from apps.workflow.models import RecommendationSource
-            sources = RecommendationSource.objects.filter(
-                is_external=True, is_active=True
-            ).order_by("label")
-            choices = [("", "— Sélectionner une organisation —")]
-            for s in sources:
-                choices.append((s.label, s.label))
-        except Exception:
-            choices = [("", "— Sélectionner une organisation —")]
-
-        # Pour les tests unitaires et la tolérance aux données historiques,
-        # si la valeur soumise ou initiale n'est pas dans les choix, on l'ajoute.
-        initial_val = self.initial.get("mission_organization")
-        if not initial_val and self.data:
-            initial_val = self.data.get("mission_organization")
-        if initial_val and not any(initial_val == c[0] for c in choices):
-            choices.append((initial_val, initial_val))
-
-        self.fields["mission_organization"].choices = choices
 
         # Optgroups par type d'unité + libellé « Nom (CODE) » (lot Sélecteurs).
         dept_field = self.fields["requested_department"]
@@ -452,26 +394,6 @@ class UserProvisioningRequestForm(forms.Form):
                 "Le flag « Administrateur Audit » ne peut être attribué "
                 "qu'à un Auditeur Interne (rôle AUDIT).",
             )
-
-        # Champs EXT conditionnellement requis
-        if role == User.Role.EXT:
-            if not cleaned.get("mission_organization"):
-                self.add_error(
-                    "mission_organization",
-                    "L'organisation est obligatoire pour un auditeur externe.",
-                )
-            if not cleaned.get("mission_start_date"):
-                self.add_error(
-                    "mission_start_date",
-                    "La date de début est obligatoire pour un auditeur externe.",
-                )
-            start = cleaned.get("mission_start_date")
-            end = cleaned.get("mission_end_date")
-            if start and end and start > end:
-                self.add_error(
-                    "mission_end_date",
-                    "La date de fin ne peut pas être antérieure à la date de début.",
-                )
 
         return cleaned
 

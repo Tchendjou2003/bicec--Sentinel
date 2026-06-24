@@ -122,22 +122,19 @@ class UserAdmin(BaseUserAdmin):
 @admin.register(ExternalMission)
 class ExternalMissionAdmin(admin.ModelAdmin):
     """
-    Admin pour la gestion des missions d'audit externe (FR2, Story 1.3).
-
-    Permet à l'Admin ou superuser de créer et gérer les missions
-    d'audit externe (COBAC, BEAC, CAC).
+    Admin pour la gestion des missions d'audit externe.
     """
 
     list_display = (
-        "organization",
-        "auditor",
+        "name",
+        "organisation",
+        "status",
         "start_date",
         "end_date",
-        "is_active",
     )
-    list_filter = ("organization", "is_active")
-    search_fields = ("organization", "auditor__username", "scope_description")
-    list_select_related = ("auditor",)
+    list_filter = ("organisation", "status")
+    search_fields = ("name", "scope_description", "auditors__username")
+    filter_horizontal = ("auditors", "recommendations")
     date_hierarchy = "start_date"
     ordering = ("-start_date",)
 
@@ -145,13 +142,25 @@ class ExternalMissionAdmin(admin.ModelAdmin):
         (
             None,
             {
-                "fields": ("auditor", "organization", "scope_description"),
+                "fields": ("name", "organisation", "status", "scope_description"),
             },
         ),
         (
             _("Période d'intervention"),
             {
-                "fields": ("start_date", "end_date", "is_active"),
+                "fields": ("start_date", "end_date"),
+            },
+        ),
+        (
+            _("Périmètre et Auditeurs"),
+            {
+                "fields": ("auditors", "recommendations"),
+            },
+        ),
+        (
+            _("Traçabilité"),
+            {
+                "fields": ("created_by", "approved_by"),
             },
         ),
     )

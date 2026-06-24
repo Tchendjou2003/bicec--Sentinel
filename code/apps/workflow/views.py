@@ -39,6 +39,14 @@ from .forms import (
     RecommendationForm,
 )
 from .import_excel import ImportReport, parse_workbook, validate_rows, build_import_template, create_recommendations_bulk, get_existing_references
+from .import_historical import (
+    HistoricalImportReport,
+    build_historical_import_template,
+    create_historical_recommendations,
+    parse_historical_workbook,
+    parse_zip_members,
+    validate_historical_rows,
+)
 from .models import EvidenceFile, EvidenceSubmission, ExtensionRequest, ImportBatch, Recommendation, RecommendationSource
 
 
@@ -57,7 +65,8 @@ def _get_client_ip(request) -> str | None:
 
 def _ensure_not_closed(recommendation) -> None:
     """
-    Garde universel — bloque toute mutation sur une recommandation clôturée (FR20).
+    Garde universel — bloque toute mutation sur une recommandation clôturée (FR20)
+    ou issue d'un import historique (Story 6.8 — lecture seule à vie).
 
     Doit être appelé au début de la méthode ``post`` de toutes les vues mutantes.
     Lève ``ValueError`` qui sera interceptée par le pattern de gestion d'erreur
@@ -65,8 +74,11 @@ def _ensure_not_closed(recommendation) -> None:
 
     Ref. Story 3.8 — AC7.
     """
-    if recommendation.status == Recommendation.Status.CLOSED_RESOLVED:
-        raise ValueError("Dossier clôturé, modification impossible.")
+    if (
+        recommendation.status == Recommendation.Status.CLOSED_RESOLVED
+        or recommendation.import_tag == "IMPORTED"
+    ):
+        raise ValueError("Dossier clôturé ou historique importé, modification impossible.")
 
 
 # =============================================================================
@@ -87,6 +99,19 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
     context_object_name = "recommendations"
     paginate_by = 20
 
+    def dispatch(self, request, *args, **kwargs):
+        from apps.users.models import User
+        from django.shortcuts import redirect
+
+        if request.user.is_authenticated and request.user.role == User.Role.EXT:
+            # Calculé une seule fois, réutilisé dans get_context_data.
+            self._active_missions = selectors.get_active_missions_for_user(
+                user=request.user
+            ).order_by("-start_date")
+            if not self._active_missions.exists():
+                return redirect("workflow:external-waiting")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_queryset(self):
         filters = {
             "source": self.request.GET.get("source"),
@@ -100,6 +125,18 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        from apps.users.models import User
+        if self.request.user.role == User.Role.EXT:
+            active_missions = getattr(self, "_active_missions", None)
+            if active_missions is None:
+                active_missions = selectors.get_active_missions_for_user(
+                    user=self.request.user
+                ).order_by("-start_date")
+            context["active_missions"] = active_missions
+            context["topbar_title"] = "Portail d'Audit Externe"
+            context["topbar_subtitle"] = "Consultation des recommandations et téléchargement des preuves"
+            return context
+
         context["active_route"] = "recommandations"
         context["topbar_title"] = "Recommandations"
         context["topbar_subtitle"] = "Suivi des recommandations d'audit"
@@ -125,6 +162,12 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
         return context
 
     def get_template_names(self):
+        from apps.users.models import User
+        if self.request.user.role == User.Role.EXT:
+            if self.request.headers.get("HX-Request"):
+                return ["workflow/external/partials/recommendation_table_ext.html"]
+            return ["workflow/external/external_portal.html"]
+            
         if self.request.headers.get("HX-Request"):
             return ["workflow/partials/recommendation_table.html"]
         return [self.template_name]
@@ -279,6 +322,12 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
 
     template_name = "workflow/recommendation_detail.html"
     context_object_name = "recommendation"
+
+    def get_template_names(self):
+        from apps.users.models import User
+        if self.request.user.role == User.Role.EXT:
+            return ["workflow/external/external_recommendation_detail.html"]
+        return [self.template_name]
 
     def get_object(self, queryset=None):
         return selectors.get_recommendation_detail_for_user(
@@ -2425,6 +2474,151 @@ class RecommendationImportConfirmView(AuditRequiredMixin, View):
         except DjangoValidationError as exc:
             error_msg = exc.message if hasattr(exc, "message") else str(exc)
             return render(request, "workflow/partials/import_preview.html", {
+                "confirm_error": error_msg,
+                "report": None,
+                "format_error": None,
+            })
+
+        return render(request, "workflow/partials/import_success.html", {
+            "batch": batch,
+        })
+
+
+# ── Import Historique (Story 6.8 — FR-HIST-01) ───────────────────────────────
+
+_HISTORICAL_PROVENANCE_CHOICES = [
+    ("Archives papier numérisées", "Archives papier numérisées"),
+    ("Ancien Excel de suivi", "Ancien Excel de suivi"),
+    ("Ancien logiciel GRC", "Ancien logiciel GRC"),
+    ("Autres", "Autres"),
+]
+
+
+class HistoricalImportTemplateDownloadView(AuditRequiredMixin, View):
+    """Téléchargement du modèle Excel historique généré dynamiquement (Story 6.8)."""
+
+    def get(self, request):
+        wb = build_historical_import_template()
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        response = HttpResponse(
+            buf.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = (
+            'attachment; filename="modele-import-historique.xlsx"'
+        )
+        return response
+
+
+class HistoricalImportView(AuditRequiredMixin, View):
+    """
+    Import historique — upload et prévisualisation (Story 6.8).
+
+    GET  → Page wizard 4 étapes.
+    POST → Endpoint HTMX preview : parse Excel + ZIP optionnel, validation pure.
+           Rien n'est créé — le partial retourne le rapport.
+    """
+
+    def get(self, request):
+        return render(request, "workflow/historical_import.html", {
+            "active_route": "import-historique",
+            "topbar_title": "Import Historique",
+            "topbar_subtitle": "Import de recommandations clôturées depuis les archives",
+            "provenance_choices": _HISTORICAL_PROVENANCE_CHOICES,
+        })
+
+    def post(self, request):
+        uploaded_file = request.FILES.get("import_file")
+        zip_file = request.FILES.get("zip_file")
+
+        if not uploaded_file:
+            return render(request, "workflow/partials/historical_import_preview.html", {
+                "format_error": "Aucun fichier Excel sélectionné.",
+                "report": None,
+            })
+
+        try:
+            rows = parse_historical_workbook(uploaded_file)
+        except DjangoValidationError as exc:
+            return render(request, "workflow/partials/historical_import_preview.html", {
+                "format_error": exc.message if hasattr(exc, "message") else str(exc),
+                "report": None,
+            })
+
+        zip_entries = None
+        zip_error = ""
+        if zip_file:
+            try:
+                zip_entries = parse_zip_members(zip_file)
+            except DjangoValidationError as exc:
+                zip_error = exc.message if hasattr(exc, "message") else str(exc)
+
+        report = validate_historical_rows(rows, zip_entries)
+        report.zip_format_error = zip_error
+
+        return render(request, "workflow/partials/historical_import_preview.html", {
+            "report": report,
+            "format_error": None,
+            "file_name": uploaded_file.name,
+            "zip_name": zip_file.name if zip_file else "",
+        })
+
+
+class HistoricalImportConfirmView(AuditRequiredMixin, View):
+    """
+    Confirmation de l'import historique — création atomique (Story 6.8).
+
+    POST → Re-reçoit les mêmes fichiers (pattern stateless — même que 6.5).
+    Re-parse + re-valide dans transaction.atomic() pour couvrir la concurrence.
+    Succès → partial import_success.html (réutilisé depuis 6.5).
+    """
+
+    def post(self, request):
+        uploaded_file = request.FILES.get("import_file")
+        zip_file = request.FILES.get("zip_file")
+        provenance = request.POST.get("provenance", "").strip()
+
+        if not uploaded_file:
+            return render(request, "workflow/partials/historical_import_preview.html", {
+                "format_error": "Aucun fichier reçu à la confirmation.",
+                "report": None,
+            })
+
+        try:
+            rows = parse_historical_workbook(uploaded_file)
+        except DjangoValidationError as exc:
+            return render(request, "workflow/partials/historical_import_preview.html", {
+                "format_error": exc.message if hasattr(exc, "message") else str(exc),
+                "report": None,
+            })
+
+        zip_entries = None
+        if zip_file:
+            try:
+                zip_entries = parse_zip_members(zip_file)
+            except DjangoValidationError as exc:
+                error_msg = exc.message if hasattr(exc, "message") else str(exc)
+                return render(request, "workflow/partials/historical_import_preview.html", {
+                    "format_error": error_msg,
+                    "report": None,
+                })
+
+        try:
+            uploaded_file.seek(0)
+            batch = create_historical_recommendations(
+                rows=rows,
+                zip_entries=zip_entries,
+                performed_by=request.user,
+                uploaded_file=uploaded_file,
+                file_name=uploaded_file.name,
+                provenance=provenance,
+                ip_address=_get_client_ip(request),
+            )
+        except DjangoValidationError as exc:
+            error_msg = exc.message if hasattr(exc, "message") else str(exc)
+            return render(request, "workflow/partials/historical_import_preview.html", {
                 "confirm_error": error_msg,
                 "report": None,
                 "format_error": None,

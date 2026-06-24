@@ -170,7 +170,7 @@ def notify_audit_owner(recommendation, *, type, title, actor, key: str, body="",
     recipient = recommendation.created_by
     if not recipient or recipient == actor:
         return None
-        
+
     return emit_notification(
         recipient=recipient,
         notification_type=type,
@@ -181,3 +181,24 @@ def notify_audit_owner(recommendation, *, type, title, actor, key: str, body="",
         url=_reco_url(recommendation),
         is_urgent=is_urgent,
     )
+
+
+# ── Mutations d'état des notifications ───────────────────────────────────────
+
+
+def mark_notification_read(*, notification_id, user) -> "Notification":
+    """Marque une notification appartenant à user comme lue. Lève Notification.DoesNotExist sinon."""
+    notif = Notification.objects.get(pk=notification_id, recipient=user)
+    notif.is_read = True
+    notif.save(update_fields=["is_read"])
+    return notif
+
+
+def mark_all_notifications_read(*, user) -> int:
+    """Marque toutes les notifications non lues de user comme lues. Retourne le nombre modifié."""
+    return Notification.objects.filter(recipient=user, is_read=False).update(is_read=True)
+
+
+def delete_notification(*, notification_id, user) -> None:
+    """Supprime une notification appartenant à user. Lève Notification.DoesNotExist sinon."""
+    Notification.objects.get(pk=notification_id, recipient=user).delete()

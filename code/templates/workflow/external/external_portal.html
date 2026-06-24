@@ -1,0 +1,58 @@
+{% extends "layouts/external_shell.html" %}
+{% load static %}
+
+{% block title %}Portail d'Audit Externe — Sentinel{% endblock %}
+
+{% block content %}
+<div class="px-4 py-8 sm:px-6 lg:px-8 space-y-8 max-w-7xl mx-auto">
+  
+  {# Entête / Titre #}
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Portail d'Audit Externe</h1>
+      <p class="text-sm text-gray-500 mt-1">Consultez les recommandations de votre périmètre et téléchargez les preuves associées.</p>
+    </div>
+    <div class="flex items-center gap-3">
+      {# Bouton Télécharger TOUT en ZIP (sera implémenté dans Task 5) #}
+      <a href="{% url 'workflow:external-portal-export' %}" class="btn btn-primary inline-flex items-center shadow-sm">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exporter toutes les preuves (ZIP)
+      </a>
+    </div>
+  </div>
+
+  {# Missions Actives #}
+  <section>
+    <div class="mb-4">
+      <h2 class="text-lg font-semibold text-gray-900">Missions actives ({{ active_missions.count }})</h2>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {% for mission in active_missions %}
+        {% include "workflow/external/partials/mission_card.html" with mission=mission %}
+      {% endfor %}
+    </div>
+  </section>
+
+  {# Filtres & Recherche rapides #}
+  <section class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+    <form class="flex-1 w-full relative" hx-get="{% url 'workflow:recommendation-list' %}" hx-target="#recommendations-table" hx-swap="outerHTML" hx-trigger="keyup delay:500ms from:input, change from:select">
+      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </div>
+      <input type="text" name="q" value="{{ current_search }}" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-sentinel-orange focus:border-sentinel-orange sm:text-sm transition-shadow" placeholder="Rechercher par référence ou mission...">
+    </form>
+    <div class="flex items-center text-sm text-gray-500 gap-2 shrink-0">
+      <span class="inline-block w-2 h-2 rounded-full bg-status-closed-strong"></span>
+      {{ paginator.count|default:recommendations|length }} résultat(s)
+    </div>
+  </section>
+
+  {# Liste des Recommandations #}
+  <section>
+    {% include "workflow/external/partials/recommendation_table_ext.html" %}
+  </section>
+
+</div>
+{% endblock %}

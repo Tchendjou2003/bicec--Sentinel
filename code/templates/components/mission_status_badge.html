@@ -1,0 +1,21 @@
+{# Variables: status (ExternalMission.Status : PREPARATION/ACTIVE/CLOSED), extra_class (optionnel) #}
+{# Couleurs : tokens status-* de tailwind.config.js — ne pas mettre de hex en dur #}
+{% spaceless %}
+{% if status == 'PREPARATION' %}
+<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-status-draft-tint text-status-draft {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full shrink-0 bg-current"></span>En préparation
+</span>
+{% elif status == 'ACTIVE' %}
+<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-status-in-progress-tint text-status-in-progress-strong {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full shrink-0 bg-current"></span>Active
+</span>
+{% elif status == 'CLOSED' %}
+<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-status-closed-tint text-status-closed-strong {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full shrink-0 bg-current"></span>Clôturée
+</span>
+{% else %}
+<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold bg-gray-100 text-gray-500 {{ extra_class }}">
+  <span class="h-1.5 w-1.5 rounded-full shrink-0 bg-current"></span>{{ status }}
+</span>
+{% endif %}
+{% endspaceless %}

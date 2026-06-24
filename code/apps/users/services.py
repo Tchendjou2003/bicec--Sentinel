@@ -39,6 +39,7 @@ def user_is_provisioning_approver(user: User) -> bool:
     ).exists()
 
 
+@transaction.atomic
 def assign_role(
     *,
     target_user: User,
@@ -68,6 +69,10 @@ def assign_role(
     valid_roles = {choice[0] for choice in User.Role.choices}
     if role and role not in valid_roles:
         raise ValueError(f"Rôle invalide : {role}")
+
+    # Verrou exclusif sur la ligne utilisateur : deux admins ne peuvent pas
+    # se chevaucher sur le même compte (AuditLog corrompu, rôle final imprévisible).
+    target_user = User.objects.select_for_update().get(pk=target_user.pk)
 
     old_role = target_user.role
     old_dept = target_user.department
@@ -415,11 +420,6 @@ def create_provisioning_request(
         requested_is_audit_admin=cleaned_data.get("requested_is_audit_admin", False),
         requested_job_title=cleaned_data.get("requested_job_title", ""),
         requested_profile=cleaned_data.get("requested_profile", ""),
-        # Champs mission EXT
-        mission_organization=cleaned_data.get("mission_organization", ""),
-        mission_scope=cleaned_data.get("mission_scope", ""),
-        mission_start_date=cleaned_data.get("mission_start_date"),
-        mission_end_date=cleaned_data.get("mission_end_date"),
         status=UserProvisioningRequest.Status.PENDING,
         requested_by=maker,
         request_type=cleaned_data.get("request_type", UserProvisioningRequest.RequestType.CREATE),
@@ -476,8 +476,8 @@ def approve_provisioning_request(
     Approuve une demande PENDING et crée le User (Story 6.2.0 / AC2).
 
     Toute la séquence est atomique : création User + mise à jour Request
-    + AuditLogs. Si le rôle est EXT, une ExternalMission est également
-    créée dans la même transaction.
+    + AuditLogs. Pour le rôle EXT, le compte est créé sans mission ;
+    les missions sont gérées séparément par l'Audit Interne (Story 6.7).
 
     ⚠️ Piège double-hachage : on affecte ``user.password`` directement
     (valeur déjà hachée) plutôt que ``create_user(password=...)``
@@ -485,7 +485,6 @@ def approve_provisioning_request(
     """
     from apps.notifications.models import Notification
     from apps.notifications.services import emit_notification
-    from .models import ExternalMission  # import local pour éviter la circularité
 
     # Verrou anti-course : la vue charge l'instance sans lock — sans re-fetch
     # verrouillé, une décision concurrente (cancel/reject) passerait aussi la
@@ -593,33 +592,6 @@ def approve_provisioning_request(
             ip_address=ip_address,
         )
 
-        # Création ExternalMission si EXT (dans la même transaction)
-        if is_ext:
-            mission = ExternalMission(
-                auditor=user,
-                organization=request.mission_organization,
-                scope_description=request.mission_scope,
-                start_date=request.mission_start_date,
-                end_date=request.mission_end_date,
-                is_active=True,
-            )
-            mission.save()
-
-            AuditLog.objects.create(
-                action=AuditLog.Action.CREATE,
-                user=checker,
-                content_type="ExternalMission",
-                object_id=mission.pk,
-                changes={
-                    "auditor": [None, str(user.pk)],
-                    "organization": [None, mission.organization],
-                },
-                description=(
-                    f"Mission externe créée pour '{user.username}' "
-                    f"({mission.organization}) — provisioning approuvé par {checker.username}"
-                ),
-                ip_address=ip_address,
-            )
 
     # Mise à jour de la demande
     now = timezone.now()
@@ -937,9 +909,13 @@ def bootstrap_create_admin(
     from django.contrib.auth.models import Group
     from .account_templates import resolve_system_department
 
-    admin_count = User.objects.filter(
-        role=User.Role.ADMIN, is_active=True
-    ).count()
+    # select_for_update() pose un verrou exclusif sur les lignes admin existantes
+    # avant de compter, empêchant deux appels concurrents de passer tous les deux
+    # le guard >= 2 et de créer un 3e admin.
+    existing_admins = list(
+        User.objects.filter(role=User.Role.ADMIN, is_active=True).select_for_update()
+    )
+    admin_count = len(existing_admins)
     if admin_count >= 2:
         raise PermissionDenied(
             "Le mode bootstrap est désactivé : au moins 2 administrateurs actifs "

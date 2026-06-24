@@ -578,8 +578,10 @@ def submit_evidence_for_recommendation(
                 "Veuillez d'abord uploader au moins un fichier."
             )
 
-        # Validation : au moins un fichier
-        files_count = draft.files.count()
+        # Validation : au moins un fichier (select_for_update évite le TOCTOU —
+        # une suppression concurrente entre le count et la transition de statut
+        # donnerait un dossier PENDING sans preuve).
+        files_count = draft.files.select_for_update().count()
         if files_count == 0:
             raise ValueError(
                 "Le brouillon ne contient aucun fichier. "

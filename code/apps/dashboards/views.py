@@ -27,9 +27,16 @@ class DashboardView(WorkflowAccessMixin, TemplateView):
         ETP   → vue légère (KPIs + mes recos)
         DG    → supervision banque entière (TODO Story 6.1b)
         AUDIT → contrôle global + files d'action (TODO Story 6.1c)
-
-    RBAC : WorkflowAccessMixin bloque ADMIN_IT et EXT (403).
     """
+
+    def dispatch(self, request, *args, **kwargs):
+        from django.shortcuts import redirect
+        from apps.users.models import User
+        
+        if request.user.is_authenticated and request.user.role == User.Role.EXT:
+            return redirect("workflow:recommendation-list")
+            
+        return super().dispatch(request, *args, **kwargs)
 
     def get_template_names(self) -> list[str]:
         from apps.users.models import User

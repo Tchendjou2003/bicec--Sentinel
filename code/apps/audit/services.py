@@ -92,7 +92,9 @@ def _build_seal_payload(recommendation) -> tuple[dict, dict, str]:
     return sealed_metadata, file_hashes, hmac_hash
 
 
-def generate_recommendation_seal(*, recommendation, sealed_by) -> HmacSeal:
+def generate_recommendation_seal(
+    *, recommendation, sealed_by, allow_empty_files: bool = False
+) -> HmacSeal:
     """
     Génère le sceau HMAC d'une recommandation (idempotent — relation 1:1).
 
@@ -103,6 +105,9 @@ def generate_recommendation_seal(*, recommendation, sealed_by) -> HmacSeal:
     Args:
         recommendation: La recommandation clôturée à sceller.
         sealed_by: L'auditeur signataire (FK navigable).
+        allow_empty_files: Si True, permet de sceller même sans preuves (réservé
+            à l'import historique Story 6.8 pour protéger l'intégrité des métadonnées).
+            Par défaut False — garde réglementaire COBAC intacte pour les clôtures natives.
 
     Returns:
         HmacSeal: Le sceau (créé ou existant).
@@ -113,7 +118,9 @@ def generate_recommendation_seal(*, recommendation, sealed_by) -> HmacSeal:
     # Un sceau sans file_hashes ne certifie aucune preuve documentaire (COBAC / NFR-SEC-04).
     # La garde F2 dans close_recommendation_by_audit() devrait déjà bloquer avant ici,
     # mais cette double protection garantit l'intégrité du sceau indépendamment du contexte d'appel.
-    if not file_hashes:
+    # Exception : allow_empty_files=True pour l'import historique (Story 6.8) — le sceau
+    # protège l'intégrité des métadonnées importées même si les preuves ne sont pas numérisées.
+    if not file_hashes and not allow_empty_files:
         raise ValueError(
             "Scellement impossible : le dossier ne contient aucun fichier probatoire accepté. "
             "Un sceau HMAC sans preuve documentaire n'a aucune valeur réglementaire (COBAC)."

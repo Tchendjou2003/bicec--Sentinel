@@ -10,14 +10,14 @@
   class="max-w-5xl mx-auto space-y-4">
 
   {# ── Fil d'Ariane ── #}
-  <nav class="flex items-center gap-2 text-sm text-gray-500" aria-label="Breadcrumb">
+  <nav class="flex items-center gap-2 text-sm text-text-body" aria-label="Breadcrumb">
     <a href="{% url 'workflow:recommendation-list' %}"
       class="hover:text-sentinel-orange transition-colors">Recommandations</a>
     <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="9 18 15 12 9 6" />
     </svg>
-    <span class="font-medium text-gray-900">{{ recommendation.reference }}</span>
+    <span class="font-medium text-text-primary">{{ recommendation.reference }}</span>
   </nav>
 
   {# ── Bandeau de clôture définitive (Story 3.8 — AC8) ── #}
@@ -31,14 +31,32 @@
     {# Ligne 1 : référence + badges statut/criticité + boutons d'action #}
     <div class="flex items-center justify-between gap-4 px-5 pt-4 pb-3">
       <div class="flex items-center gap-2.5 flex-wrap">
-        <span class="font-mono font-bold text-[13.5px]" style="color:#14746F;">{{ recommendation.reference }}</span>
-        <span class="text-sm select-none" style="color:#D8CBBE;">|</span>
+        <span class="font-mono font-bold text-[13.5px] text-sentinel-teal">{{ recommendation.reference }}</span>
+        <span class="text-sm select-none text-border-strong">|</span>
 
         {# Badge statut OUTLINE — DS spec 1.1 (composant partagé, variante outline) #}
         {% include "components/status_badge.html" with status=recommendation.status variant="outline" %}
 
         {# Badge criticité OUTLINE — DS spec (composant partagé) #}
         {% include "components/priority_badge.html" with priority=recommendation.priority label=recommendation.get_priority_display %}
+
+        {# Badge archive historique (Story 6.8) — visible uniquement si IMPORTED #}
+        {% if recommendation.import_tag == "IMPORTED" %}
+        {% if recommendation.evidence_submissions.exists %}
+        <span class="inline-flex items-center gap-1 rounded-full border border-success-border bg-success-tint px-2.5 py-0.5 text-xs font-medium text-success-strong">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Preuves archivées
+        </span>
+        {% else %}
+        <span class="inline-flex items-center gap-1 rounded-full border border-warning-border bg-warning-tint px-2.5 py-0.5 text-xs font-medium text-status-dm-review">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Preuves non numérisées
+        </span>
+        {% endif %}
+        <span class="inline-flex items-center rounded-full border border-border-subtle bg-surface-sunken px-2.5 py-0.5 text-xs font-medium text-text-body">
+          Archives historiques
+        </span>
+        {% endif %}
       </div>
 
       {# Boutons d'action FSM (déplacés depuis la barre sticky supprimée) #}
@@ -90,7 +108,7 @@
         </button>
         {% else %}
         <button disabled
-          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-gray-400 bg-gray-100 cursor-not-allowed"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-text-faint bg-surface-sunken cursor-not-allowed"
           title="Veuillez d'abord renseigner la Direction concernée">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -178,7 +196,7 @@
         </button>
         {% elif recommendation.assigned_dm_id == user.pk and pending_extension %}
         <button disabled
-          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 cursor-not-allowed"
+          class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-medium text-status-dm-review bg-warning-tint border border-warning-border cursor-not-allowed"
           title="Une demande de report est déjà en attente">
           <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -262,8 +280,8 @@
 
     {# Libellé de la mission (h1 principal de C1) #}
     <div class="px-5 pb-3">
-      <h1 class="font-display font-bold leading-tight"
-        style="font-size:20px;color:#2D1F1E;letter-spacing:-0.02em;line-height:1.25;margin:0;">
+      <h1 class="font-display font-bold leading-tight text-text-primary"
+        style="font-size:20px;letter-spacing:-0.02em;line-height:1.25;margin:0;">
         {{ recommendation.mission_label|default:"—" }}
       </h1>
     </div>
@@ -274,32 +292,32 @@
     {# Grille 4 colonnes : Direction / Porteur DM / Échéance / Source #}
     <div class="grid grid-cols-4 px-0">
       <div class="px-5 py-3 overflow-hidden">
-        <p class="text-[10px] font-bold uppercase tracking-[0.06em] mb-1" style="color:#968A80;">Direction concernée</p>
-        <div class="text-[13.5px] font-bold overflow-hidden" style="color:#2D1F1E;">{% include "components/org_unit_badge.html" with department=recommendation.department show_code=True %}</div>
+        <p class="text-[10px] font-bold uppercase tracking-[0.06em] mb-1 text-text-faint">Direction concernée</p>
+        <div class="text-[13.5px] font-bold overflow-hidden text-text-primary">{% include "components/org_unit_badge.html" with department=recommendation.department show_code=True %}</div>
       </div>
-      <div class="px-5 py-3" style="border-left:1px solid #F5EDE6;">
-        <p class="text-[10px] font-bold uppercase tracking-[0.06em] mb-1" style="color:#968A80;">Porteur (DM)</p>
+      <div class="px-5 py-3" style="border-left:1px solid #E8DFD6;">
+        <p class="text-[10px] font-bold uppercase tracking-[0.06em] mb-1 text-text-faint">Porteur (DM)</p>
         {% if recommendation.assigned_dm %}
         <div class="flex items-center gap-2">
-          <span class="w-6 h-6 rounded-full font-display font-bold flex items-center justify-center shrink-0"
-            style="background-color:#14746F;color:white;font-size:9px;">
+          <span class="w-6 h-6 rounded-full font-display font-bold flex items-center justify-center shrink-0 bg-sentinel-teal text-white"
+            style="font-size:9px;">
             {{ recommendation.assigned_dm.first_name|slice:":1"|upper }}{{ recommendation.assigned_dm.last_name|slice:":1"|upper }}
           </span>
-          <span class="text-[13.5px] font-bold" style="color:#2D1F1E;">{{ recommendation.assigned_dm.get_full_name|default:recommendation.assigned_dm.username }}</span>
+          <span class="text-[13.5px] font-bold text-text-primary">{{ recommendation.assigned_dm.get_full_name|default:recommendation.assigned_dm.username }}</span>
         </div>
         {% else %}
-        <p class="text-[13.5px] font-bold" style="color:#968A80;">Non assigné</p>
+        <p class="text-[13.5px] font-bold text-text-faint">Non assigné</p>
         {% endif %}
       </div>
-      <div class="px-5 py-3" style="border-left:1px solid #F5EDE6;">
-        <p class="text-[10px] font-bold uppercase tracking-[0.06em] mb-1" style="color:#968A80;">Échéance</p>
+      <div class="px-5 py-3" style="border-left:1px solid #E8DFD6;">
+        <p class="text-[10px] font-bold uppercase tracking-[0.06em] mb-1 text-text-faint">Échéance</p>
         <p class="text-[13.5px] font-bold font-mono {% if recommendation.is_overdue %}text-danger{% else %}text-text-primary{% endif %}">
           {{ recommendation.due_date|date:"d/m/Y" }}
         </p>
       </div>
-      <div class="px-5 py-3" style="border-left:1px solid #F5EDE6;">
-        <p class="text-[10px] font-bold uppercase tracking-[0.06em] mb-1" style="color:#968A80;">Source</p>
-        <p class="text-[13.5px] font-bold" style="color:#2D1F1E;">{{ recommendation.source.label|default:"—" }}</p>
+      <div class="px-5 py-3" style="border-left:1px solid #E8DFD6;">
+        <p class="text-[10px] font-bold uppercase tracking-[0.06em] mb-1 text-text-faint">Source</p>
+        <p class="text-[13.5px] font-bold text-text-primary">{{ recommendation.source.label|default:"—" }}</p>
       </div>
     </div>
   </div>
@@ -313,32 +331,30 @@
       {# C4 — Carte Recommandation (DS spec 1.4) #}
       <div class="bg-white border border-border-subtle rounded-xl shadow-premium-sm overflow-hidden">
         <div class="flex items-center gap-2.5 px-5 py-4 border-b border-surface-warm">
-          <svg aria-hidden="true" class="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            style="color:#968A80;">
+          <svg aria-hidden="true" class="shrink-0 text-text-faint" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
             <line x1="16" y1="13" x2="8" y2="13"/>
             <line x1="16" y1="17" x2="8" y2="17"/>
             <polyline points="10 9 9 9 8 9"/>
           </svg>
-          <h2 class="font-display font-semibold text-[13.5px]" style="color:#2D1F1E;">Recommandation</h2>
+          <h2 class="font-display font-semibold text-[13.5px] text-text-primary">Recommandation</h2>
         </div>
         <div class="p-5">
           <div class="flex gap-3 bg-sentinel-orange-light border border-sentinel-orange-soft rounded-lg p-4">
             <span class="shrink-0 mt-0.5">
-              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E87722"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange">
                 <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
               </svg>
             </span>
             <div x-data="{ expanded: false }" class="flex-1 min-w-0">
-              <p class="text-[13px] leading-relaxed" style="color:#2D1F1E;"
+              <p class="text-[13px] leading-relaxed text-text-primary"
                 :class="expanded ? '' : 'line-clamp-4'">{{ recommendation.description }}</p>
               {% if recommendation.description|length > 280 %}
               <button @click="expanded = !expanded"
-                class="mt-1.5 text-[12.5px] font-semibold transition-colors flex items-center gap-0.5"
-                style="color:#14746F;">
+                class="mt-1.5 text-[12.5px] font-semibold transition-colors flex items-center gap-0.5 text-sentinel-teal">
                 <span x-text="expanded ? 'Réduire' : 'Lire la suite'">Lire la suite</span>
               </button>
               {% endif %}
@@ -350,30 +366,28 @@
       {# C5 — Carte Observations + Anomalies (DS spec 1.5) #}
       <div class="bg-white border border-border-subtle rounded-xl shadow-premium-sm overflow-hidden">
         <div class="flex items-center gap-2.5 px-5 py-4 border-b border-surface-warm">
-          <svg aria-hidden="true" class="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            style="color:#968A80;">
+          <svg aria-hidden="true" class="shrink-0 text-text-faint" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
           </svg>
-          <h2 class="font-display font-semibold text-[13.5px]" style="color:#2D1F1E;">Observations de la mission</h2>
+          <h2 class="font-display font-semibold text-[13.5px] text-text-primary">Observations de la mission</h2>
         </div>
         <div class="p-5 space-y-4">
           <div x-data="{ expanded: false }">
-            <p class="text-[13px] leading-relaxed" style="color:#2D1F1E;"
+            <p class="text-[13px] leading-relaxed text-text-primary"
               :class="expanded ? '' : 'line-clamp-5'">
               {{ recommendation.observations|default:"Aucune observation." }}
             </p>
             {% if recommendation.observations and recommendation.observations|length > 300 %}
             <button @click="expanded = !expanded"
-              class="mt-1.5 text-[12.5px] font-semibold transition-colors"
-              style="color:#14746F;">
+              class="mt-1.5 text-[12.5px] font-semibold transition-colors text-sentinel-teal">
               <span x-text="expanded ? 'Réduire' : 'Lire la suite'">Lire la suite</span>
             </button>
             {% endif %}
           </div>
           {% if recommendation.anomalous_dossiers %}
-          <div class="pt-3" style="border-top:1px solid #F5EDE6;">
-            <p class="text-[11px] font-bold uppercase tracking-[0.06em] flex items-center gap-1.5 mb-2" style="color:#C0392B;">
+          <div class="pt-3 border-t border-sentinel-brown-tint">
+            <p class="text-[11px] font-bold uppercase tracking-[0.06em] flex items-center gap-1.5 mb-2 text-danger">
               <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
@@ -381,7 +395,7 @@
               </svg>
               Dossiers en anomalies
             </p>
-            <p class="text-[12.5px] leading-relaxed" style="color:#6F635B;">{{ recommendation.anomalous_dossiers }}</p>
+            <p class="text-[12.5px] leading-relaxed text-text-body">{{ recommendation.anomalous_dossiers }}</p>
           </div>
           {% endif %}
         </div>
@@ -389,27 +403,26 @@
 
       {# ── Bandeau rejet (Story 3.4/3.8 — cuisine interne : visible porteurs ETP/DM/DG) ── #}
       {% if show_rejection_banner %}
-      <div class="rounded-xl px-5 py-4" style="background:#FBEAE7;border:1px solid #EAC5BF;">
+      <div class="rounded-xl px-5 py-4 bg-danger-tint border border-danger-border">
         <div class="flex items-start gap-3">
-          <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-            style="background:#FDDDD8;">
-            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#C0392B"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-danger-icon-bg">
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-danger">
               <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/>
               <line x1="9" y1="9" x2="15" y2="15"/>
             </svg>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-[13px] font-semibold" style="color:#7A1A1A;">Soumission rejetée</p>
-            <p class="text-[11.5px] mt-0.5" style="color:#C0392B;">
+            <p class="text-[13px] font-semibold text-danger-strong">Soumission rejetée</p>
+            <p class="text-[11.5px] mt-0.5 text-danger">
               Par <strong>{{ rejected_submission.reviewed_by.get_full_name|default:rejected_submission.reviewed_by.username }}</strong>
               · {{ rejected_submission.reviewed_at|date:"d/m/Y à H:i" }}
             </p>
-            <div class="mt-2.5 rounded-lg px-3 py-2" style="background:white;border:1px solid #EAC5BF;">
-              <p class="text-[11px] font-bold uppercase tracking-[0.06em] mb-1" style="color:#C0392B;">Motif</p>
-              <p class="text-[12.5px] whitespace-pre-line" style="color:#7A1A1A;">{{ rejected_submission.review_comment }}</p>
+            <div class="mt-2.5 rounded-lg px-3 py-2 bg-white border border-danger-border">
+              <p class="text-[11px] font-bold uppercase tracking-[0.06em] mb-1 text-danger">Motif</p>
+              <p class="text-[12.5px] whitespace-pre-line text-danger-strong">{{ rejected_submission.review_comment }}</p>
             </div>
-            <p class="text-[11.5px] font-medium mt-2" style="color:#C0392B;">
+            <p class="text-[11.5px] font-medium mt-2 text-danger">
               Corrigez votre dossier et re-soumettez vos preuves.
             </p>
           </div>
@@ -419,37 +432,34 @@
 
       {# ── Bannières statut report d'échéance (Story 3.6 — AC6) ── #}
       {% if pending_extension %}
-      <div class="flex items-center justify-between gap-4 rounded-xl px-5 py-3.5"
-        style="background:#FBF1DF;border:1px solid #E8C97A;">
+      <div class="flex items-center justify-between gap-4 rounded-xl px-5 py-3.5 bg-warning-tint border border-warning-border">
         <div class="flex items-start gap-3 flex-1 min-w-0">
-          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C08A2D"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 mt-0.5">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 mt-0.5 text-status-dm-review">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
             <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
             <line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
           <div class="min-w-0">
-            <p class="text-[13px] font-semibold" style="color:#7A5C1A;">
+            <p class="text-[13px] font-semibold text-warning-strong">
               Demande de report en attente —
               {{ pending_extension.requested_by.get_full_name|default:pending_extension.requested_by.username }}
               · nouvelle date
-              <strong style="color:#14746F;">{{ pending_extension.requested_date|date:"d/m/Y" }}</strong>
+              <strong class="text-sentinel-teal">{{ pending_extension.requested_date|date:"d/m/Y" }}</strong>
             </p>
             {% if pending_extension.reason %}
-            <p class="text-[11.5px] mt-0.5 italic" style="color:#7A5C1A;">{{ pending_extension.reason|truncatewords:20 }}</p>
+            <p class="text-[11.5px] mt-0.5 italic text-warning-strong">{{ pending_extension.reason|truncatewords:20 }}</p>
             {% endif %}
           </div>
         </div>
         {% if can_review_extension %}
         <div class="flex items-center gap-2 shrink-0">
           <button @click="extensionReviewModalOpen = true"
-            class="inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-            style="border:1px solid #C0392B;color:#C0392B;background:white;">
+            class="inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors border border-danger text-danger bg-white">
             Refuser
           </button>
           <button @click="extensionReviewModalOpen = true"
-            class="inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors text-white"
-            style="background:#E87722;">
+            class="inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-1.5 rounded-lg transition-colors text-white bg-sentinel-orange">
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"/>
@@ -464,53 +474,51 @@
       {# Historique des reports d'échéance (APPROVED / REJECTED) #}
       {% for ext in extension_history %}
       {% if ext.status == 'APPROVED' %}
-      <div class="rounded-xl px-5 py-4" style="background:#E7F2EC;border:1px solid #B2D8C0;">
+      <div class="rounded-xl px-5 py-4 bg-success-tint border border-success-border">
         <div class="flex items-start gap-3">
-          <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-            style="background:#C8E6D4;">
-            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2D8B56"
-              stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-success-icon-bg">
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-status-approved">
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
               <polyline points="22 4 12 14.01 9 11.01"/>
             </svg>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-[13px] font-semibold" style="color:#1B5E3B;">Report d'échéance approuvé</p>
-            <p class="text-[11.5px] mt-0.5" style="color:#2D8B56;">
+            <p class="text-[13px] font-semibold text-success-strong">Report d'échéance approuvé</p>
+            <p class="text-[11.5px] mt-0.5 text-status-approved">
               Par <strong>{{ ext.reviewed_by.get_full_name|default:ext.reviewed_by.username }}</strong>
               · {{ ext.reviewed_at|date:"d/m/Y à H:i" }}
             </p>
-            <div class="mt-2 rounded-lg px-3 py-2" style="background:white;border:1px solid #B2D8C0;">
-              <p class="text-[11px] font-bold uppercase tracking-[0.06em] mb-0.5" style="color:#2D8B56;">Nouvelle échéance</p>
-              <p class="text-[12.5px] font-bold font-mono" style="color:#1B5E3B;">{{ ext.requested_date|date:"d/m/Y" }}</p>
+            <div class="mt-2 rounded-lg px-3 py-2 bg-white border border-success-border">
+              <p class="text-[11px] font-bold uppercase tracking-[0.06em] mb-0.5 text-status-approved">Nouvelle échéance</p>
+              <p class="text-[12.5px] font-bold font-mono text-success-strong">{{ ext.requested_date|date:"d/m/Y" }}</p>
               {% if ext.audit_comment %}
-              <p class="text-[11.5px] mt-1 italic" style="color:#2D8B56;">{{ ext.audit_comment|truncatewords:30 }}</p>
+              <p class="text-[11.5px] mt-1 italic text-status-approved">{{ ext.audit_comment|truncatewords:30 }}</p>
               {% endif %}
             </div>
           </div>
         </div>
       </div>
       {% elif ext.status == 'REJECTED' %}
-      <div class="rounded-xl px-5 py-4" style="background:#FBEAE7;border:1px solid #EAC5BF;">
+      <div class="rounded-xl px-5 py-4 bg-danger-tint border border-danger-border">
         <div class="flex items-start gap-3">
-          <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-            style="background:#FDDDD8;">
-            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#C0392B"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-danger-icon-bg">
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-danger">
               <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/>
               <line x1="9" y1="9" x2="15" y2="15"/>
             </svg>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-[13px] font-semibold" style="color:#7A1A1A;">Demande de report refusée</p>
-            <p class="text-[11.5px] mt-0.5" style="color:#C0392B;">
+            <p class="text-[13px] font-semibold text-danger-strong">Demande de report refusée</p>
+            <p class="text-[11.5px] mt-0.5 text-danger">
               Par <strong>{{ ext.reviewed_by.get_full_name|default:ext.reviewed_by.username }}</strong>
               · {{ ext.reviewed_at|date:"d/m/Y à H:i" }}
             </p>
             {% if ext.audit_comment %}
-            <div class="mt-2 rounded-lg px-3 py-2" style="background:white;border:1px solid #EAC5BF;">
-              <p class="text-[11px] font-bold uppercase tracking-[0.06em] mb-0.5" style="color:#C0392B;">Motif</p>
-              <p class="text-[12.5px] italic" style="color:#7A1A1A;">{{ ext.audit_comment }}</p>
+            <div class="mt-2 rounded-lg px-3 py-2 bg-white border border-danger-border">
+              <p class="text-[11px] font-bold uppercase tracking-[0.06em] mb-0.5 text-danger">Motif</p>
+              <p class="text-[12.5px] italic text-danger-strong">{{ ext.audit_comment }}</p>
             </div>
             {% endif %}
           </div>
@@ -532,36 +540,35 @@
       <div class="bg-white border border-border-subtle rounded-xl shadow-premium-sm overflow-hidden">
         <div class="flex items-center justify-between px-5 py-4 border-b border-surface-warm">
           <div class="flex items-center gap-2">
-            <svg aria-hidden="true" class="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              style="color:#968A80;">
+            <svg aria-hidden="true" class="shrink-0 text-text-faint" width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
               <polyline points="16 7 22 7 22 13"/>
             </svg>
-            <h2 class="font-display font-semibold text-[13.5px]" style="color:#2D1F1E;">Avancement</h2>
+            <h2 class="font-display font-semibold text-[13.5px] text-text-primary">Avancement</h2>
           </div>
-          <span class="font-display font-bold" style="font-size:22px;color:#2D1F1E;">{{ progress|default:0 }}%</span>
+          <span class="font-display font-bold text-text-primary" style="font-size:22px;">{{ progress|default:0 }}%</span>
         </div>
         <div class="p-4 space-y-3">
-          <div class="w-full h-2 rounded-full overflow-hidden" style="background:#F5EDE6;">
-            <div class="h-full rounded-full transition-all duration-500"
-              x-data x-bind:style="'width:{{ progress|default:0 }}%;background:#E87722;'"></div>
+          <div class="w-full h-2 rounded-full overflow-hidden bg-sentinel-brown-tint">
+            <div class="h-full rounded-full transition-all duration-500 bg-sentinel-orange"
+              x-data x-bind:style="'width:{{ progress|default:0 }}%'"></div>
           </div>
           <div class="flex items-center justify-between text-[12.5px]">
             <div class="flex items-center gap-1.5">
               <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#6F635B;">
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-text-body">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                 <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
                 <line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
-              <span class="font-medium" style="color:#2D1F1E;">Échéance</span>
+              <span class="font-medium text-text-primary">Échéance</span>
               <span class="font-mono font-semibold {% if recommendation.is_overdue %}text-danger{% else %}text-text-primary{% endif %}">
                 {{ recommendation.due_date|date:"d/m/Y" }}
               </span>
             </div>
             {% if recommendation.original_due_date and recommendation.original_due_date != recommendation.due_date %}
-            <span class="font-mono text-[11px]" style="color:#968A80;">orig. {{ recommendation.original_due_date|date:"d/m/Y" }}</span>
+            <span class="font-mono text-[11px] text-text-faint">orig. {{ recommendation.original_due_date|date:"d/m/Y" }}</span>
             {% endif %}
           </div>
         </div>
@@ -571,29 +578,26 @@
       {% if is_closed and hmac_seal %}
       <div class="bg-white border border-border-subtle rounded-xl shadow-premium-sm overflow-hidden">
         <div class="flex items-center gap-2.5 px-5 py-4 border-b border-surface-warm">
-          <svg aria-hidden="true" class="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            style="color:#968A80;">
+          <svg aria-hidden="true" class="shrink-0 text-text-faint" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
-          <h2 class="font-display font-semibold text-[13.5px]" style="color:#2D1F1E;">Intégrité</h2>
+          <h2 class="font-display font-semibold text-[13.5px] text-text-primary">Intégrité</h2>
         </div>
         <div class="p-4 space-y-3">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-              style="border:2px dashed #14746F;">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2 border-dashed border-sentinel-teal">
               <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#14746F;">
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-teal">
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                 <polyline points="22 4 12 14.01 9 11.01"/>
               </svg>
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="font-semibold text-[13px]" style="color:#2D1F1E;">Piste d'audit scellée</span>
+                <span class="font-semibold text-[13px] text-text-primary">Piste d'audit scellée</span>
                 {% if seal_valid %}
-                <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full"
-                  style="background:#E7F2EC;color:#2D8B56;">
+                <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-success-tint text-status-approved">
                   <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                     stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="20 6 9 17 4 12"/>
@@ -601,31 +605,29 @@
                   Vérifié
                 </span>
                 {% else %}
-                <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full"
-                  style="background:#FBEAE7;color:#C0392B;">Altéré</span>
+                <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-danger-tint text-danger">Altéré</span>
                 {% endif %}
               </div>
-              <p class="text-[11px] mt-0.5" style="color:#968A80;">
+              <p class="text-[11px] mt-0.5 text-text-faint">
                 HMAC-SHA256 · {{ hmac_seal.sealed_by.get_full_name|default:"Auditeur" }}
               </p>
             </div>
           </div>
-          <div class="flex items-center gap-2 rounded-lg px-3 py-2.5"
-            style="background:#F8F8F5;border:1px solid #E8DFD6;">
-            <svg aria-hidden="true" class="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#E87722;">
+          <div class="flex items-center gap-2 rounded-lg px-3 py-2.5 bg-surface-faint border border-border-subtle">
+            <svg aria-hidden="true" class="shrink-0 text-sentinel-orange" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 8 4"/>
               <path d="M5 19.5C5.5 18 6 15 6 12c0-1.85.68-3.56 1.8-4.87"/>
               <path d="M13.5 19.5C13 18 12 15 12 12c0-1.3.3-2.57.8-3.7"/>
               <path d="M20 19.5c-.5-1.5-1-3.5-1-7.5a8 8 0 0 0-.45-2.68"/>
               <path d="M12 2C6.5 2 2 6.5 2 12"/>
             </svg>
-            <span class="font-mono text-[12px] flex-1 truncate" style="color:#6F635B;">
+            <span class="font-mono text-[12px] flex-1 truncate text-text-body">
               {{ hmac_seal.hmac_hash|slice:":8" }}…{{ hmac_seal.hmac_hash|slice:"-4:" }}
             </span>
             <button
               @click="if (navigator.clipboard) { navigator.clipboard.writeText('{{ hmac_seal.hmac_hash }}').then(() => $store.sentinel.notify('Hash HMAC copié', 'success')).catch(() => $store.sentinel.notify('Erreur lors de la copie', 'error')) } else { const el = document.createElement('textarea'); el.value = '{{ hmac_seal.hmac_hash }}'; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); $store.sentinel.notify('Hash HMAC copié', 'success'); }"
-              class="p-0.5 rounded transition-colors" style="color:#968A80;cursor:pointer;" title="Copier le hash complet">
+              class="p-0.5 rounded transition-colors text-text-faint cursor-pointer" title="Copier le hash complet">
               <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -633,7 +635,7 @@
               </svg>
             </button>
           </div>
-          <div class="flex items-center gap-1.5 text-[11.5px]" style="color:#968A80;">
+          <div class="flex items-center gap-1.5 text-[11.5px] text-text-faint">
             <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -649,48 +651,44 @@
       <div class="bg-white border border-border-subtle rounded-xl shadow-premium-sm overflow-hidden">
         <div class="flex items-center justify-between px-5 py-4 border-b border-surface-warm">
           <div class="flex items-center gap-2.5">
-            <svg aria-hidden="true" class="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              style="color:#968A80;">
+            <svg aria-hidden="true" class="shrink-0 text-text-faint" width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
               <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
               <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
             </svg>
-            <h2 class="font-display font-semibold text-[13.5px]" style="color:#2D1F1E;">Livrables attendus</h2>
+            <h2 class="font-display font-semibold text-[13.5px] text-text-primary">Livrables attendus</h2>
           </div>
-          <span class="font-mono text-[12px] font-bold px-2 py-0.5 rounded-md"
-            style="color:#6F635B;background:#F5EDE6;">{{ completed_deliverables_count }}/{{ deliverables.count }}</span>
+          <span class="font-mono text-[12px] font-bold px-2 py-0.5 rounded-md text-text-body bg-sentinel-brown-tint">{{ completed_deliverables_count }}/{{ deliverables.count }}</span>
         </div>
         <div class="p-4 space-y-2">
           {% if deliverables %}
           {% for del in deliverables %}
           <div class="flex items-start gap-2.5">
             {% if del.is_completed %}
-            <span class="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-              style="background:#2D8B56;">
+            <span class="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-status-approved">
               <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white"
                 stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
             </span>
-            <span class="text-[12.5px] leading-relaxed line-through" style="color:#968A80;">{{ del.label }}</span>
+            <span class="text-[12.5px] leading-relaxed line-through text-text-faint">{{ del.label }}</span>
             {% else %}
-            <span class="w-5 h-5 rounded-full shrink-0 mt-0.5 flex-shrink-0"
-              style="border:2px solid #D8CBBE;"></span>
-            <span class="text-[12.5px] leading-relaxed" style="color:#2D1F1E;">{{ del.label }}</span>
+            <span class="w-5 h-5 rounded-full shrink-0 mt-0.5 flex-shrink-0 border-2 border-border-strong"></span>
+            <span class="text-[12.5px] leading-relaxed text-text-primary">{{ del.label }}</span>
             {% endif %}
           </div>
           {% endfor %}
           {% else %}
-          <p class="text-[12.5px] italic" style="color:#968A80;">Aucun livrable défini.</p>
+          <p class="text-[12.5px] italic text-text-faint">Aucun livrable défini.</p>
           {% endif %}
         </div>
       </div>
 
       {# Timeline AuditLog — 5 entrées + "Voir tout" slide-over #}
-      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-        <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <span class="flex h-6 w-6 items-center justify-center rounded-md bg-gray-100 text-gray-600">
+      <div class="bg-white rounded-xl border border-border-subtle shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+          <span class="flex h-6 w-6 items-center justify-center rounded-md bg-surface-sunken text-text-body">
             <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -700,7 +698,7 @@
           </span>
           Historique
           {% if audit_log_total_count %}
-          <span class="text-xs font-normal text-gray-400 ml-auto">{{ audit_log_total_count }} action{{ audit_log_total_count|pluralize }}</span>
+          <span class="text-xs font-normal text-text-faint ml-auto">{{ audit_log_total_count }} action{{ audit_log_total_count|pluralize }}</span>
           {% endif %}
         </h3>
 
@@ -710,14 +708,14 @@
           <div class="flex gap-3 group">
             <div class="flex flex-col items-center">
               <div class="flex h-7 w-7 items-center justify-center rounded-full shrink-0
-                {% if log.action == 'CREATE' %}bg-green-100 text-green-600
-                {% elif log.action == 'UPDATE' %}bg-blue-100 text-blue-600
-                {% elif log.action == 'DELETE' %}bg-red-100 text-red-600
-                {% elif log.action == 'TRANSITION' %}bg-purple-100 text-purple-600
-                {% elif log.action == 'EXTENSION_REQUESTED' %}bg-amber-100 text-amber-600
-                {% elif log.action == 'EXTENSION_APPROVED' %}bg-green-100 text-green-600
-                {% elif log.action == 'EXTENSION_REJECTED' %}bg-red-100 text-red-600
-                {% else %}bg-gray-100 text-gray-600
+                {% if log.action == 'CREATE' %}bg-success-tint text-status-approved
+                {% elif log.action == 'UPDATE' %}bg-status-assigned-tint text-status-assigned
+                {% elif log.action == 'DELETE' %}bg-danger-tint text-danger
+                {% elif log.action == 'TRANSITION' %}bg-sentinel-teal-tint text-sentinel-teal-darker
+                {% elif log.action == 'EXTENSION_REQUESTED' %}bg-warning-tint text-status-dm-review
+                {% elif log.action == 'EXTENSION_APPROVED' %}bg-success-tint text-status-approved
+                {% elif log.action == 'EXTENSION_REJECTED' %}bg-danger-tint text-danger
+                {% else %}bg-surface-sunken text-text-body
                 {% endif %}">
                 {% if log.action == 'CREATE' %}
                 <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
@@ -771,11 +769,11 @@
                 </svg>
                 {% endif %}
               </div>
-              {% if not forloop.last %}<div class="w-px flex-1 bg-gray-200 mt-1"></div>{% endif %}
+              {% if not forloop.last %}<div class="w-px flex-1 bg-border-subtle mt-1"></div>{% endif %}
             </div>
             <div class="pb-3">
-              <p class="text-sm text-gray-700">{{ log.description|default:log.get_action_display }}</p>
-              <p class="text-xs text-gray-400 mt-0.5">
+              <p class="text-sm text-text-primary">{{ log.description|default:log.get_action_display }}</p>
+              <p class="text-xs text-text-faint mt-0.5">
                 {{ log.created_at|date:"d/m/Y H:i" }}
                 {% if log.user %} — {{ log.user.get_full_name|default:log.user.username }}{% endif %}
               </p>
@@ -786,11 +784,11 @@
 
         {# Bouton "Voir tout" — affiché uniquement si plus de 5 entrées #}
         {% if audit_log_total_count > 5 %}
-        <div class="mt-4 pt-3 border-t border-gray-100">
+        <div class="mt-4 pt-3 border-t border-border-subtle">
           <button type="button" @click="historyDrawerOpen = true"
             hx-get="{% url 'workflow:recommendation-audit-log' recommendation.pk %}" hx-target="#history-drawer-content"
             hx-swap="innerHTML" hx-trigger="click once"
-            class="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 hover:border-gray-300 transition-all duration-150">
+            class="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-text-body bg-surface-faint hover:bg-surface-sunken border border-border-subtle hover:border-border-strong transition-all duration-150">
             <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -799,49 +797,49 @@
             </svg>
             Voir tout l'historique
             <span
-              class="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-700">{{ audit_log_total_count }}</span>
+              class="inline-flex items-center rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-semibold text-text-primary">{{ audit_log_total_count }}</span>
           </button>
         </div>
         {% endif %}
 
         {% else %}
-        <p class="text-sm text-gray-400 italic">Aucun historique.</p>
+        <p class="text-sm text-text-faint italic">Aucun historique.</p>
         {% endif %}
       </div>
 
       {# Métadonnées #}
-      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-        <h3 class="text-sm font-semibold text-gray-900 mb-3">Informations</h3>
+      <div class="bg-white rounded-xl border border-border-subtle shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-text-primary mb-3">Informations</h3>
         <dl class="space-y-2 text-sm">
           <div class="flex justify-between">
-            <dt class="text-gray-500">Créé par</dt>
-            <dd class="text-gray-900 font-medium">{{ recommendation.created_by.get_full_name|default:recommendation.created_by.username }}</dd>
+            <dt class="text-text-body">Créé par</dt>
+            <dd class="text-text-primary font-medium">{{ recommendation.created_by.get_full_name|default:recommendation.created_by.username }}</dd>
           </div>
           <div class="flex justify-between">
-            <dt class="text-gray-500">Créé le</dt>
-            <dd class="text-gray-900">{{ recommendation.created_at|date:"d/m/Y H:i" }}</dd>
+            <dt class="text-text-body">Créé le</dt>
+            <dd class="text-text-primary">{{ recommendation.created_at|date:"d/m/Y H:i" }}</dd>
           </div>
           <div class="flex justify-between">
-            <dt class="text-gray-500">Modifié le</dt>
-            <dd class="text-gray-900">{{ recommendation.updated_at|date:"d/m/Y H:i" }}</dd>
+            <dt class="text-text-body">Modifié le</dt>
+            <dd class="text-text-primary">{{ recommendation.updated_at|date:"d/m/Y H:i" }}</dd>
           </div>
           {% if recommendation.assigned_dm %}
           <div class="flex justify-between">
-            <dt class="text-gray-500">DM assigné</dt>
-            <dd class="text-gray-900 font-medium">{{ recommendation.assigned_dm.get_full_name|default:recommendation.assigned_dm.username }}</dd>
+            <dt class="text-text-body">DM assigné</dt>
+            <dd class="text-text-primary font-medium">{{ recommendation.assigned_dm.get_full_name|default:recommendation.assigned_dm.username }}</dd>
           </div>
           {% endif %}
           {% if recommendation.assigned_etp %}
           <div class="flex justify-between">
-            <dt class="text-gray-500">ETP délégué</dt>
-            <dd class="text-gray-900 font-medium">{{ recommendation.assigned_etp.get_full_name|default:recommendation.assigned_etp.username }}</dd>
+            <dt class="text-text-body">ETP délégué</dt>
+            <dd class="text-text-primary font-medium">{{ recommendation.assigned_etp.get_full_name|default:recommendation.assigned_etp.username }}</dd>
           </div>
           {% elif recommendation.status == 'IN_PROGRESS' and recommendation.assigned_dm %}
           <div class="flex justify-between">
-            <dt class="text-gray-500">Porteur</dt>
-            <dd class="inline-flex items-center gap-1 text-gray-900 font-medium">
+            <dt class="text-text-body">Porteur</dt>
+            <dd class="inline-flex items-center gap-1 text-text-primary font-medium">
               <span
-                class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700">DM
+                class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-warning-tint text-status-dm-review">DM
                 Porteur</span>
             </dd>
           </div>
@@ -978,7 +976,7 @@
         <div id="history-drawer-content" class="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
           {# Contenu injecté par HTMX au premier clic #}
           <div class="flex items-center justify-center h-full">
-            <svg aria-hidden="true" class="animate-spin h-6 w-6 text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none"
+            <svg aria-hidden="true" class="animate-spin h-6 w-6 text-border-strong" xmlns="http://www.w3.org/2000/svg" fill="none"
               viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -1074,26 +1072,26 @@
     @open-delete.window="deleteOpen = true; deleteUrl = $event.detail.url; deleteRef = $event.detail.ref">
     <div x-show="deleteOpen" x-transition class="fixed inset-0 z-[60] flex items-center justify-center"
       style="display:none">
-      <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" @click="deleteOpen = false"></div>
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="deleteOpen = false"></div>
       <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 animate-fade-in"
         role="dialog" aria-modal="true" aria-label="Supprimer la recommandation">
         <div class="flex items-center gap-3 mb-4">
-          <div class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+          <div class="flex h-10 w-10 items-center justify-center rounded-full bg-danger-tint">
             <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="text-red-600">
+              class="text-danger">
               <path d="M3 6h18" />
               <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
               <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
             </svg>
           </div>
           <div>
-            <h3 class="text-lg font-semibold text-gray-900">Supprimer la recommandation</h3>
-            <p class="text-sm text-gray-500">Réf. : <span x-text="deleteRef" class="font-medium text-gray-700"></span>
+            <h3 class="text-lg font-semibold text-text-primary">Supprimer la recommandation</h3>
+            <p class="text-sm text-text-body">Réf. : <span x-text="deleteRef" class="font-medium text-text-primary"></span>
             </p>
           </div>
         </div>
-        <p class="text-sm text-gray-600 mb-6">Cette action est réversible (suppression logique). La recommandation ne
+        <p class="text-sm text-text-body mb-6">Cette action est réversible (suppression logique). La recommandation ne
           sera plus visible.</p>
         <div class="flex justify-end gap-3">
           <button @click="deleteOpen = false" class="btn btn-secondary">Annuler</button>

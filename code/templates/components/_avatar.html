@@ -1,10 +1,12 @@
-{# Avatar à initiales — design system centralisé (tokens, pas de hex inline).
-   Params :
-     user        : objet User (utilise first_name / last_name)
-     size_class  : classes de taille Tailwind (def. "h-9 w-9")
-     text_class  : classe de taille de police (def. "text-xs")
-     extra_class : classes additionnelles éventuelles
-#}
-<div class="flex items-center justify-center rounded-full font-bold uppercase shrink-0 bg-surface-warm text-text-body {{ size_class|default:'h-9 w-9' }} {{ text_class|default:'text-xs' }} {{ extra_class }}">
+{% comment %}
+Avatar à initiales — design system centralisé (tokens, pas de hex inline).
+Params :
+  user        : objet User (utilise first_name / last_name)
+  size_class  : classes de taille Tailwind (def. "h-9 w-9")
+  text_class  : classe de taille de police (def. "text-xs")
+  extra_class : classes additionnelles éventuelles
+  title       : tooltip au survol (déf. : get_full_name de l'utilisateur)
+{% endcomment %}
+<div class="flex items-center justify-center rounded-full font-bold uppercase shrink-0 bg-surface-warm text-text-body {{ size_class|default:'h-9 w-9' }} {{ text_class|default:'text-xs' }} {{ extra_class }}" title="{{ title|default:user.get_full_name }}">
   {{ user.first_name|first|default:"?" }}{{ user.last_name|first|default:"" }}
 </div>

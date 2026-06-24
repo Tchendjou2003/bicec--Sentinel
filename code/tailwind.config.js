@@ -63,9 +63,15 @@ module.exports = {
         "warning-tint": "#FBF1DF",
         "destructive-tint": "#FBEAE7",
         "info-tint": "#E8F0F8",
+        "warning-strong": "#7A5C1A",
+        "warning-border": "#E8C97A",
         "danger": "#C0392B",
         "danger-strong": "#991B1B",
         "danger-tint": "#FBEAE7",
+        "danger-border": "#EAC5BF",
+        "danger-icon-bg": "#FDDDD8",
+        "success-border": "#B2D8C0",
+        "success-icon-bg": "#C8E6D4",
         // ═══ fin tokens DS ═══
 
         // Semantic Statuses (héritées — conservées pour compat ascendante)
@@ -89,9 +95,11 @@ module.exports = {
         // shells bg-background, kpi_card accent="primary", provisioning,
         // audit_admin_members). À migrer vers les tokens Sentinel au fil du
         // Lot 3.5 ; les 33 tokens sans consommateur ont été purgés (3.6).
-        // ⚠ piège : text-primary (#a23f00) ≠ text-text-primary (#2D1F1E).
+        // primary pointe désormais sur la variable CSS --primary (orange Sentinel)
+        // pour aligner kpi_card/footer sur la charte et supprimer la collision
+        // avec text-text-primary (#2D1F1E).
         "background": "#fcf9f8",
-        "primary": "#a23f00",
+        "primary": "hsl(var(--primary) / <alpha-value>)",
         "tertiary": "#006496",
         "error": "#ba1a1a",
         "error-container": "#ffdad6",

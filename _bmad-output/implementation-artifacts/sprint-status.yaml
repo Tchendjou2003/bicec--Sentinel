@@ -95,7 +95,7 @@ development_status:
   6-4-configuration-interim-delegation: backlog
   6-5-import-massif-recommandations-draft: review
   6-6-triage-auto-assignation: cancelled # Dropped: redundant with DRAFT state backlog mechanism
-  6-7-compilation-archive-zip-audit-externe: ready-for-dev
+  6-7-compilation-archive-zip-audit-externe: in-progress
   6-8-import-historique-massif-recommandations: in-progress
   epic-6-retrospective: optional
 

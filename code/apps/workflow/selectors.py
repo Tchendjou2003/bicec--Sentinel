@@ -7,8 +7,9 @@ Aucune mutation ici — tout passe par services.py.
 Spécifications couvertes :
     - FR28 : Visibilité restreinte par périmètre RBAC
 """
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from .models import EvidenceSubmission, ExtensionRequest, Recommendation, RecommendationSource
 
@@ -44,6 +45,31 @@ def get_source_by_code(code: str) -> "RecommendationSource | None":
     Les data migrations utilisent apps.get_model() directement.
     """
     return RecommendationSource.objects.filter(code=code).first()
+
+
+# =============================================================================
+# Sélecteurs Missions Externes
+# =============================================================================
+
+
+def get_active_missions_for_user(*, user) -> "QuerySet":
+    """
+    Retourne les missions externes ACTIVES de l'auditeur à la date du jour.
+
+    Source de vérité unique de la définition « mission active » (auditeur
+    rattaché + statut ACTIVE + échéance non dépassée ou indéfinie). Réutilisée
+    par le portail EXT, le sélecteur de recommandations et l'export ZIP afin
+    d'éviter toute divergence de critères entre ces points d'accès.
+    """
+    from apps.users.models import ExternalMission
+
+    now = timezone.now().date()
+    return ExternalMission.objects.filter(
+        auditors=user,
+        status=ExternalMission.Status.ACTIVE,
+    ).filter(
+        Q(end_date__gte=now) | Q(end_date__isnull=True)
+    )
 
 
 # =============================================================================
@@ -96,8 +122,16 @@ def get_recommendations_for_user(*, user, filters: dict | None = None) -> QueryS
             qs = qs.filter(assigned_dm=user)
         elif user.role == User.Role.ETP:
             qs = qs.filter(assigned_etp=user)
+        elif user.role == User.Role.EXT:
+            # Filtre sur l'ENSEMBLE des missions actives de l'auditeur : auditeur
+            # + statut + échéance portent ainsi sur la MÊME mission. Un filtre en
+            # deux .filter() chaînés créerait deux JOINs M2M indépendants et
+            # laisserait fuiter une reco dont une autre mission (non liée à
+            # l'auditeur) est active (FR28).
+            active_missions = get_active_missions_for_user(user=user)
+            qs = qs.filter(external_missions__in=active_missions).distinct()
         else:
-            # Sécurité défensive (Fail-Closed) pour les rôles non pris en charge (ex: ADMIN, EXT)
+            # Sécurité défensive (Fail-Closed) pour les rôles non pris en charge (ex: ADMIN)
             return qs.none()
 
     # 2. Application des filtres utilisateur

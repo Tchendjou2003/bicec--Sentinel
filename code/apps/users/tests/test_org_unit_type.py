@@ -166,7 +166,7 @@ class OrgUnitTypeCreateTest(TestCase):
         response = self.client.get(reverse("auth:org-unit-type-create"))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(
-            response, "admin_it/org_unit_types/_form_modal.html"
+            response, "admin_it/org_unit_types/partials/_form_modal.html"
         )
 
     def test_post_valid_returns_204_with_hx_refresh(self):
@@ -246,7 +246,7 @@ class OrgUnitTypeEditTest(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(
-            response, "admin_it/org_unit_types/_form_modal.html"
+            response, "admin_it/org_unit_types/partials/_form_modal.html"
         )
 
     def test_post_valid_updates_name_and_level(self):

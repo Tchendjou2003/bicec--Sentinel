@@ -110,11 +110,16 @@ class ExternalIsolationMiddleware:
     Ce middleware agit APRÈS l'authentification et le RoleRequiredMiddleware.
     """
 
-    # Seules les routes autorisées pour un utilisateur externe
+    # Seules les routes autorisées pour un utilisateur externe.
+    # Le portail EXT (Story 6.7) vit sous /audit/ : ces routes sont en lecture
+    # seule (les écritures restent bloquées par WRITE_METHODS) et le RBAC est
+    # déjà appliqué en profondeur par get_recommendations_for_user (FR28).
     EXTERNAL_ALLOWED_PATHS = (
         "/auth/login/",
         "/auth/logout/",
         "/auth/external/",
+        "/audit/recommandations/",   # liste + détail + export-zip par reco (GET)
+        "/audit/externe/",           # page d'attente + export-zip portail (GET)
     )
 
     # Méthodes HTTP en écriture

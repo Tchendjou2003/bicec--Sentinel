@@ -453,35 +453,7 @@ class UserProvisioningRequest(models.Model):
             "Trace l'intention métier dans l'audit trail."
         ),
     )
-    # ── Mission externe (conditionnel si rôle == EXT) ─────────────────
-    mission_organization = models.CharField(
-        _("Organisation (auditeur externe)"),
-        max_length=100,
-        blank=True,
-        default="",
-        help_text=_(
-            "Organisation d'origine de l'auditeur externe (ex. COBAC, BEAC). "
-            "Requis si le rôle est EXT."
-        ),
-    )
-    mission_scope = models.TextField(
-        _("Périmètre de la mission"),
-        blank=True,
-        default="",
-        help_text=_("Description libre du périmètre d'intervention de la mission."),
-    )
-    mission_start_date = models.DateField(
-        _("Date de début de mission"),
-        null=True,
-        blank=True,
-        help_text=_("Requis si le rôle est EXT."),
-    )
-    mission_end_date = models.DateField(
-        _("Date de fin de mission"),
-        null=True,
-        blank=True,
-        help_text=_("Optionnel — peut être laissé vide si la durée est indéterminée."),
-    )
+    # (Les champs mission_* ont été supprimés suite au découplage de la Story 6.7)
     # ── État de la demande ────────────────────────────────────────────
     status = models.CharField(
         _("Statut"),
@@ -597,30 +569,7 @@ class UserProvisioningRequest(models.Model):
                     "Le département est obligatoire pour ce rôle."
                 )}
             )
-        # Champs mission obligatoires si EXT
-        if self.requested_role == User.Role.EXT:
-            if not self.mission_organization:
-                raise ValidationError(
-                    {"mission_organization": _(
-                        "L'organisation est obligatoire pour un auditeur externe."
-                    )}
-                )
-            if not self.mission_start_date:
-                raise ValidationError(
-                    {"mission_start_date": _(
-                        "La date de début de mission est obligatoire pour un auditeur externe."
-                    )}
-                )
-            if (
-                self.mission_start_date
-                and self.mission_end_date
-                and self.mission_start_date > self.mission_end_date
-            ):
-                raise ValidationError(
-                    {"mission_end_date": _(
-                        "La date de fin ne peut pas être antérieure à la date de début."
-                    )}
-                )
+
 
 
 # =============================================================================
@@ -628,42 +577,75 @@ class UserProvisioningRequest(models.Model):
 # =============================================================================
 
 
+
 class ExternalMission(models.Model):
     """
-    Mission d'audit externe rattachée à un auditeur (COBAC, BEAC, CAC…).
+    Mission d'audit externe (COBAC, BEAC, CAC…).
 
-    Définit l'organisation d'origine, le périmètre d'intervention et
-    les dates de la mission. Permet de tracer quel auditeur externe
-    intervient, quand, et sur quel scope.
-
-    Note : La relation M2M avec les recommandations (``external_mission_recommendations``)
-    sera implémentée dans l'Epic 2 lorsque l'application ``workflow`` sera créée.
-
-    Ref. Architecture : §7.2 ERD — table ``users_external_mission``
-    Ref. PRD : FR2 (Opening Scene COBAC)
+    Définit l'organisation d'origine, le type, le statut et
+    les dates de la mission. Permet de tracer le périmètre et les auditeurs.
     """
+
+    class Status(models.TextChoices):
+        PREPARATION = "PREPARATION", _("En préparation")
+        ACTIVE = "ACTIVE", _("Active")
+        CLOSED = "CLOSED", _("Clôturée")
 
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
         editable=False,
     )
-    auditor = models.ForeignKey(
+    name = models.CharField(
+        _("Nom de la mission"),
+        max_length=200,
+        default="Mission",
+        help_text=_("Nom humain de la campagne (ex: Contrôle COBAC 2026)."),
+    )
+    organisation = models.ForeignKey(
+        "workflow.RecommendationSource",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        limit_choices_to={"is_external": True, "is_active": True},
+        related_name="external_missions",
+        verbose_name=_("Organisation"),
+    )
+    status = models.CharField(
+        _("Statut"),
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PREPARATION,
+    )
+    auditors = models.ManyToManyField(
+        User,
+        limit_choices_to={"role": User.Role.EXT},
+        related_name="external_missions",
+        verbose_name=_("Auditeurs externes"),
+        blank=True,
+    )
+    recommendations = models.ManyToManyField(
+        "workflow.Recommendation",
+        related_name="external_missions",
+        verbose_name=_("Recommandations"),
+        blank=True,
+    )
+    created_by = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
-        limit_choices_to={"is_external": True, "role": User.Role.EXT},
-        related_name="external_missions",
-        verbose_name=_("Auditeur externe"),
-        help_text=_(
-            "Utilisateur externe (is_external=True) rattaché à cette mission."
-        ),
+        related_name="created_external_missions",
+        verbose_name=_("Créée par"),
+        help_text=_("Membre de l'Audit Interne ayant créé la mission."),
+        null=True,
     )
-    organization = models.CharField(
-        _("Organisation"),
-        max_length=100,
-        help_text=_(
-            "Institution d'origine de l'auditeur (ex: COBAC, BEAC, CAC)."
-        ),
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_external_missions",
+        verbose_name=_("Approuvée par"),
+        help_text=_("Membre ayant validé l'ouverture de la mission."),
     )
     scope_description = models.TextField(
         _("Périmètre de la mission"),
@@ -687,14 +669,6 @@ class ExternalMission(models.Model):
             "encore définie."
         ),
     )
-    is_active = models.BooleanField(
-        _("Active"),
-        default=True,
-        help_text=_(
-            "Indique si la mission est en cours. Désactiver en fin "
-            "de mission plutôt que supprimer."
-        ),
-    )
     created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
     updated_at = models.DateTimeField(_("Modifié le"), auto_now=True)
 
@@ -703,14 +677,12 @@ class ExternalMission(models.Model):
         verbose_name_plural = _("Missions externes")
         ordering = ["-start_date"]
         indexes = [
-            models.Index(fields=["auditor"], name="idx_extmission_auditor"),
-            models.Index(fields=["organization"], name="idx_extmission_org"),
-            models.Index(fields=["is_active"], name="idx_extmission_active"),
+            models.Index(fields=["status"], name="idx_extmission_status"),
+            models.Index(fields=["organisation"], name="idx_extmission_organisation"),
         ]
 
     def __str__(self):
-        auditor_name = self.auditor.username if hasattr(self, "auditor") and self.auditor else "N/A"
-        return f"{self.organization} — {auditor_name}"
+        return f"{self.name} ({self.get_status_display()})"
 
     def clean(self):
         super().clean()

@@ -4,7 +4,7 @@
     <div class="flex items-center gap-2">
       {% if req.request_type == 'MODIFY' %}
       <span
-        class="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200 uppercase tracking-wide">Modif.</span>
+        class="inline-flex items-center rounded-md bg-status-assigned-tint px-1.5 py-0.5 text-[10px] font-semibold text-status-assigned border border-status-assigned-tint uppercase tracking-wide">Modif.</span>
       {% endif %}
       <div>
         <div class="font-medium text-text-primary">{{ req.requested_username }}</div>
@@ -14,9 +14,6 @@
   </td>
   <td class="px-5 py-3 text-text-secondary">
     {{ req.get_requested_role_display }}
-    {% if req.requested_role == 'EXT' %}
-    <span class="ml-1 text-xs text-tertiary">({{ req.mission_organization|default:"—" }})</span>
-    {% endif %}
   </td>
   <td class="px-5 py-3 text-text-secondary text-xs">
     {{ req.requested_department.name|default:"—" }}
@@ -33,13 +30,13 @@
     </span>
     {% elif req.status == 'APPROVED' %}
     <span
-      class="inline-flex items-center gap-1 rounded-md bg-green-50 px-2 py-0.5 text-xs font-medium text-status-approved">
+      class="inline-flex items-center gap-1 rounded-md bg-success-tint px-2 py-0.5 text-xs font-medium text-status-approved">
       <span class="h-1.5 w-1.5 rounded-full bg-status-approved"></span>
       Approuvée
     </span>
     {% elif req.status == 'REJECTED' %}
     <span
-      class="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-status-rejected">
+      class="inline-flex items-center gap-1 rounded-md bg-danger-tint px-2 py-0.5 text-xs font-medium text-status-rejected">
       <span class="h-1.5 w-1.5 rounded-full bg-status-rejected"></span>
       Rejetée
     </span>
@@ -61,12 +58,12 @@
       {% if is_approver %}
       <button hx-post="{% url 'auth:provisioning-approve' req.pk %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
         hx-disabled-elt="this"
-        class="rounded-md bg-green-50 px-2.5 py-1 text-xs font-medium text-status-approved border border-green-200 hover:bg-green-100 transition-colors duration-150">
+        class="rounded-md bg-success-tint px-2.5 py-1 text-xs font-medium text-status-approved border border-success-border hover:brightness-95 transition-colors duration-150">
         Approuver
       </button>
       <button hx-get="{% url 'auth:provisioning-reject' req.pk %}" hx-target="#reject-modal-container"
         hx-swap="innerHTML" @click="$dispatch('open-reject-modal')"
-        class="rounded-md bg-red-50 px-2.5 py-1 text-xs font-medium text-status-rejected border border-red-200 hover:bg-red-100 transition-colors duration-150">
+        class="rounded-md bg-danger-tint px-2.5 py-1 text-xs font-medium text-status-rejected border border-danger-border hover:brightness-95 transition-colors duration-150">
         Rejeter
       </button>
       {% endif %}

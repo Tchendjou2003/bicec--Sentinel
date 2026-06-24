@@ -14,8 +14,8 @@
   {# ── En-tête ── #}
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-bold font-heading" style="color:#2D1F1E;">Gestion des utilisateurs</h1>
-      <p class="text-sm text-gray-500 mt-1">
+      <h1 class="text-2xl font-bold font-heading text-text-primary">Gestion des utilisateurs</h1>
+      <p class="text-sm text-text-body mt-1">
         {% if is_approver %}
           {% if pending_count > 0 %}
             <span class="font-semibold text-sentinel-orange">{{ pending_count }}</span> demande{{ pending_count|pluralize }} en attente de validation
@@ -73,7 +73,7 @@
 
   {# ── Filtre statut — dropdown dynamique HTMX ── #}
   <div class="flex items-center gap-3">
-    <label for="status-filter" class="text-sm font-medium text-gray-500 shrink-0">Filtrer :</label>
+    <label for="status-filter" class="text-sm font-medium text-text-body shrink-0">Filtrer :</label>
     <select
       id="status-filter"
       name="status"
@@ -82,7 +82,7 @@
       hx-target="#provisioning-table"
       hx-swap="outerHTML"
       hx-include="this"
-      class="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200 cursor-pointer"
+      class="rounded-xl border border-border-subtle bg-white px-4 py-2 text-sm font-medium text-text-body shadow-sm focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200 cursor-pointer"
     >
       <option value="" {% if not status_filter %}selected{% endif %}>Toutes les demandes</option>
       {% for value, label in status_choices %}
@@ -90,7 +90,7 @@
       {% endfor %}
     </select>
     {% if status_filter %}
-    <span class="text-xs text-gray-400">
+    <span class="text-xs text-text-faint">
       — <a href="{% url 'auth:provisioning-list' %}" class="text-sentinel-orange hover:underline">Tout voir</a>
     </span>
     {% endif %}
@@ -124,7 +124,7 @@
     >
       {# Overlay backdrop #}
       <div
-        class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+        class="absolute inset-0 bg-black/40 backdrop-blur-sm"
         @click="slideOverOpen = false"
       ></div>
 

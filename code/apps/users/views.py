@@ -829,8 +829,6 @@ class ProvisioningRequestCreateView(AdminRequiredMixin, View):
             "password": "Mot de passe",
             "requested_role": "Rôle",
             "requested_department": "Département",
-            "mission_organization": "Organisation",
-            "mission_start_date": "Date de début",
         }
         for field_name in form.errors:
             if field_name == "__all__":
@@ -1004,7 +1002,7 @@ def _render_org_unit_type_form(request, form, instance=None):
     status = 422 if form.errors else 200
     return render(
         request,
-        "admin_it/org_unit_types/_form_modal.html",
+        "admin_it/org_unit_types/partials/_form_modal.html",
         {"form": form, "org_unit_type": instance},
         status=status,
     )

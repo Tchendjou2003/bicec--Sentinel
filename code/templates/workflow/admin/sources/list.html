@@ -9,8 +9,8 @@
   {# ── Header + Bouton Créer ── #}
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Sources de recommandation</h1>
-      <p class="text-sm text-gray-500 mt-1">Paramétrage des sources internes et externes</p>
+      <h1 class="text-2xl font-bold text-text-primary tracking-tight">Sources de recommandation</h1>
+      <p class="text-sm text-text-body mt-1">Paramétrage des sources internes et externes</p>
     </div>
     <button
       @click="modalOpen = true"
@@ -44,32 +44,28 @@
           {% for source in sources %}
           <tr class="hover:bg-sentinel-orange-light transition-colors duration-150" id="source-row-{{ source.pk }}">
             <td class="px-4 py-3.5">
-              <span class="text-[13px] font-semibold font-mono" style="color:#2D1F1E;">{{ source.code }}</span>
+              <span class="text-[13px] font-semibold font-mono text-text-primary">{{ source.code }}</span>
             </td>
-            <td class="px-4 py-3.5 text-[13px]" style="color:#2D1F1E;">{{ source.label }}</td>
+            <td class="px-4 py-3.5 text-[13px] text-text-primary">{{ source.label }}</td>
             <td class="px-4 py-3.5">
               {% if source.is_external %}
-              <span class="inline-flex items-center rounded-md px-2 py-1 text-[11.5px] font-semibold"
-                    style="background:#E6F2F1;color:#0A4744;">Externe</span>
+              <span class="inline-flex items-center rounded-md px-2 py-1 text-[11.5px] font-semibold bg-sentinel-teal-tint text-sentinel-teal-darker">Externe</span>
               {% else %}
-              <span class="inline-flex items-center rounded-md px-2 py-1 text-[11.5px] font-semibold"
-                    style="background:#F5EDE6;color:#6F635B;">Interne</span>
+              <span class="inline-flex items-center rounded-md px-2 py-1 text-[11.5px] font-semibold bg-sentinel-brown-tint text-text-body">Interne</span>
               {% endif %}
             </td>
             <td class="px-4 py-3.5">
               {% if source.is_active %}
-              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
-                    style="background:#E7F2EC;color:#1E6B41;">
-                <span class="h-1.5 w-1.5 rounded-full" style="background:#2D8B56;"></span>Active
+              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold bg-success-tint text-success-strong">
+                <span class="h-1.5 w-1.5 rounded-full bg-status-approved"></span>Active
               </span>
               {% else %}
-              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
-                    style="background:#F5EDE6;color:#968A80;">
-                <span class="h-1.5 w-1.5 rounded-full" style="background:#968A80;"></span>Inactive
+              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold bg-sentinel-brown-tint text-text-faint">
+                <span class="h-1.5 w-1.5 rounded-full bg-text-faint"></span>Inactive
               </span>
               {% endif %}
             </td>
-            <td class="px-4 py-3.5 text-[12.5px]" style="color:#6F635B;">{{ source.created_at|date:"d/m/Y" }}</td>
+            <td class="px-4 py-3.5 text-[12.5px] text-text-body">{{ source.created_at|date:"d/m/Y" }}</td>
             <td class="px-4 py-3.5">
               <div class="flex items-center gap-2">
                 {# Bouton Modifier #}
@@ -78,8 +74,7 @@
                   hx-get="{% url 'workflow:source-edit' source.pk %}"
                   hx-target="#modal-content"
                   hx-swap="innerHTML"
-                  class="rounded-lg p-1.5 transition-colors hover:bg-surface-warm"
-                  style="color:#968A80;"
+                  class="rounded-lg p-1.5 transition-colors hover:bg-surface-warm text-text-faint"
                   title="Modifier"
                 >
                   <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
@@ -88,7 +83,7 @@
                 <button
                   hx-post="{% url 'workflow:source-toggle' source.pk %}"
                   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                  class="rounded-lg p-1.5 transition-colors {% if source.is_active %}text-[#968A80]{% else %}text-[#2D8B56]{% endif %}"
+                  class="rounded-lg p-1.5 transition-colors {% if source.is_active %}text-text-faint{% else %}text-status-approved{% endif %}"
                   title="{% if source.is_active %}Désactiver{% else %}Activer{% endif %}"
                 >
                   {% if source.is_active %}
@@ -126,14 +121,14 @@
     </div>
     {% else %}
     {# ── Empty State ── #}
-    <div class="bg-white rounded-xl py-16 px-8 text-center" style="border:1px dashed #E8DFD6;">
-      <div class="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-5" style="background:#F5EDE6;color:#E87722;">
+    <div class="bg-white rounded-xl py-16 px-8 text-center border border-dashed border-border-subtle">
+      <div class="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-5 bg-sentinel-brown-tint text-sentinel-orange">
         <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Z"/><path d="M12 12h.01"/>
         </svg>
       </div>
-      <h3 class="text-lg font-semibold mb-2" style="color:#2D1F1E;">Aucune source configurée</h3>
-      <p class="text-sm mb-8 max-w-md mx-auto" style="color:#6F635B;">Créez les sources de recommandations utilisées dans votre organisation.</p>
+      <h3 class="text-lg font-semibold mb-2 text-text-primary">Aucune source configurée</h3>
+      <p class="text-sm mb-8 max-w-md mx-auto text-text-body">Créez les sources de recommandations utilisées dans votre organisation.</p>
       <button
         @click="modalOpen = true"
         hx-get="{% url 'workflow:source-create' %}"
@@ -163,7 +158,7 @@
       style="display:none"
       @keydown.escape.window="modalOpen = false"
     >
-      <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" @click="modalOpen = false"></div>
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="modalOpen = false"></div>
       <div
         x-show="modalOpen"
         x-transition:enter="transition ease-out duration-200"

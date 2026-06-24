@@ -9,8 +9,8 @@
   {# ── Header + Bouton Créer ── #}
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-bold tracking-tight" style="color:#2D1F1E;">Types d'unités organisationnelles</h1>
-      <p class="text-sm mt-1" style="color:#6F635B;">Paramétrage des catégories structurelles de l'organigramme</p>
+      <h1 class="text-2xl font-bold tracking-tight text-text-primary">Types d'unités organisationnelles</h1>
+      <p class="text-sm mt-1 text-text-body">Paramétrage des catégories structurelles de l'organigramme</p>
     </div>
     <button
       @click="modalOpen = true"
@@ -27,33 +27,33 @@
   {# ── Tableau des types ── #}
   <div id="org-unit-types-table">
     {% if org_unit_types %}
-    <div class="bg-white rounded-xl overflow-hidden shadow-premium-sm" style="border:1px solid #E8DFD6;">
+    <div class="bg-white rounded-xl overflow-hidden shadow-premium-sm border border-border-subtle">
       <table class="min-w-full divide-y divide-border-subtle">
         <thead>
-          <tr style="background:#F3EFEA;">
+          <tr class="bg-surface-sunken">
             <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Code</th>
             <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Libellé</th>
             <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Niveau</th>
             <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Statut</th>
-            <th class="px-4 py-3 text-right text-[10.5px] font-bold uppercase tracking-[0.06em]" style="color:#968A80;">Actions</th>
+            <th class="px-4 py-3 text-right text-[10.5px] font-bold uppercase tracking-[0.06em] text-text-faint">Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-surface-warm">
           {% for obj in org_unit_types %}
           <tr class="hover:bg-surface-base transition-colors duration-150">
             <td class="px-4 py-2.5">
-              <span class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold" style="background:#F5EDE6;color:#6F635B;font-family:monospace;">{{ obj.code }}</span>
+              <span class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold bg-sentinel-brown-tint text-text-body font-mono">{{ obj.code }}</span>
             </td>
-            <td class="px-4 py-2.5 text-sm font-medium" style="color:#2D1F1E;">{{ obj.name }}</td>
-            <td class="px-4 py-2.5 text-sm" style="color:#6F635B;font-family:monospace;">{{ obj.level }}</td>
+            <td class="px-4 py-2.5 text-sm font-medium text-text-primary">{{ obj.name }}</td>
+            <td class="px-4 py-2.5 text-sm text-text-body font-mono">{{ obj.level }}</td>
             <td class="px-4 py-2.5">
               {% if obj.is_active %}
-              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold" style="background:#E7F2EC;color:#1E6B41;">
-                <span class="h-1.5 w-1.5 rounded-full" style="background:#2D8B56;"></span>Actif
+              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-success-tint text-success-strong">
+                <span class="h-1.5 w-1.5 rounded-full bg-status-approved"></span>Actif
               </span>
               {% else %}
-              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold" style="background:#F5EDE6;color:#968A80;">
-                <span class="h-1.5 w-1.5 rounded-full" style="background:#968A80;"></span>Inactif
+              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold bg-sentinel-brown-tint text-text-faint">
+                <span class="h-1.5 w-1.5 rounded-full bg-text-faint"></span>Inactif
               </span>
               {% endif %}
             </td>
@@ -65,8 +65,7 @@
                   hx-get="{% url 'auth:org-unit-type-edit' obj.pk %}"
                   hx-target="#modal-content"
                   hx-swap="innerHTML"
-                  class="rounded-lg p-1.5 transition-colors hover:bg-surface-warm"
-                  style="color:#968A80;"
+                  class="rounded-lg p-1.5 transition-colors hover:bg-surface-warm text-text-faint"
                   title="Modifier"
                 >
                   <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
@@ -75,8 +74,7 @@
                 <button
                   hx-post="{% url 'auth:org-unit-type-toggle' obj.pk %}"
                   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                  class="rounded-lg p-1.5 transition-colors"
-                  style="{% if obj.is_active %}color:#968A80;{% else %}color:#2D8B56;{% endif %}"
+                  class="rounded-lg p-1.5 transition-colors {% if obj.is_active %}text-text-faint{% else %}text-status-approved{% endif %}"
                   title="{% if obj.is_active %}Désactiver{% else %}Activer{% endif %}"
                 >
                   {% if obj.is_active %}
@@ -114,12 +112,12 @@
     </div>
     {% else %}
     {# ── État vide ── #}
-    <div class="flex flex-col items-center justify-center py-20 text-center bg-white rounded-xl border-dashed" style="border:1px dashed #E8DFD6;">
-      <div class="h-16 w-16 rounded-full flex items-center justify-center mb-4" style="background:#F5EDE6;color:#E87722;">
+    <div class="flex flex-col items-center justify-center py-20 text-center bg-white rounded-xl border border-dashed border-border-subtle">
+      <div class="h-16 w-16 rounded-full flex items-center justify-center mb-4 bg-sentinel-brown-tint text-sentinel-orange">
         <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
       </div>
-      <h3 class="text-lg font-bold mb-1" style="color:#2D1F1E;">Aucun type défini</h3>
-      <p class="text-sm mb-6 max-w-sm" style="color:#6F635B;">Créez les types d'unités structurelles (Direction, Service, Agence…) pour paramétrer l'organigramme.</p>
+      <h3 class="text-lg font-bold mb-1 text-text-primary">Aucun type défini</h3>
+      <p class="text-sm mb-6 max-w-sm text-text-body">Créez les types d'unités structurelles (Direction, Service, Agence…) pour paramétrer l'organigramme.</p>
       <button
         @click="modalOpen = true"
         hx-get="{% url 'auth:org-unit-type-create' %}"
@@ -152,7 +150,7 @@
       x-transition:enter="transition ease-out duration-200"
       x-transition:enter-start="opacity-0 translate-y-4 scale-95"
       x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-      class="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-100"
+      class="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-border-subtle"
       @keydown.escape.window="modalOpen = false"
       id="modal-content"
     >

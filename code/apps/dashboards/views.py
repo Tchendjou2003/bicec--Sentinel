@@ -9,11 +9,14 @@ Dispatche le template et le contexte selon le rôle sans duplicer la logique RBA
 
 Stories couvertes : 6.1a (DM + ETP), 6.1b (DG — TODO), 6.1c (Audit — TODO)
 """
+
 import json
 
+from django.http import HttpResponse
+from django.views import View
 from django.views.generic import TemplateView
 
-from apps.users.mixins import WorkflowAccessMixin
+from apps.users.mixins import AuditRequiredMixin, WorkflowAccessMixin
 
 from . import selectors
 
@@ -82,7 +85,9 @@ class DashboardView(WorkflowAccessMixin, TemplateView):
 
         subtitles = {
             User.Role.DM: (
-                f"Périmètre — {user.department.name}" if user.department else "Vue département"
+                f"Périmètre — {user.department.name}"
+                if user.department
+                else "Vue département"
             ),
             User.Role.ETP: "Mes recommandations déléguées",
             User.Role.DG: "Vision consolidée — toute la banque",
@@ -130,13 +135,19 @@ class DashboardView(WorkflowAccessMixin, TemplateView):
     # ──────────────────────────────────────────────────────────────────────
 
     def _dg_context(self, user) -> dict:
-        """Contexte du dashboard DG — KPIs macro, heatmap, barres, mes recos."""
-        # breakdown calculé une seule fois, réutilisé pour heatmap ET barres
+        """Contexte du dashboard DG — KPIs macro, heatmap, barres, efficacité, KRI, mes recos."""
         dept_breakdown = selectors.get_dg_department_breakdown()
         return {
             "kpis": selectors.get_dg_kpis(),
             "dept_breakdown": dept_breakdown,
             "stacked_bar_json": selectors._get_stacked_bar_json(dept_breakdown),
+            "efficiency": selectors.get_efficiency_kpis(),
+            "throughput_json": selectors.get_throughput_series_json(),
+            "risk_kris": selectors.get_risk_kris(),
+            "risk_trend_json": selectors.get_risk_trend_series(),
+            "at_risk_recos": selectors.get_at_risk_recommendations(user=user),
+            "stuck_recos": selectors.get_stuck_recommendations(user=user),
+            "governance": selectors.get_governance_summary(user=user),
             "my_recos": selectors.get_dg_my_recos_with_aging(user=user),
         }
 
@@ -158,8 +169,46 @@ class DashboardView(WorkflowAccessMixin, TemplateView):
             "pending_extensions_count": selectors.get_audit_pending_extensions_count(),
             # File 3 — brouillons à assigner
             "draft_unassigned": selectors.get_audit_draft_unassigned(user=user),
-            "draft_unassigned_count": selectors.get_audit_draft_unassigned_count(user=user),
+            "draft_unassigned_count": selectors.get_audit_draft_unassigned_count(
+                user=user
+            ),
             # Graphiques
             "dept_breakdown": dept_breakdown,
             "stacked_bar_json": selectors._get_stacked_bar_json(dept_breakdown),
+            "efficiency": selectors.get_efficiency_kpis(),
+            "throughput_json": selectors.get_throughput_series_json(),
+            "risk_kris": selectors.get_risk_kris(),
+            "risk_trend_json": selectors.get_risk_trend_series(),
+            "at_risk_recos": selectors.get_at_risk_recommendations(user=user),
+            "stuck_recos": selectors.get_stuck_recommendations(user=user),
+            "governance": selectors.get_governance_summary(user=user),
         }
+
+
+# =============================================================================
+# Export reddition — Story 6.9 Sprint D (AC4, NFR-SEC-05)
+# =============================================================================
+
+
+class GovernanceExportView(AuditRequiredMixin, View):
+    """
+    Export Excel du pack de reddition gouvernance (top risques + tendances 90j).
+
+    GET /tableau-de-bord/export-reddition/ → fichier .xlsx
+    Emet AuditLog action=EXPORT.
+    Accessible AUDIT uniquement (AuditRequiredMixin).
+    """
+
+    def get(self, request):
+        from .services import build_governance_excel
+
+        content = build_governance_excel(user=request.user)
+        response = HttpResponse(
+            content,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        from django.utils import timezone as tz
+
+        filename = f"reddition-gouvernance-{tz.localdate().isoformat()}.xlsx"
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response

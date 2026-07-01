@@ -6,10 +6,13 @@ Génération et vérification du sceau cryptographique HMAC-SHA256 de clôture
 les hashs SHA-256 des preuves acceptées, calculé avec ``HMAC_SECRET_KEY``
 (distincte de ``SECRET_KEY`` — ADR-07).
 
-Invariant de sûreté : le payload n'utilise QUE des identifiants stables
-(UUID, codes) — jamais de libellés mutables (noms, intitulés) — afin que
-``verify_recommendation_seal`` (qui recalcule depuis l'état courant) reste fiable
-même après un renommage d'utilisateur ou de direction.
+Le payload inclut à la fois des identifiants stables (UUID, codes) et des champs
+texte (description, mission_label, commentaires de soumission). En conséquence,
+``verify_recommendation_seal`` détectera toute modification post-clôture de ces
+champs — c'est le comportement voulu (tamper detection). L'intégrité repose sur
+la garde DRAFT-only de ``update_recommendation`` qui bloque toute modification
+en dehors de l'état DRAFT. Ne pas contourner cette garde sans mettre à jour le
+sceau.
 """
 import hashlib
 import hmac

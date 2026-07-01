@@ -4,48 +4,61 @@
 {% block title %}Sentinel — Espace Externe{% endblock %}
 
 {% block body %}
-<div class="min-h-screen flex flex-col bg-background">
-  {# Topbar simplifiée pour l'espace externe #}
-  <header class="bg-card border-b border-border/50 px-6 py-4 flex items-center justify-between shadow-sm">
-    <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-        <span class="text-white font-bold text-sm">S</span>
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold text-foreground">Sentinel</h1>
-        <p class="text-xs text-muted-foreground">Espace Auditeur Externe</p>
-      </div>
-    </div>
-    <div class="flex items-center gap-4">
-      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-warning/10 text-warning text-xs font-medium border border-warning/20">
-        <svg aria-hidden="true" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+<div x-data class="min-h-screen flex w-full">
+
+  {# ── Sidebar externe ── #}
+  {% include "partials/sidebar_audit_ext.html" %}
+
+  {# ── Zone principale ── #}
+  <div class="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+
+    {# ── Topbar ── #}
+    <header class="shrink-0 bg-white border-b border-border/50 px-5 py-3 flex items-center gap-4 shadow-xs">
+
+      {# Hamburger — visible quand sidebar fermée #}
+      <button type="button"
+        x-show="!$store.sentinel.sidebarOpen"
+        @click="$store.sentinel.toggleSidebar()"
+        class="rounded-md p-1.5 text-text-secondary hover:bg-surface-sunken transition-colors"
+        aria-label="Ouvrir le menu">
+        <svg aria-hidden="true" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
         </svg>
-        Lecture seule
-      </span>
-      {% if user.is_authenticated %}
-        <span class="text-sm text-muted-foreground">{{ user.get_full_name|default:user.username }}</span>
+      </button>
+
+      {# Titre de page (optionnel, injecté par les templates enfants) #}
+      <div class="flex-1 min-w-0">
+        {% block topbar_title %}{% endblock %}
+      </div>
+
+      {# Badge lecture seule + identité + déconnexion #}
+      <div class="flex items-center gap-4 shrink-0">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-warning/10 text-warning text-xs font-semibold border border-warning/20">
+          <svg aria-hidden="true" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+          Lecture seule
+        </span>
+
+        {% if user.is_authenticated %}
+        <span class="text-sm text-text-body font-medium hidden sm:inline">
+          {{ user.get_full_name|default:user.username }}
+        </span>
         <form method="post" action="{% url 'auth:logout' %}">
           {% csrf_token %}
-          <button type="submit"
-                  class="text-sm text-muted-foreground hover:text-destructive transition-colors">
+          <button type="submit" class="text-sm text-text-faint hover:text-danger transition-colors">
             Déconnexion
           </button>
         </form>
-      {% endif %}
-    </div>
-  </header>
+        {% endif %}
+      </div>
+    </header>
 
-  {# Contenu principal #}
-  <main class="flex-1 overflow-auto p-6 animate-fade-in">
-    {% block content %}{% endblock %}
-  </main>
+    {# ── Contenu ── #}
+    <main class="flex-1 bg-background p-6 animate-fade-in">
+      {% block content %}{% endblock %}
+    </main>
 
-  {# Footer simplifié #}
-  <footer class="border-t border-border/50 bg-card px-6 py-3">
-    <p class="text-xs text-muted-foreground text-center">
-      Sentinel — Plateforme de suivi des recommandations d'audit BICEC &middot; Accès externe
-    </p>
-  </footer>
+  </div>
 </div>
 {% endblock %}

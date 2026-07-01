@@ -42,8 +42,14 @@ def _add_file_dedup(zip_file, *, file_path, folder, filename, used_names) -> Non
     used_names.add(arcname)
     try:
         zip_file.write(file_path, arcname=arcname)
-    except OSError:
+    except OSError as exc:
         # Fichier corrompu / supprimé / permissions : on saute sans avorter l'export.
+        # Capture silencieuse pour tracer les fichiers manquants sans bloquer la génération.
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_exception(exc)
+        except Exception:
+            pass
         used_names.discard(arcname)
 
 

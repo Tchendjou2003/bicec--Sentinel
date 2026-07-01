@@ -87,12 +87,11 @@ class ExternalDashboardViewTest(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_external_dashboard_uses_external_shell(self):
-        """Le tableau de bord externe utilise le template external_shell.html."""
+        """Le tableau de bord externe utilise le layout external_shell.html."""
         self.client.force_login(self.ext_user)
         response = self.client.get(reverse("auth:external-dashboard"))
-        # Vérifie que le template de l'espace externe est utilisé
         template_names = [t.name for t in response.templates]
-        self.assertIn("external/dashboard.html", template_names)
+        self.assertIn("layouts/external_shell.html", template_names)
 
     def test_external_dashboard_requires_login(self):
         """Le tableau de bord externe requiert une authentification."""

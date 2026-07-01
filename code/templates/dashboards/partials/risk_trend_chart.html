@@ -1,0 +1,61 @@
+{% comment %}
+Composant Line Chart.js — tendance KRI sur N mois
+Variables : chart_id (str, unique), chart_data_json (JSON {labels, datasets})
+3 séries : "En retard" (gauche), "Retard +90j" (gauche), "Stock régl. pondéré" (droite y1).
+Chart.js doit être chargé avant via block extra_js.
+{% endcomment %}
+<div class="relative">
+  <canvas id="{{ chart_id }}" height="220" aria-label="Tendance KRI des 6 derniers mois" role="img"></canvas>
+</div>
+<script>
+(function () {
+  var chartId = "{{ chart_id }}";
+  var chartJson = "{{ chart_data_json|escapejs }}";
+  var d = JSON.parse(chartJson);
+  var canvas = document.getElementById(chartId);
+  if (!canvas) { return; }
+  new Chart(canvas, {
+    type: "line",
+    data: { labels: d.labels, datasets: d.datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 11 }, maxTicksLimit: 6 }
+        },
+        y: {
+          beginAtZero: true,
+          position: "left",
+          ticks: { precision: 0, font: { size: 11 } },
+          grid: { color: "rgba(0,0,0,0.04)" },
+          title: { display: true, text: "Nb recos", font: { size: 10 }, color: "#9CA3AF" }
+        },
+        y1: {
+          beginAtZero: true,
+          position: "right",
+          ticks: { precision: 0, font: { size: 11 } },
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: "Stock pondéré", font: { size: 10 }, color: "#8B5CF6" }
+        }
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { boxWidth: 12, padding: 14, font: { size: 11 }, usePointStyle: true }
+        },
+        tooltip: {
+          callbacks: {
+            label: function (ctx) {
+              return " " + ctx.dataset.label + " : " + (ctx.parsed.y !== null ? ctx.parsed.y : "—");
+            }
+          }
+        }
+      },
+      animation: { duration: 400 }
+    }
+  });
+}());
+</script>

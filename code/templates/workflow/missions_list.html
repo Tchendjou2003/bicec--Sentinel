@@ -104,17 +104,24 @@
                 </button>
 
                 {% if mission.status == 'PREPARATION' %}
-                <form method="post" action="{% url 'workflow:mission-toggle-status' mission.pk %}" class="inline">
-                  {% csrf_token %}
-                  <input type="hidden" name="status" value="ACTIVE">
-                  <button type="submit" class="text-status-closed-strong hover:text-white bg-status-closed-tint hover:bg-status-closed-strong px-2 py-1 rounded text-xs transition-colors">Activer</button>
-                </form>
+                <button type="button"
+                  hx-post="{% url 'workflow:mission-toggle-status' mission.pk %}"
+                  hx-vals='{"status": "ACTIVE"}'
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-swap="none"
+                  class="text-status-closed-strong hover:text-white bg-status-closed-tint hover:bg-status-closed-strong px-2 py-1 rounded text-xs transition-colors">
+                  Activer
+                </button>
                 {% elif mission.status == 'ACTIVE' %}
-                <form method="post" action="{% url 'workflow:mission-toggle-status' mission.pk %}" class="inline">
-                  {% csrf_token %}
-                  <input type="hidden" name="status" value="CLOSED">
-                  <button type="submit" class="text-danger hover:text-white bg-danger-tint hover:bg-danger px-2 py-1 rounded text-xs transition-colors" onclick="return confirm('Clôturer cette mission coupera immédiatement l\'accès aux auditeurs externes. Confirmer ?')">Clôturer</button>
-                </form>
+                <button type="button"
+                  hx-post="{% url 'workflow:mission-toggle-status' mission.pk %}"
+                  hx-vals='{"status": "CLOSED"}'
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-swap="none"
+                  hx-confirm="Clôturer cette mission coupera immédiatement l'accès aux auditeurs externes. Confirmer ?"
+                  class="text-danger hover:text-white bg-danger-tint hover:bg-danger px-2 py-1 rounded text-xs transition-colors">
+                  Clôturer
+                </button>
                 {% endif %}
               </div>
             </td>

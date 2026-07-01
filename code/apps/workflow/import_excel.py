@@ -411,7 +411,14 @@ def parse_workbook(file) -> list[RowDraft]:
     file.seek(0)
     try:
         wb = openpyxl.load_workbook(file, read_only=True, data_only=True)
-    except Exception:
+    except Exception as exc:
+        # Capture l'exception openpyxl originale avant de la remplacer par le
+        # message utilisateur. Permet de distinguer BadZipFile, KeyError, etc.
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_exception(exc)
+        except Exception:
+            pass
         raise ValidationError(
             _("Format de fichier non reconnu — déposez le modèle .xlsx Sentinel.")
         )

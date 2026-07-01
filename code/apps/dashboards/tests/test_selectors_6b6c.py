@@ -5,6 +5,7 @@ Vérifie :
     - DG : KPIs banque entière, breakdown par direction, my_recos scopé
     - Audit : KPIs globaux, counts des 3 files d'action, breakdown
 """
+
 import uuid
 from datetime import timedelta
 
@@ -37,20 +38,34 @@ class DashboardDgAuditTestMixin:
             code="DIRECTION",
             defaults={"name": "Direction", "level": 1},
         )
-        cls.dir_a = Department.objects.create(name="Direction Alpha", code="DALPHA", type=cls.type_dir)
-        cls.dir_b = Department.objects.create(name="Direction Beta", code="DBETA", type=cls.type_dir)
+        cls.dir_a = Department.objects.create(
+            name="Direction Alpha", code="DALPHA", type=cls.type_dir
+        )
+        cls.dir_b = Department.objects.create(
+            name="Direction Beta", code="DBETA", type=cls.type_dir
+        )
 
         cls.audit_user = User.objects.create_user(
-            username="audit_6bc", password="TestPass123!", role=User.Role.AUDIT,
+            username="audit_6bc",
+            password="TestPass123!",
+            role=User.Role.AUDIT,
         )
         cls.dm_a = User.objects.create_user(
-            username="dm_6bc_a", password="TestPass123!", role=User.Role.DM, department=cls.dir_a,
+            username="dm_6bc_a",
+            password="TestPass123!",
+            role=User.Role.DM,
+            department=cls.dir_a,
         )
         cls.dm_b = User.objects.create_user(
-            username="dm_6bc_b", password="TestPass123!", role=User.Role.DM, department=cls.dir_b,
+            username="dm_6bc_b",
+            password="TestPass123!",
+            role=User.Role.DM,
+            department=cls.dir_b,
         )
         cls.dg_user = User.objects.create_user(
-            username="dg_6bc", password="TestPass123!", role=User.Role.DG,
+            username="dg_6bc",
+            password="TestPass123!",
+            role=User.Role.DG,
         )
         cls.source, _ = RecommendationSource.objects.get_or_create(
             code="INTERNE",
@@ -114,9 +129,21 @@ class GetDgSelectorsTest(DashboardDgAuditTestMixin, TestCase):
         breakdown = get_dg_department_breakdown()
         self.assertGreaterEqual(len(breakdown), 1)
         expected_keys = {
-            "department", "total", "actives", "overdue", "overdue_pct",
-            "closed", "taux_cloture", "critique_open", "risk_level",
-            "assigned", "in_progress", "pending_dm", "pending_audit",
+            "department",
+            "label",
+            "is_direct",
+            "total",
+            "actives",
+            "overdue",
+            "overdue_pct",
+            "closed",
+            "taux_cloture",
+            "critique_open",
+            "risk_level",
+            "assigned",
+            "in_progress",
+            "pending_dm",
+            "pending_audit",
         }
         for row in breakdown:
             self.assertTrue(expected_keys.issubset(row.keys()))
@@ -125,10 +152,16 @@ class GetDgSelectorsTest(DashboardDgAuditTestMixin, TestCase):
         """Une reco d'une sous-direction remonte sous sa direction racine (Fix #2)."""
         # Sous-direction rattachée à dir_a
         sous_dir = Department.objects.create(
-            name="Sous-Direction Alpha", code="SDALPHA", type=self.type_dir, parent=self.dir_a,
+            name="Sous-Direction Alpha",
+            code="SDALPHA",
+            type=self.type_dir,
+            parent=self.dir_a,
         )
         dm_sub = User.objects.create_user(
-            username="dm_sub_a", password="TestPass123!", role=User.Role.DM, department=sous_dir,
+            username="dm_sub_a",
+            password="TestPass123!",
+            role=User.Role.DM,
+            department=sous_dir,
         )
         # 1 reco directement sur dir_a, 1 reco sur la sous-direction
         self._create_reco(self.dir_a, assign_dm=self.dm_a)
@@ -160,6 +193,7 @@ class GetDgSelectorsTest(DashboardDgAuditTestMixin, TestCase):
     def test_stacked_bar_json_valid(self):
         """_get_stacked_bar_json retourne un JSON parsable avec labels + datasets."""
         import json
+
         self._create_reco(self.dir_a, assign_dm=self.dm_a)
         breakdown = get_dg_department_breakdown()
         data = json.loads(_get_stacked_bar_json(breakdown))
@@ -201,11 +235,13 @@ class GetAuditSelectorsTest(DashboardDgAuditTestMixin, TestCase):
     def test_audit_pending_review_count(self):
         """Count des recos en PENDING_AUDIT_REVIEW."""
         self._create_reco(
-            self.dir_a, assign_dm=self.dm_a,
+            self.dir_a,
+            assign_dm=self.dm_a,
             status=Recommendation.Status.PENDING_AUDIT_REVIEW,
         )
         self._create_reco(
-            self.dir_b, assign_dm=self.dm_b,
+            self.dir_b,
+            assign_dm=self.dm_b,
             status=Recommendation.Status.PENDING_AUDIT_REVIEW,
         )
         self._create_reco(self.dir_a, assign_dm=self.dm_a)  # ASSIGNED, ne compte pas
@@ -242,3 +278,165 @@ class GetAuditSelectorsTest(DashboardDgAuditTestMixin, TestCase):
         breakdown = get_audit_department_breakdown(user=self.audit_user)
         self.assertGreaterEqual(len(breakdown), 1)
         self.assertIn("risk_level", breakdown[0])
+
+
+class BreakdownAnchoringTest(TestCase):
+    """
+    Ancrage du breakdown sur les directions métier (correction granularité).
+
+    Construit un vrai arbre avec sommet DG :
+        DG (apex) → {Direction Opérations → Département KYC, Direction Risques}
+    pour vérifier que les groupes sont les *enfants de la DG* (un cran sous le
+    sommet), que les sous-unités remontent, que les recos sur le nœud DG
+    apparaissent en ligne « rattachement direct », et que l'entité système est
+    exclue — le tout en préservant la réconciliation Σ(lignes) = total macro.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.type_dg, _ = OrgUnitType.objects.get_or_create(
+            code="DG",
+            defaults={"name": "Direction Générale", "level": 0},
+        )
+        cls.type_dir, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION",
+            defaults={"name": "Direction", "level": 1},
+        )
+        cls.type_dept, _ = OrgUnitType.objects.get_or_create(
+            code="DEPARTEMENT",
+            defaults={"name": "Département", "level": 2},
+        )
+
+        cls.dg = Department.objects.create(
+            name="Direction Générale", code="DG", type=cls.type_dg
+        )
+        cls.dir_ops = Department.objects.create(
+            name="Direction des Opérations",
+            code="DOP",
+            type=cls.type_dir,
+            parent=cls.dg,
+        )
+        cls.dir_risk = Department.objects.create(
+            name="Direction des Risques",
+            code="DRI",
+            type=cls.type_dir,
+            parent=cls.dg,
+        )
+        cls.dept_kyc = Department.objects.create(
+            name="Département KYC",
+            code="KYC",
+            type=cls.type_dept,
+            parent=cls.dir_ops,
+        )
+
+        cls.audit_user = User.objects.create_user(
+            username="audit_anchor",
+            password="TestPass123!",
+            role=User.Role.AUDIT,
+        )
+        cls.source, _ = RecommendationSource.objects.get_or_create(
+            code="INTERNE",
+            defaults={"label": "Audit Interne", "is_external": False},
+        )
+
+    def _reco(self, dept, *, status=Recommendation.Status.ASSIGNED):
+        """Crée une reco rattachée à `dept` et la force hors DRAFT (pour le macro)."""
+        reco = create_recommendation(
+            data={
+                "reference": f"BA-{uuid.uuid4().hex[:6].upper()}",
+                "mission_date": timezone.now().date(),
+                "mission_label": "Mission anchor",
+                "controlled_department": dept,
+                "observations": "",
+                "anomalous_dossiers": "",
+                "description": "Desc",
+                "source": self.source,
+                "priority": Recommendation.Priority.MOYENNE,
+                "department": dept,
+                "due_date": timezone.now().date() + timedelta(days=30),
+            },
+            deliverables_data=["Livrable"],
+            performed_by=self.audit_user,
+        )
+        if status:
+            Recommendation.objects.filter(pk=reco.pk).update(status=status)
+        return reco
+
+    @staticmethod
+    def _group_rows(breakdown):
+        return [r for r in breakdown if not r["is_direct"]]
+
+    def test_groups_are_children_of_apex_not_root(self):
+        """Les groupes sont les directions métier (enfants de la DG), pas la DG."""
+        self._reco(self.dir_ops)
+        self._reco(self.dept_kyc)  # sous-unité → remonte sous dir_ops
+
+        breakdown = get_dg_department_breakdown()
+        group_pks = {r["department"].pk for r in self._group_rows(breakdown)}
+
+        self.assertEqual(group_pks, {self.dir_ops.pk, self.dir_risk.pk})
+        self.assertNotIn(self.dg.pk, group_pks)  # le sommet n'est pas un groupe
+        self.assertNotIn(self.dept_kyc.pk, group_pks)  # ni la sous-unité
+
+        row_ops = next(r for r in breakdown if r["department"].pk == self.dir_ops.pk)
+        self.assertEqual(row_ops["total"], 2)  # dir_ops + Département KYC
+        self.assertEqual(row_ops["label"], "Direction des Opérations")
+        self.assertFalse(row_ops["is_direct"])
+
+    def test_direct_attachment_row_for_apex_recos(self):
+        """Une reco rattachée au nœud DG apparaît en ligne « rattachement direct »."""
+        self._reco(self.dg)
+
+        breakdown = get_dg_department_breakdown()
+        direct = [r for r in breakdown if r["is_direct"]]
+        self.assertEqual(len(direct), 1)
+        self.assertEqual(direct[0]["department"].pk, self.dg.pk)
+        self.assertEqual(direct[0]["total"], 1)
+        self.assertIn("rattachement direct", direct[0]["label"])
+        # Distinct d'une direction métier (label ≠ simple nom)
+        self.assertNotEqual(direct[0]["label"], self.dg.name)
+
+    def test_reconciliation_sum_equals_macro(self):
+        """Σ(lignes groupes + directe) = total_actives macro (rien ne disparaît)."""
+        self._reco(self.dir_ops)
+        self._reco(self.dept_kyc)
+        self._reco(self.dir_risk)
+        self._reco(self.dg)  # rattachement direct
+
+        breakdown = get_dg_department_breakdown()
+        somme = sum(r["actives"] for r in breakdown)
+        self.assertEqual(somme, get_dg_kpis()["total_actives"])
+        self.assertEqual(somme, 4)
+
+    def test_multi_root_with_dg_keeps_other_roots(self):
+        """Cas 2 : une 2e racine non-DG reste un groupe (aucune reco invisible)."""
+        filiale = Department.objects.create(
+            name="Filiale X",
+            code="FIL",
+            type=self.type_dir,  # racine (parent=NULL), non-DG
+        )
+        self._reco(filiale)
+        self._reco(self.dir_ops)
+
+        breakdown = get_dg_department_breakdown()
+        group_pks = {r["department"].pk for r in self._group_rows(breakdown)}
+        # Enfants de la DG + la filiale, mais pas la DG elle-même
+        self.assertEqual(group_pks, {self.dir_ops.pk, self.dir_risk.pk, filiale.pk})
+        row_fil = next(r for r in breakdown if r["department"].pk == filiale.pk)
+        self.assertEqual(row_fil["total"], 1)
+
+    def test_system_entity_excluded_from_breakdown(self):
+        """L'entité système et ses recos n'apparaissent dans aucune ligne."""
+        support = Department.objects.create(
+            name="Support Applicatif",
+            code="SUP",
+            type=self.type_dir,
+            is_system=True,
+        )
+        self._reco(support)  # anomalie : reco rattachée au système
+
+        breakdown = get_dg_department_breakdown()
+        all_pks = {r["department"].pk for r in breakdown}
+        self.assertNotIn(support.pk, all_pks)
+        # La reco système n'est comptée dans aucune ligne du breakdown.
+        self.assertEqual(sum(r["total"] for r in breakdown), 0)

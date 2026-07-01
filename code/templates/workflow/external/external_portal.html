@@ -35,7 +35,7 @@
 
   {# Filtres & Recherche rapides #}
   <section class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-    <form class="flex-1 w-full relative" hx-get="{% url 'workflow:recommendation-list' %}" hx-target="#recommendations-table" hx-swap="outerHTML" hx-trigger="keyup delay:500ms from:input, change from:select">
+    <form class="flex-1 w-full relative" hx-get="{% url 'auth:external-dashboard' %}" hx-target="#recommendations-table" hx-swap="outerHTML" hx-select="#recommendations-table" hx-trigger="keyup delay:500ms from:input, change from:select">
       <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
         <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

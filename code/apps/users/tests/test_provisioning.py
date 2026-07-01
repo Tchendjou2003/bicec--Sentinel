@@ -417,8 +417,12 @@ class ProvisioningViewAccessTest(TestCase):
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, 200)
 
-    def test_maker_sees_only_own_requests(self):
-        """Un maker hors groupe ne voit que ses propres demandes, pas celles des autres."""
+    def test_maker_sees_all_requests(self):
+        """
+        Gestion unifiée (commit 02522c0) : un maker hors groupe voit TOUTES les
+        demandes, pas seulement les siennes — la sécurité tient au masquage des
+        boutons d'approbation (is_approver=False), pas au filtrage de la liste.
+        """
         # Créer une demande du maker
         data = _base_data(role=User.Role.DM, dept=self.dept)
         services.create_provisioning_request(
@@ -433,9 +437,12 @@ class ProvisioningViewAccessTest(TestCase):
         self.client.force_login(self.maker)
         response = self.client.get(self.list_url)
         requests_in_context = list(response.context["requests"])
-        # Le maker ne voit que sa propre demande
-        for req in requests_in_context:
-            self.assertEqual(req.requested_by, self.maker)
+        # Le maker voit les deux demandes (la sienne + celle de l'autre maker).
+        requesters = {req.requested_by for req in requests_in_context}
+        self.assertIn(self.maker, requesters)
+        self.assertIn(other_maker, requesters)
+        # Mais il n'est pas approbateur : les boutons d'action sont masqués côté template.
+        self.assertFalse(response.context["is_approver"])
 
     def test_create_accessible_by_admin_it(self):
         """Un Admin IT peut soumettre une demande (modale GET)."""

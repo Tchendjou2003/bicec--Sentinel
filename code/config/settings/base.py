@@ -140,6 +140,11 @@ AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
 ]
 
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+]
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -242,3 +247,31 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="sentinel@bicec.cm")
 # Default primary key
 # ============================================
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ============================================
+# Sentry — dev local uniquement
+# ============================================
+# Ne s'initialise pas si SENTRY_DSN est absent ou si DEBUG=False.
+# La double garde garantit qu'aucun event ne part en production,
+# même si le DSN est présent dans l'environnement par erreur.
+SENTRY_DSN = config("SENTRY_DSN", default="")
+
+if SENTRY_DSN and DEBUG:
+    import sentry_sdk
+
+    def _strip_local_vars(event, hint):
+        # Retire les valeurs des variables locales de chaque frame.
+        # Garde la stack trace (fichier, ligne, fonction) sans données métier.
+        if "exception" in event:
+            for exc in event["exception"].get("values", []):
+                for frame in exc.get("stacktrace", {}).get("frames", []):
+                    frame.pop("vars", None)
+        return event
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=config("ENVIRONMENT", default="development"),
+        send_default_pii=False,
+        traces_sample_rate=0.0,
+        before_send=_strip_local_vars,
+    )

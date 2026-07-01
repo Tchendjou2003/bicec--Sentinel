@@ -34,8 +34,8 @@ module.exports = {
         "graphite-fg-strong": "#F3EDE7",
         "graphite-section": "#8A7F78",
         // Surfaces & hairlines complémentaires
-        "surface-sunken": "#F3EFEA",
-        "surface-faint": "#F8F8F5",
+        "surface-sunken": "#ECEEF0",
+        "surface-faint": "#F5F6F7",
         "border-strong": "#D8CBBE",
         // Texte atténué chaud (labels/corps) — centralise les hex jadis en dur
         "text-faint": "#968A80",
@@ -83,7 +83,7 @@ module.exports = {
         "status-closed": "#10B981",
 
         // Surface & Neutrals
-        "surface-base": "#FAF7F4",
+        "surface-base": "#F3F4F6",
         "surface-card": "#FFFFFF",
         "surface-warm": "#F5EDE6",
         "border-subtle": "#E8DFD6",
@@ -98,7 +98,7 @@ module.exports = {
         // primary pointe désormais sur la variable CSS --primary (orange Sentinel)
         // pour aligner kpi_card/footer sur la charte et supprimer la collision
         // avec text-text-primary (#2D1F1E).
-        "background": "#fcf9f8",
+        "background": "#F9FAFB",
         "primary": "hsl(var(--primary) / <alpha-value>)",
         "tertiary": "#006496",
         "error": "#ba1a1a",
@@ -107,10 +107,10 @@ module.exports = {
         "on-surface": "#1c1b1b",
         "on-surface-variant": "#594137",
         "outline-variant": "#e1bfb2",
-        "surface": "#fcf9f8",
-        "surface-container": "#f0eded",
-        "surface-container-low": "#f6f3f2",
-        "surface-container-high": "#eae7e7",
+        "surface": "#F9FAFB",
+        "surface-container": "#E4E6EA",
+        "surface-container-low": "#F3F4F6",
+        "surface-container-high": "#D9DBDF",
         "surface-container-lowest": "#ffffff",
 
 

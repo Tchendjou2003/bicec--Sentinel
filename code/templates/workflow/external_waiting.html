@@ -33,7 +33,7 @@
     </div>
 
     <div class="mt-8">
-      <form method="post" action="{% url 'users:logout' %}">
+      <form method="post" action="{% url 'auth:logout' %}">
         {% csrf_token %}
         <button type="submit" class="btn btn-secondary w-full sm:w-auto">
           Se déconnecter

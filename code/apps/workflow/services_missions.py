@@ -56,35 +56,48 @@ def update_mission(*, mission, form, performed_by, ip_address=None) -> ExternalM
     return mission
 
 
-@transaction.atomic
 def toggle_mission_status(*, mission, new_status, performed_by, ip_address=None) -> ExternalMission:
     """
-    Change le statut d'une mission. Lève ValueError si le statut est invalide.
+    Change le statut d'une mission. Lève ValueError si la transition est invalide.
 
+    Transitions autorisées : PREPARATION → ACTIVE → CLOSED uniquement.
     Positionne approved_by lors du premier passage en ACTIVE.
     """
-    valid_statuses = {c[0] for c in ExternalMission.Status.choices}
-    if new_status not in valid_statuses:
-        raise ValueError("Statut de mission invalide.")
+    _VALID_TRANSITIONS = {
+        ExternalMission.Status.PREPARATION: {ExternalMission.Status.ACTIVE},
+        ExternalMission.Status.ACTIVE: {ExternalMission.Status.CLOSED},
+    }
 
-    old_status = mission.status
-    mission.status = new_status
-    update_fields = ["status"]
-    if new_status == ExternalMission.Status.ACTIVE and not mission.approved_by:
-        mission.approved_by = performed_by
-        update_fields.append("approved_by")
-    mission.save(update_fields=update_fields)
+    with transaction.atomic():
+        # Verrou pessimiste — sérialise les transitions concurrentes
+        mission = ExternalMission.objects.select_for_update().get(pk=mission.pk)
 
-    AuditLog.objects.create(
-        action=AuditLog.Action.TRANSITION,
-        user=performed_by,
-        content_type="ExternalMission",
-        object_id=mission.pk,
-        changes={"status": [old_status, new_status]},
-        description=(
-            f"Statut de la mission '{mission.name}' : "
-            f"{old_status} → {new_status}."
-        ),
-        ip_address=ip_address,
-    )
+        allowed = _VALID_TRANSITIONS.get(mission.status, set())
+        if new_status not in allowed:
+            raise ValueError(
+                f"Transition de statut invalide : {mission.status} → {new_status}. "
+                f"Transitions autorisées depuis « {mission.status} » : "
+                f"{', '.join(allowed) if allowed else 'aucune'}."
+            )
+
+        old_status = mission.status
+        mission.status = new_status
+        update_fields = ["status"]
+        if new_status == ExternalMission.Status.ACTIVE and not mission.approved_by:
+            mission.approved_by = performed_by
+            update_fields.append("approved_by")
+        mission.save(update_fields=update_fields)
+
+        AuditLog.objects.create(
+            action=AuditLog.Action.TRANSITION,
+            user=performed_by,
+            content_type="ExternalMission",
+            object_id=mission.pk,
+            changes={"status": [old_status, new_status]},
+            description=(
+                f"Statut de la mission '{mission.name}' : "
+                f"{old_status} → {new_status}."
+            ),
+            ip_address=ip_address,
+        )
     return mission

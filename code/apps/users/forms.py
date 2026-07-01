@@ -282,7 +282,11 @@ class UserProvisioningRequestForm(forms.Form):
     requested_role = forms.ChoiceField(
         label="Rôle",
         choices=[("", "— Sélectionner un rôle —")] + list(User.Role.choices),
-        widget=forms.Select(attrs={"class": _SELECT_CLASS, "x-ref": "roleSelect"}),
+        widget=forms.Select(attrs={
+            "class": _SELECT_CLASS,
+            "x-model": "role",
+            "@change": "onRoleChange($event.target.value)",
+        }),
     )
     requested_department = forms.ModelChoiceField(
         label="Département",

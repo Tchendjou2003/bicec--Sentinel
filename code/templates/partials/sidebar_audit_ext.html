@@ -1,16 +1,27 @@
-{# Sidebar — Profil Audit Externe (DS graphite). Actif via `active_route`. #}
-<aside x-show="$store.sentinel.sidebarOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="-translate-x-full opacity-0" x-transition:enter-end="translate-x-0 opacity-100" x-cloak class="fixed inset-y-0 left-0 z-50 lg:static w-64 shrink-0 bg-graphite text-graphite-fg border-r border-graphite-border flex flex-col" style="display:none">
+{# Sidebar — Espace Auditeur Externe (DS graphite). Actif via `active_route`. #}
+<aside
+  x-show="$store.sentinel.sidebarOpen"
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="-translate-x-full opacity-0"
+  x-transition:enter-end="translate-x-0 opacity-100"
+  x-cloak
+  class="fixed inset-y-0 left-0 z-50 lg:static w-64 shrink-0 bg-graphite text-graphite-fg border-r border-graphite-border flex flex-col"
+  style="display:none">
 
-  {% include "partials/_sidebar_brand.html" with profile_label="Audit Externe" %}
+  {% include "partials/_sidebar_brand.html" with profile_label="Auditeur Externe" %}
 
-  <nav class="flex-1 overflow-y-auto px-3 py-4">
-    <p class="text-[10px] font-bold uppercase tracking-[0.08em] text-graphite-section px-3 mb-2 mt-1">Consultation</p>
-    <ul class="space-y-1">
-      {% url "auth:external-dashboard" as ext_dashboard_url %}
-      {% include "partials/_sidebar_item.html" with href=ext_dashboard_url icon="layout-dashboard" label="Tableau de bord" route="dashboard" %}
-      {% include "partials/_sidebar_item.html" with soon=True icon="file-text" label="Recommandations" %}
-      {% include "partials/_sidebar_item.html" with soon=True icon="archive" label="Export ZIP" %}
-    </ul>
+  <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+
+    {# ── Consultation ── #}
+    <div>
+      <p class="text-[10px] font-bold uppercase tracking-[0.08em] text-graphite-section px-3 mb-2">Consultation</p>
+      <ul class="space-y-1">
+        {% url "auth:external-dashboard" as ext_dashboard_url %}
+        {% include "partials/_sidebar_item.html" with href=ext_dashboard_url icon="layout-dashboard" label="Tableau de bord" route="dashboard" %}
+      </ul>
+    </div>
+
+
   </nav>
 
   {% include "partials/_sidebar_footer.html" %}

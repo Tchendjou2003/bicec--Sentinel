@@ -46,7 +46,7 @@
       <table class="min-w-full divide-y divide-gray-100 text-sm">
         <thead class="bg-gray-50/60">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Direction</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Direction / Région</th>
             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actives</th>
             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">En retard</th>
             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Critiques</th>
@@ -59,7 +59,11 @@
           <tr class="transition-colors hover:bg-gray-50/50
             {% if d.risk_level == 'CRITIQUE' %}bg-red-50/30{% elif d.risk_level == 'MODERE' %}bg-orange-50/20{% endif %}">
             <td class="px-6 py-3.5 font-medium text-gray-900">
+              {% if d.is_direct %}
+              <span class="inline-flex items-center gap-1.5 italic text-text-faint" title="Recommandations rattachées directement au sommet, sans direction métier">{{ d.label }}</span>
+              {% else %}
               <a href="{% url 'workflow:recommendation-list' %}" class="hover:text-sentinel-orange hover:underline transition-colors">{% include "components/org_unit_badge.html" with department=d.department %}</a>
+              {% endif %}
             </td>
             <td class="px-4 py-3.5 text-right tabular-nums text-gray-700">{{ d.actives }}</td>
             <td class="px-4 py-3.5 text-right tabular-nums">
@@ -112,7 +116,214 @@
   </div>
 </div>
 
-{# ── Section 4 : Mes recommandations directes ── #}
+{# ── Section 4 : Efficacité du dispositif (KPI efficacité + flux) ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white shadow-premium-sm">
+    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-2 w-2 rounded-full bg-info"></span>
+        <h3 class="text-sm font-bold text-gray-800">Efficacité du dispositif</h3>
+      </div>
+      {% if efficiency.total_closed > 0 %}
+      <span class="text-xs text-gray-400">Base : {{ efficiency.total_closed }} recos clôturées</span>
+      {% endif %}
+    </div>
+
+    {# Cartes KPI efficacité #}
+    <div class="grid grid-cols-2 gap-4 p-6 sm:grid-cols-3 xl:grid-cols-5">
+      {% with v=efficiency.on_time_strict|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="On-time strict" value=v accent="success" %}
+      {% endwith %}
+      {% with v=efficiency.on_time_tolerant|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="On-time tolérant" value=v accent="info" %}
+      {% endwith %}
+      {% with v=efficiency.ecart_on_time|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="Écart pression" value=v accent="warning" %}
+      {% endwith %}
+      {% with v=efficiency.taux_reprise_dm|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="Reprise DM %" value=v accent="warning" %}
+      {% endwith %}
+      {% with v=efficiency.taux_reprise_audit|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="Reprise Audit %" value=v accent="destructive" %}
+      {% endwith %}
+    </div>
+
+    {# Délais médians par criticité #}
+    {% if efficiency.lead_time %}
+    <div class="border-t border-gray-100 px-6 py-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Délai médian de remédiation (jours)</p>
+      <div class="flex flex-wrap gap-3">
+        {% for priority, days in efficiency.lead_time.items %}
+        <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold
+          {% if priority == 'CRITIQUE' %}bg-red-100 text-red-700
+          {% elif priority == 'HAUTE' %}bg-orange-100 text-orange-700
+          {% elif priority == 'MOYENNE' %}bg-yellow-100 text-yellow-700
+          {% else %}bg-gray-100 text-gray-600{% endif %}">
+          {{ priority|capfirst }} — {{ days|floatformat:0 }} j
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# Courbe de flux mensuel #}
+    <div class="border-t border-gray-100 px-6 pb-6 pt-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Flux mensuel — 12 derniers mois</p>
+      <div style="height: 260px;">
+        {% include "dashboards/partials/line_chart.html" with chart_id="dg-throughput" chart_data_json=throughput_json %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Section 5 : Risques émergents (KRI) ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white shadow-premium-sm">
+    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-2 w-2 rounded-full bg-destructive"></span>
+        <h3 class="text-sm font-bold text-gray-800">Risques émergents</h3>
+      </div>
+      <span class="text-xs text-gray-400">Base : {{ risk_kris.total_actives }} recos actives</span>
+    </div>
+
+    {# Cartes KRI — pyramide + réglementaire + glissement #}
+    <div class="grid grid-cols-2 gap-4 p-6 sm:grid-cols-3 xl:grid-cols-6">
+      {% include "components/kpi_card.html" with title="Retard 0-30j" value=risk_kris.aging_buckets.overdue_0_30 accent="warning" %}
+      {% include "components/kpi_card.html" with title="Retard 30-90j" value=risk_kris.aging_buckets.overdue_30_90 accent="warning" %}
+      {% include "components/kpi_card.html" with title="Retard +90j" value=risk_kris.aging_buckets.overdue_90_plus accent="destructive" %}
+      {% include "components/kpi_card.html" with title="Stock régl. pondéré" value=risk_kris.regulatory_stock accent="destructive" %}
+      {% include "components/kpi_card.html" with title="Vieillissement régl." value=risk_kris.regulatory_aging accent="destructive" %}
+      {% with v=risk_kris.taux_glissement|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="Glissement %" value=v accent="warning" %}
+      {% endwith %}
+    </div>
+
+    {% if risk_kris.with_approved_ext > 0 %}
+    <div class="border-t border-gray-100 px-6 py-3">
+      <p class="text-xs text-gray-500">
+        {{ risk_kris.with_approved_ext }} reco{{ risk_kris.with_approved_ext|pluralize }} ont subi au moins un report approuvé —
+        dérive moyenne <span class="font-semibold tabular-nums">{{ risk_kris.derive_moyenne }} j</span>.
+      </p>
+    </div>
+    {% endif %}
+
+    {# Courbe d'évolution KRI — 6 derniers mois #}
+    <div class="border-t border-gray-100 px-6 pb-2 pt-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Tendance KRI — 6 derniers mois</p>
+      <div style="height: 220px;">
+        {% include "dashboards/partials/risk_trend_chart.html" with chart_id="dg-risk-trend" chart_data_json=risk_trend_json %}
+      </div>
+    </div>
+
+    {# Tableau : À risque de bascule #}
+    <div class="border-t border-gray-100 px-6 py-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">À risque de bascule — échéance ≤30j, progression &lt;50%</p>
+      {% if at_risk_recos %}
+      <div class="overflow-x-auto rounded-lg border border-orange-100">
+        <table class="min-w-full divide-y divide-gray-100 text-sm">
+          <thead class="bg-orange-50/40">
+            <tr>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Référence</th>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Direction</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Échéance</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Avancement</th>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Criticité</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 bg-white">
+            {% for r in at_risk_recos %}
+            <tr class="hover:bg-orange-50/20 transition-colors">
+              <td class="px-4 py-2.5">
+                <a href="{% url 'workflow:recommendation-detail' r.pk %}" class="font-medium text-gray-900 hover:text-sentinel-orange hover:underline transition-colors">{{ r.reference }}</a>
+              </td>
+              <td class="px-4 py-2.5 text-xs text-gray-600">{{ r.department.name|default:"—" }}</td>
+              <td class="px-4 py-2.5 text-right tabular-nums font-medium text-orange-600">{{ r.due_date|date:"d/m/Y" }}</td>
+              <td class="px-4 py-2.5 text-right tabular-nums text-gray-600 text-xs">
+                {% if r.deliverables_total > 0 %}{{ r.deliverables_done }}/{{ r.deliverables_total }}{% else %}—{% endif %}
+              </td>
+              <td class="px-4 py-2.5">{% include "components/priority_badge.html" with priority=r.priority label=r.get_priority_display %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-xs text-gray-400 py-4 text-center">Aucune recommandation à risque de bascule.</p>
+      {% endif %}
+    </div>
+
+    {# Tableau : Enlisement #}
+    <div class="border-t border-gray-100 px-6 pb-6 pt-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Enlisement — ≥2 reports OU critique sans activité 30j</p>
+      {% if stuck_recos %}
+      <div class="overflow-x-auto rounded-lg border border-red-100">
+        <table class="min-w-full divide-y divide-gray-100 text-sm">
+          <thead class="bg-red-50/40">
+            <tr>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Référence</th>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Direction</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Échéance</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Reports</th>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Criticité</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 bg-white">
+            {% for r in stuck_recos %}
+            <tr class="hover:bg-red-50/20 transition-colors">
+              <td class="px-4 py-2.5">
+                <a href="{% url 'workflow:recommendation-detail' r.pk %}" class="font-medium text-gray-900 hover:text-sentinel-orange hover:underline transition-colors">{{ r.reference }}</a>
+              </td>
+              <td class="px-4 py-2.5 text-xs text-gray-600">{{ r.department.name|default:"—" }}</td>
+              <td class="px-4 py-2.5 text-right tabular-nums font-medium {% if r.is_overdue %}text-red-600{% else %}text-gray-700{% endif %}">{{ r.due_date|date:"d/m/Y" }}</td>
+              <td class="px-4 py-2.5 text-right tabular-nums text-gray-600">{{ r.approved_extensions }}</td>
+              <td class="px-4 py-2.5">{% include "components/priority_badge.html" with priority=r.priority label=r.get_priority_display %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-xs text-gray-400 py-4 text-center">Aucune recommandation enlisée.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ── Section 6 : Reddition (résumé DG) ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white shadow-premium-sm">
+    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <h3 class="text-sm font-bold text-gray-800">Reddition — Vue synthétique</h3>
+      <span class="text-xs text-gray-400">Export disponible dans le tableau de bord Audit</span>
+    </div>
+    <div class="grid grid-cols-2 gap-4 p-6 sm:grid-cols-4">
+      {% with v=governance.seal_coverage.pct|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="Couverture scellement %" value=v accent="success" %}
+      {% endwith %}
+      {% include "components/kpi_card.html" with title="Dossiers scellés" value=governance.seal_coverage.sealed accent="info" %}
+      {% include "components/kpi_card.html" with title="Total clôturées" value=governance.seal_coverage.total_closed accent="primary" %}
+      {% with v=governance.efficiency.taux_first_pass_audit|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="First-pass Audit %" value=v accent="primary" %}
+      {% endwith %}
+    </div>
+    {% if governance.top_risk %}
+    <div class="border-t border-gray-100 px-6 pb-4 pt-3">
+      <p class="mb-2 text-xs text-gray-500">Top 3 risques composites :</p>
+      <div class="flex flex-wrap gap-2">
+        {% for r in governance.top_risk|slice:":3" %}
+        <a href="{% url 'workflow:recommendation-detail' r.pk %}"
+           class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 hover:border-sentinel-orange hover:text-sentinel-orange transition-colors tabular-nums">
+          {{ r.reference }} · score {{ r.composite_score }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Section 7 : Mes recommandations directes ── #}
 <div class="mb-8">
   <div class="rounded-xl border border-gray-100 bg-white shadow-premium-sm">
     <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">

@@ -169,6 +169,10 @@ class ExternalMissionToggleStatusView(AuditRequiredMixin, View):
     """
     Bascule le statut d'une mission (PREPARATION -> ACTIVE -> CLOSED).
     """
+    def get(self, request, pk):
+        from django.shortcuts import redirect
+        return redirect("workflow:mission-list")
+
     def post(self, request, pk):
         mission = get_object_or_404(ExternalMission, pk=pk)
         new_status = request.POST.get("status")

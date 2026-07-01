@@ -911,8 +911,15 @@ def become_dm_porteur(
         Recommendation: L'instance avec status=IN_PROGRESS, assigned_etp=null.
 
     Raises:
+        PermissionDenied: Si performed_by n'est pas le DM assigné.
         ValueError: Si la recommandation n'est pas ASSIGNED.
     """
+    # Guard RBAC — seul le DM assigné peut se désigner porteur (service-layer)
+    if recommendation.assigned_dm_id != performed_by.pk:
+        raise PermissionDenied(
+            "Seul le DM assigné peut se désigner comme porteur de cette recommandation."
+        )
+
     with transaction.atomic():
         # Verrouiller pour concurrence (ADR-07 §5.4)
         recommendation = (
@@ -974,8 +981,10 @@ def get_or_create_draft_submission(
     """
     Retourne le brouillon DRAFT actif ou en crée un.
 
-    Utilise ``select_for_update()`` pour éviter les race conditions
-    avec la ``UniqueConstraint`` conditionnelle en dernier rempart.
+    SELECT FOR UPDATE ne verrouille aucune ligne sur résultat vide, donc deux
+    requêtes simultanées pour le premier draft peuvent toutes deux tenter un
+    INSERT et heurter la UniqueConstraint partielle. L'IntegrityError est
+    catchée et relue comme « l'autre transaction a gagné la course ».
 
     Args:
         recommendation: La recommandation cible.
@@ -984,6 +993,8 @@ def get_or_create_draft_submission(
     Returns:
         tuple[EvidenceSubmission, bool]: (brouillon, created).
     """
+    from django.db import IntegrityError
+
     with transaction.atomic():
         draft = (
             EvidenceSubmission.objects
@@ -998,13 +1009,23 @@ def get_or_create_draft_submission(
         if draft:
             return draft, False
 
-        draft = EvidenceSubmission.objects.create(
-            recommendation=recommendation,
-            submitted_by=user,
-            status=EvidenceSubmission.SubmissionStatus.DRAFT,
-            comment="",
-        )
-        return draft, True
+        try:
+            draft = EvidenceSubmission.objects.create(
+                recommendation=recommendation,
+                submitted_by=user,
+                status=EvidenceSubmission.SubmissionStatus.DRAFT,
+                comment="",
+            )
+            return draft, True
+        except IntegrityError:
+            # Autre transaction simultanée a créé le draft entre le SELECT et
+            # l'INSERT — on relit le brouillon vainqueur.
+            draft = EvidenceSubmission.objects.get(
+                recommendation=recommendation,
+                submitted_by=user,
+                status=EvidenceSubmission.SubmissionStatus.DRAFT,
+            )
+            return draft, False
 
 
 def _get_active_evidence_quota_used(recommendation: Recommendation) -> int:
@@ -1281,24 +1302,37 @@ def cleanup_abandoned_drafts(
     """
     cutoff = timezone.now() - timezone.timedelta(days=max_age_days)
 
-    abandoned = EvidenceSubmission.objects.filter(
-        status=EvidenceSubmission.SubmissionStatus.DRAFT,
-        updated_at__lt=cutoff,
-    )
-
-    count = abandoned.count()
-    if count == 0:
-        return 0
-
     with transaction.atomic():
+        # select_for_update() sérialise avec submit_evidence_for_recommendation
+        # qui verrouille aussi le draft avant de le passer en PENDING.
+        # Sans ce verrou, un draft soumis entre la boucle de suppression fichiers
+        # et le DELETE SQL resterait en BD avec ses fichiers physiques effacés.
+        abandoned = (
+            EvidenceSubmission.objects
+            .select_for_update()
+            .filter(
+                status=EvidenceSubmission.SubmissionStatus.DRAFT,
+                updated_at__lt=cutoff,
+            )
+            .prefetch_related("files")
+        )
+
         # Supprimer les fichiers physiques des brouillons abandonnés
-        for draft in abandoned.prefetch_related("files"):
+        deleted_files = 0
+        draft_pks = []
+        for draft in abandoned:
+            draft_pks.append(draft.pk)
             for evidence_file in draft.files.all():
                 if evidence_file.file:
                     evidence_file.file.delete(save=False)
+                    deleted_files += 1
+
+        count = len(draft_pks)
+        if count == 0:
+            return 0
 
         # Supprimer les enregistrements DB (CASCADE supprime les EvidenceFile)
-        abandoned.delete()
+        EvidenceSubmission.objects.filter(pk__in=draft_pks).delete()
 
         AuditLog.objects.create(
             action=AuditLog.Action.DELETE,
@@ -1308,6 +1342,7 @@ def cleanup_abandoned_drafts(
             changes={
                 "action": "cleanup_abandoned_drafts",
                 "count": count,
+                "deleted_files": deleted_files,
                 "max_age_days": max_age_days,
             },
             description=(
@@ -1541,10 +1576,14 @@ def run_nightly_notifications() -> dict:
     (2) l'anticipation des échéances proches J-7/J-3 (4.2). Un seul Schedule
     Django-Q2 le déclenche chaque nuit (cf. migration 0016).
 
+    Isolation d'échec : une phase défaillante n'empêche pas les autres de
+    s'exécuter. En cas d'échec, une entrée AuditLog SYSTEM est créée et une
+    notification in-app est émise aux Audit Admins pour visibilité opérationnelle.
+
     Returns:
         dict: compteurs agrégés ``{"overdue": {...}, "upcoming": {...}}`` —
         en cas d'échec d'une phase, sa clé vaut ``{"error": "..."}`` et
-        l'autre phase s'exécute quand même (isolation d'échec).
+        l'autre phase s'exécute quand même.
     """
     logger = logging.getLogger(__name__)
     results: dict = {}
@@ -1558,7 +1597,64 @@ def run_nightly_notifications() -> dict:
     except Exception as exc:  # noqa: BLE001
         logger.exception("Cron nocturne : échec de l'anticipation J-7/J-3")
         results["upcoming"] = {"error": str(exc)}
+    try:
+        # Import différé pour éviter le cycle apps.dashboards → apps.workflow
+        from apps.dashboards.services import capture_daily_snapshot
+        results["snapshot"] = capture_daily_snapshot()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Cron nocturne : échec de la capture MetricsSnapshot")
+        results["snapshot"] = {"error": str(exc)}
+
+    # Alerter les Audit Admins si au moins une phase a échoué — sinon l'erreur
+    # est invisible pendant 24 h (Django-Q2 considère la tâche réussie).
+    failed_phases = [k for k, v in results.items() if isinstance(v, dict) and "error" in v]
+    if failed_phases:
+        _alert_cron_failure(failed_phases, results)
+
     return results
+
+
+def _alert_cron_failure(failed_phases: list[str], results: dict) -> None:
+    """Trace l'échec du cron dans l'AuditLog et notifie les Audit Admins in-app."""
+    from apps.audit.models import AuditLog
+    from apps.notifications.services import emit_notification
+    from apps.notifications.models import Notification
+    from apps.users.models import User
+    from django.utils import timezone as _tz
+
+    phase_labels = {"overdue": "OVERDUE", "upcoming": "J-7/J-3", "snapshot": "Snapshot"}
+    summary = ", ".join(phase_labels.get(p, p) for p in failed_phases)
+    ts = _tz.now().strftime("%Y-%m-%d %H:%M")
+
+    try:
+        AuditLog.objects.create(
+            action=AuditLog.Action.SYSTEM,
+            user=None,
+            content_type="System",
+            object_id=None,
+            changes={p: results[p] for p in failed_phases},
+            description=f"Cron nocturne {ts} — phases en échec : {summary}",
+        )
+    except Exception:
+        pass  # Ne pas masquer l'erreur originale si l'AuditLog lui-même échoue
+
+    try:
+        audit_admins = User.objects.filter(
+            role=User.Role.AUDIT, is_audit_admin=True, is_active=True
+        )
+        for admin in audit_admins:
+            emit_notification(
+                recipient=admin,
+                notification_type=Notification.Type.SYSTEM_ALERT
+                if hasattr(Notification.Type, "SYSTEM_ALERT")
+                else Notification.Type.OVERDUE,
+                title=f"Alerte cron — {summary}",
+                idempotency_key=f"CRON_FAILURE:{ts}:{admin.pk}",
+                body=f"Le cron nocturne a rencontré une erreur dans : {summary}. Vérifiez les logs.",
+                is_urgent=True,
+            )
+    except Exception:
+        pass
 
 
 # =============================================================================
@@ -1825,7 +1921,7 @@ def reject_extension(
             .select_for_update()
             .get(pk=extension_request.pk)
         )
-        rec = Recommendation.all_objects.get(pk=ext.recommendation_id)
+        rec = Recommendation.all_objects.select_for_update().get(pk=ext.recommendation_id)
 
         ext.status = ExtensionRequest.Status.REJECTED
         ext.reviewed_by = performed_by
@@ -1956,11 +2052,11 @@ def submit_evidence_by_dg(
         draft.status = EvidenceSubmission.SubmissionStatus.ACCEPTED
         draft.reviewed_by = performed_by
         draft.reviewed_at = timezone.now()
-        draft.save()
+        draft.save(update_fields=["status", "reviewed_by", "reviewed_at", "updated_at"])
 
         # Transition FSM directe (AC2)
         rec.submit_directly_to_audit()
-        rec.save()
+        rec.save(update_fields=["status", "updated_at"])
 
         # AuditLog (AC4 — NFR-SEC-05 append-only)
         AuditLog.objects.create(

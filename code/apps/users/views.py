@@ -123,28 +123,44 @@ class PendingActivationView(LoginRequiredMixin, TemplateView):
         return super().dispatch(request, *args, **kwargs)
 
 
-class ExternalDashboardView(LoginRequiredMixin, TemplateView):
+class ExternalDashboardView(LoginRequiredMixin, View):
     """
-    Tableau de bord externe pour les auditeurs COBAC/BEAC/CAC (Story 1.3 / AC2).
+    Portail externe pour les auditeurs COBAC/BEAC/CAC (Story 1.3 / AC2).
 
     Espace isolé réservé aux utilisateurs ayant le rôle EXT.
-    Tout utilisateur interne se voit refuser l'accès (403 Forbidden).
+    Tout utilisateur interne se voit refuser l’accès (403 Forbidden).
     """
-    template_name = "external/dashboard.html"
 
     def dispatch(self, request, *args, **kwargs):
-        """
-        Vérification de sécurité : seuls les EXT avec is_external=True
-        peuvent accéder à l’espace externe. Les utilisateurs internes
-        ou les comptes EXT incohérents reçoivent un 403.
-        """
         if request.user.is_authenticated and (
             request.user.role != User.Role.EXT or not request.user.is_external
         ):
-            raise PermissionDenied(
-                "Accès réservé aux auditeurs externes."
-            )
+            raise PermissionDenied("Accès réservé aux auditeurs externes.")
         return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        from apps.workflow.selectors import get_active_missions_for_user, get_recommendations_for_user
+
+        active_missions = get_active_missions_for_user(user=request.user)
+        if not active_missions.exists():
+            return render(request, "workflow/external_waiting.html")
+
+        q = request.GET.get("q", "").strip()
+        recos_qs = get_recommendations_for_user(
+            user=request.user,
+            filters={"q": q} if q else None,
+        )
+        paginator = Paginator(recos_qs, 20)
+        page_obj = paginator.get_page(request.GET.get("page", 1))
+
+        return render(request, "workflow/external/external_portal.html", {
+            "active_missions": active_missions,
+            "recommendations": page_obj,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "current_search": q,
+            "active_route": "dashboard",
+        })
 
 
 # =============================================================================
@@ -728,9 +744,10 @@ class ProvisioningRequestListView(ProvisioningListAccessMixin, ListView):
         qs = UserProvisioningRequest.objects.select_related(
             "requested_by", "reviewed_by", "requested_department"
         )
-        # Les checkers (membres du groupe) voient toutes les demandes.
-        # Modification : Les makers peuvent désormais aussi voir toutes les demandes.
-        # L'absence des boutons d'approbation et les permissions de vue garantissent la sécurité.
+        # Les checkers (membres du groupe Administrateurs Sentinel) voient toutes
+        # les demandes. Les makers ne voient que leurs propres soumissions.
+        if not self._is_approver:
+            qs = qs.filter(requested_by=self.request.user)
 
         status_filter = self.request.GET.get("status", "")
         if status_filter:
@@ -1126,7 +1143,10 @@ class UserManagementView(AdminRequiredMixin, View):
             qs = UserProvisioningRequest.objects.select_related(
                 "requested_by", "reviewed_by", "requested_department"
             )
-            # Suppression du filtre requested_by pour permettre aux makers de tout voir.
+            # Checkers (groupe Administrateurs Sentinel) voient tout.
+            # Makers ne voient que leurs propres demandes.
+            if not is_approver:
+                qs = qs.filter(requested_by=request.user)
             return render(request, "admin_it/partials/provisioning_table_partial.html", {
                 "requests": qs,
                 "is_approver": is_approver,

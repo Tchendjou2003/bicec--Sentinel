@@ -40,12 +40,16 @@
    - 5.6 Admin IT
    - 5.7 Checker / Administrateur Sentinel
 6. [Diagramme de Classes](#6-diagramme-de-classes)
+7. [Diagramme d'Architecture Logicielle](#7-diagramme-darchitecture-logicielle)
+8. [Diagramme d'Architecture Physique (Déploiement)](#8-diagramme-darchitecture-physique-déploiement)
+9. [Cycle de vie d'une recommandation (synthèse pour mémoire)](#9-cycle-de-vie-dune-recommandation-synthèse-pour-mémoire)
+10. [Architecture logicielle — Vue 3 couches](#10-architecture-logicielle--vue-3-couches)
 
 ---
 
 ## 1. Modèle Conceptuel de Données (MCD)
 
-Le MCD représente les entités métier et leurs relations conceptuelles indépendamment de l'implémentation technique.
+Le MCD représente les entités métier de Sentinel et leurs relations conceptuelles.
 
 ```mermaid
 erDiagram
@@ -53,14 +57,14 @@ erDiagram
         string nom
         string prenom
         string email
-        string role "AUDIT|DM|ETP|DG|EXT|ADMIN ou vide (coquille vide)"
-        boolean is_audit_admin "habilite a attribuer les roles"
-        boolean is_external "auditeur externe"
+        string role
+        boolean is_audit_admin
+        boolean is_external
         boolean is_active
     }
 
     TYPE_UNITE {
-        string code "ex DG, DIR, SVC (parametrable)"
+        string code
         string nom
         int niveau_indicatif
         boolean is_active
@@ -70,30 +74,30 @@ erDiagram
         string nom
         string code
         boolean is_active
-        boolean is_system "heberge les admins Sentinel"
+        boolean is_system
     }
 
     SOURCE {
-        string code "ex COBAC (parametrable)"
+        string code
         string libelle
         boolean is_external
         boolean is_active
     }
 
     RECOMMANDATION {
-        string reference "unique"
+        string reference
         string libelle_mission
         date date_mission
         text description
         text observations
         text dossiers_anomalies
-        string priorite "CRITIQUE|HAUTE|MOYENNE|FAIBLE"
+        string priorite
         date date_echeance
         date date_echeance_originale
-        string statut_fsm "6 etats dont DRAFT"
+        string statut_fsm
         boolean is_overdue
         boolean is_deleted
-        string tag_import "IMPORTED si historique"
+        string tag_import
         datetime cloturee_le
     }
 
@@ -106,7 +110,7 @@ erDiagram
 
     SOUMISSION_PREUVE {
         text commentaire
-        string statut "DRAFT|PENDING|ACCEPTED|REJECTED|REJECTED_BY_AUDIT"
+        string statut
         text motif_rejet
         datetime revue_le
     }
@@ -114,28 +118,28 @@ erDiagram
     FICHIER_PREUVE {
         string nom_original
         string chemin_uuid
-        string type_mime "detecte magic bytes"
+        string type_mime
         int taille_octets
         string sha256
-        string tag "JUSTIFICATIF|PV_RECETTE|RAPPORT|AUTRE"
+        string tag
     }
 
     DEMANDE_REPORT {
         date nouvelle_echeance
         text motif
-        string statut "PENDING|APPROVED|REJECTED"
+        string statut
         text commentaire_audit
     }
 
     LOT_IMPORT {
         string nom_fichier
-        string fichier_source "archive xlsx"
+        string fichier_source
         int nb_recommandations
         datetime importe_le
     }
 
     JOURNAL_AUDIT {
-        string action "CREATE|UPDATE|...|TRANSITION|IMPORT|EXTENSION_*"
+        string action
         string type_entite
         uuid id_entite
         json changements
@@ -151,11 +155,31 @@ erDiagram
     }
 
     NOTIFICATION {
-        string type "16 types in-app"
+        string type
         boolean is_urgent
         boolean is_read
-        string cle_idempotence "unique par (destinataire, cle)"
+        string cle_idempotence
         datetime creee_le
+    }
+
+    SNAPSHOT_METRIQUES {
+        date date_snapshot
+        int total_actives
+        int en_retard
+        int cloturees_total
+        int cloturees_cumulees
+        int critiques_ouvertes
+        int retard_0_30
+        int retard_30_90
+        int retard_90_plus
+        int dans_les_temps_strict
+        int dans_les_temps_tolerant
+        int exposition_reglementaire
+        int index_retard_reglementaire
+        int total_soumissions
+        int rejets_dm
+        int rejets_audit
+        datetime cree_le
     }
 
     MISSION_EXTERNE {
@@ -169,8 +193,8 @@ erDiagram
     DEMANDE_PROVISIONING {
         string identifiant_demande
         string role_demande
-        string statut "PENDING|APPROVED|REJECTED|CANCELLED"
-        string type_demande "CREATE|MODIFY"
+        string statut
+        string type_demande
         text motif_rejet
     }
 
@@ -194,6 +218,7 @@ erDiagram
     UTILISATEUR ||--o{ JOURNAL_AUDIT : "genere"
     UTILISATEUR ||--o{ NOTIFICATION : "recoit"
     RECOMMANDATION ||--o{ NOTIFICATION : "declenche"
+    UNITE_ORGANISATIONNELLE ||--o{ SNAPSHOT_METRIQUES : "calcule pour"
     UTILISATEUR ||--o{ MISSION_EXTERNE : "rattache a"
     UTILISATEUR ||--o{ DEMANDE_PROVISIONING : "soumet (maker) / valide (checker)"
 ```
@@ -205,15 +230,15 @@ erDiagram
 
 ## 2. Entity-Relationship Diagram (ERD)
 
-L'ERD détaille la structure de la base de données PostgreSQL avec les types de colonnes, clés primaires/étrangères et contraintes.
+L'ERD détaille la structure complète de la base de données de Sentinel.
 
 ```mermaid
 erDiagram
     users_orgunittype {
         uuid id PK
         varchar(60) name
-        varchar(20) code UK "parametrable (Story 3.7.b)"
-        smallint level "indicatif"
+        varchar(20) code UK
+        smallint level
         boolean is_active
         timestamp created_at
         timestamp updated_at
@@ -223,10 +248,10 @@ erDiagram
         uuid id PK
         varchar(100) name
         varchar(10) code UK
-        uuid type_id FK "vers users_orgunittype"
-        uuid parent_id FK "self-referencing"
+        uuid type_id FK
+        uuid parent_id FK
         boolean is_active
-        boolean is_system "heberge les admins Sentinel"
+        boolean is_system
         timestamp created_at
         timestamp updated_at
     }
@@ -238,10 +263,10 @@ erDiagram
         varchar(128) password
         varchar(150) first_name
         varchar(150) last_name
-        varchar(10) role "AUDIT|DM|ETP|DG|EXT|ADMIN ou vide"
-        uuid department_id FK "nullable"
+        varchar(10) role
+        uuid department_id FK
         boolean is_external
-        boolean is_audit_admin "ADR-10"
+        boolean is_audit_admin
         varchar(100) job_title
         boolean is_active
         boolean is_staff
@@ -251,39 +276,39 @@ erDiagram
 
     workflow_recommendation_source {
         uuid id PK
-        varchar(30) code UK "parametrable (Story 3.7.b)"
+        varchar(30) code UK
         varchar(120) label
         boolean is_external
         boolean is_active
         timestamp created_at
-        uuid created_by_id FK "nullable"
+        uuid created_by_id FK
     }
 
     workflow_recommendation {
         uuid id PK
         varchar(50) reference UK
         varchar(255) mission_label
-        date mission_date "nullable"
+        date mission_date
         text description
         text observations
         text anomalous_dossiers
-        uuid source_id FK "vers workflow_recommendation_source"
-        varchar(10) priority "CRITIQUE|HAUTE|MOYENNE|FAIBLE"
-        uuid department_id FK "concernee, nullable"
-        uuid controlled_department_id FK "controlee, nullable"
+        uuid source_id FK
+        varchar(10) priority
+        uuid department_id FK
+        uuid controlled_department_id FK
         date due_date
         date original_due_date
-        varchar(30) status "FSM 6 etats dont DRAFT"
+        varchar(30) status
         boolean is_overdue
         uuid created_by_id FK
-        uuid assigned_dm_id FK "nullable (DM ou DG)"
-        uuid assigned_etp_id FK "nullable"
-        varchar(10) import_tag "IMPORTED|null"
-        uuid import_batch_id FK "nullable"
-        timestamp closed_at "nullable"
-        uuid closed_by_id FK "nullable"
+        uuid assigned_dm_id FK
+        uuid assigned_etp_id FK
+        varchar(10) import_tag
+        uuid import_batch_id FK
+        timestamp closed_at
+        uuid closed_by_id FK
         boolean is_deleted
-        timestamp deleted_at "nullable"
+        timestamp deleted_at
         timestamp created_at
         timestamp updated_at
     }
@@ -294,8 +319,8 @@ erDiagram
         varchar(255) label
         integer order
         boolean is_completed
-        timestamp completed_at "nullable"
-        uuid completed_by_id FK "nullable"
+        timestamp completed_at
+        uuid completed_by_id FK
         timestamp created_at
     }
 
@@ -304,10 +329,10 @@ erDiagram
         uuid recommendation_id FK
         text comment
         uuid submitted_by_id FK
-        varchar(20) status "DRAFT|PENDING|ACCEPTED|REJECTED|REJECTED_BY_AUDIT"
-        text review_comment "motif rejet"
-        timestamp reviewed_at "nullable"
-        uuid reviewed_by_id FK "nullable"
+        varchar(20) status
+        text review_comment
+        timestamp reviewed_at
+        uuid reviewed_by_id FK
         timestamp created_at
         timestamp updated_at
     }
@@ -315,12 +340,12 @@ erDiagram
     workflow_evidencefile {
         uuid id PK
         uuid submission_id FK
-        varchar file "chemin UUID"
+        varchar file
         varchar(255) original_filename
         integer file_size
-        varchar(100) mime_type "magic bytes"
+        varchar(100) mime_type
         varchar(64) sha256_hash
-        varchar(20) tag "JUSTIFICATIF|PV_RECETTE|RAPPORT|AUTRE"
+        varchar(20) tag
         uuid uploaded_by_id FK
         timestamp created_at
     }
@@ -328,19 +353,19 @@ erDiagram
     workflow_extensionrequest {
         uuid id PK
         uuid recommendation_id FK
-        uuid requested_by_id FK "DM ou DG"
+        uuid requested_by_id FK
         date requested_date
         text reason
-        uuid reviewed_by_id FK "nullable"
-        timestamp reviewed_at "nullable"
+        uuid reviewed_by_id FK
+        timestamp reviewed_at
         text audit_comment
-        varchar(10) status "PENDING|APPROVED|REJECTED"
+        varchar(10) status
         timestamp created_at
     }
 
     workflow_importbatch {
         uuid id PK
-        varchar source_file "xlsx archive, nullable"
+        varchar source_file
         varchar(255) file_name
         uuid created_by_id FK
         integer recommendation_count
@@ -349,23 +374,23 @@ erDiagram
 
     audit_auditlog {
         uuid id PK
-        uuid user_id FK "nullable"
-        varchar(20) action "CREATE|UPDATE|DELETE|LOGIN|LOGIN_FAILED|LOGOUT|TRANSITION|SYSTEM|EXPORT|EXTENSION_*|IMPORT"
+        uuid user_id FK
+        varchar(20) action
         varchar(50) content_type
-        uuid object_id "nullable"
-        jsonb changes "before/after"
-        inet ip_address "nullable"
+        uuid object_id
+        jsonb changes
+        inet ip_address
         text description
         timestamp created_at
     }
 
     audit_hmac_seal {
         uuid id PK
-        uuid recommendation_id FK "1-to-1 (UK)"
+        uuid recommendation_id FK
         varchar(64) hmac_hash
         jsonb sealed_metadata
-        jsonb file_hashes "sha256 par preuve"
-        uuid sealed_by_id FK "nullable"
+        jsonb file_hashes
+        uuid sealed_by_id FK
         timestamp sealed_at
         timestamp created_at
     }
@@ -373,24 +398,46 @@ erDiagram
     notifications_notification {
         uuid id PK
         uuid recipient_id FK
-        varchar(30) notification_type "16 types"
-        uuid recommendation_id FK "nullable"
+        varchar(30) notification_type
+        uuid recommendation_id FK
         varchar(200) title
         text body
         varchar(500) url
         boolean is_urgent
         boolean is_read
-        varchar(255) idempotency_key "UNIQUE (recipient, key)"
+        varchar(255) idempotency_key
+        timestamp created_at
+    }
+
+    dashboards_metricssnapshot {
+        integer id PK
+        date snapshot_date
+        uuid department_id FK
+        integer total_actives
+        integer overdue
+        integer closed_total
+        integer closed_cumulative
+        integer critique_open
+        integer overdue_0_30
+        integer overdue_30_90
+        integer overdue_90_plus
+        integer on_time_closed_strict
+        integer on_time_closed_tolerant
+        integer regulatory_stock_weighted
+        integer regulatory_aging_index
+        integer submissions_total
+        integer rejected_by_dm
+        integer rejected_by_audit
         timestamp created_at
     }
 
     users_external_mission {
         uuid id PK
-        uuid auditor_id FK "role=EXT"
-        varchar(100) organization "COBAC|BEAC|CAC|NIF"
+        uuid auditor_id FK
+        varchar(100) organization
         text scope_description
         date start_date
-        date end_date "nullable"
+        date end_date
         boolean is_active
         timestamp created_at
         timestamp updated_at
@@ -402,19 +449,20 @@ erDiagram
         varchar(254) requested_email
         varchar(128) hashed_initial_password
         varchar(10) requested_role
-        uuid requested_department_id FK "nullable"
+        uuid requested_department_id FK
         boolean requested_is_audit_admin
         varchar(100) requested_job_title
-        varchar(10) status "PENDING|APPROVED|REJECTED|CANCELLED"
-        varchar(10) request_type "CREATE|MODIFY"
+        varchar(10) status
+        varchar(10) request_type
         text rejection_reason
-        uuid requested_by_id FK "maker"
-        uuid reviewed_by_id FK "checker, nullable"
-        timestamp reviewed_at "nullable"
-        uuid target_user_id FK "nullable (MODIFY)"
+        uuid requested_by_id FK
+        uuid reviewed_by_id FK
+        timestamp reviewed_at
+        uuid target_user_id FK
         timestamp created_at
     }
 
+    %% Relations
     users_orgunittype ||--o{ users_department : "type_id"
     users_user }o--o| users_department : "department_id"
     users_department }o--o| users_department : "parent_id"
@@ -442,6 +490,7 @@ erDiagram
     audit_hmac_seal }o--o| users_user : "sealed_by_id"
     notifications_notification }o--|| users_user : "recipient_id"
     notifications_notification }o--o| workflow_recommendation : "recommendation_id"
+    dashboards_metricssnapshot }o--o| users_department : "department_id"
     users_external_mission }o--|| users_user : "auditor_id"
     users_userprovisioningrequest }o--|| users_user : "requested_by_id"
     users_userprovisioningrequest }o--o| users_user : "reviewed_by_id"
@@ -459,11 +508,13 @@ erDiagram
 
 ## 3. Diagramme de Machine à États (FSM)
 
-Machine à états finis du cycle de vie d'une recommandation d'audit, gérée par `django-fsm`.
+Cycle de vie d'une recommandation d'audit, piloté par `django-fsm`. Chaque transition est protégée par des gardes conditionnelles : aucun changement d'état ne peut se produire en dehors des chemins autorisés ci-dessous.
+
+### 3.1 Machine à États de la Recommandation
 
 ```mermaid
 stateDiagram-v2
-    [*] --> DRAFT : Audit cree (unitaire) ou import massif (Story 6.5)
+    [*] --> DRAFT : Création par l'Audit
 
     state "DRAFT" as DRAFT
     state "ASSIGNED" as ASSIGNED
@@ -472,88 +523,72 @@ stateDiagram-v2
     state "PENDING_AUDIT_REVIEW" as PENDING_AUDIT_REVIEW
     state "CLOSED_RESOLVED" as CLOSED_RESOLVED
 
-    DRAFT --> ASSIGNED : Audit assigne un DM [assign_to_dm()]
-    DRAFT --> IN_PROGRESS : Audit assigne un DG (bypass) [assign_to_dg()]
+    DRAFT --> ASSIGNED : Assignation à un DM
+    DRAFT --> IN_PROGRESS : Assignation directe à un DG
 
-    ASSIGNED --> IN_PROGRESS : DM delegue ETP ou DM Porteur [start_processing()]
-    ASSIGNED --> PENDING_AUDIT_REVIEW : DG soumet directement [submit_directly_to_audit()]
+    ASSIGNED --> IN_PROGRESS : Délégation à un ETP ou DM Porteur
+    ASSIGNED --> PENDING_AUDIT_REVIEW : Soumission directe DG
 
-    IN_PROGRESS --> PENDING_DM_REVIEW : ETP soumet preuves [submit_evidence()]
-    IN_PROGRESS --> PENDING_AUDIT_REVIEW : DG soumet directement [submit_directly_to_audit()]
+    IN_PROGRESS --> PENDING_DM_REVIEW : Soumission des preuves par ETP
+    IN_PROGRESS --> PENDING_AUDIT_REVIEW : Soumission directe DG
 
-    PENDING_DM_REVIEW --> PENDING_AUDIT_REVIEW : DM valide (exemption PV) [approve_for_audit()]
-    PENDING_DM_REVIEW --> IN_PROGRESS : DM rejette, motif requis [reject_evidence()]
+    PENDING_DM_REVIEW --> PENDING_AUDIT_REVIEW : Validation DM
+    PENDING_DM_REVIEW --> IN_PROGRESS : Rejet DM
 
-    PENDING_AUDIT_REVIEW --> CLOSED_RESOLVED : Audit cloture + sceau HMAC [close_by_audit()]
-    PENDING_AUDIT_REVIEW --> IN_PROGRESS : Audit rejette, motif requis [reject_by_audit()]
+    PENDING_AUDIT_REVIEW --> CLOSED_RESOLVED : Clôture Audit + Sceau HMAC
+    PENDING_AUDIT_REVIEW --> IN_PROGRESS : Rejet Audit
 
-    CLOSED_RESOLVED --> [*] : Immutable. Aucune mutation.
-
-    note right of DRAFT
-        Seul l Audit peut creer.
-        Soft Delete possible ici uniquement (FR6).
-        Import massif (6.5) cree des DRAFT sans preuve.
-    end note
-
-    note right of PENDING_AUDIT_REVIEW
-        Flag is_overdue calcule par le scheduler
-        nocturne Django-Q2 ; se superpose a tout
-        etat actif sauf CLOSED_RESOLVED.
-    end note
-
-    note right of CLOSED_RESOLVED
-        Sceau HMAC-SHA256 genere (Story 3.10).
-        Toute mutation bloquee. Preuves immuables.
-    end note
+    CLOSED_RESOLVED --> [*] : État terminal immuable
 ```
 
-### 3.1 Machine à États de la Soumission de Preuves (EvidenceSubmission)
+**6 états — 10 transitions** vérifiées dans le code source (`models.py`, lignes 467–619).
 
-Le code modélise les preuves en **deux tables** : une `EvidenceSubmission` (lot) qui
-porte le statut ci-dessous, et N `EvidenceFile` rattachés. Les fichiers d'un lot `DRAFT`
-sont supprimables ; dès `PENDING`, ils deviennent immuables (append-only).
+| État | Description |
+|:---|:---|
+| `DRAFT` | Brouillon créé par l'Audit. Modifiable et supprimable (soft delete). |
+| `ASSIGNED` | Assignée à un DM. En attente de prise en charge. |
+| `IN_PROGRESS` | En cours de traitement par l'ETP ou le DM Porteur. |
+| `PENDING_DM_REVIEW` | Preuves soumises, en attente de validation par le DM. |
+| `PENDING_AUDIT_REVIEW` | Validée par le DM, en attente de décision finale de l'Audit. |
+| `CLOSED_RESOLVED` | Clôturée définitivement. Sceau HMAC-SHA256 généré. Aucune mutation possible. |
+
+> **Note :** Le flag `is_overdue` est un attribut calculé par le scheduler nocturne Django-Q2. Il se superpose à tout état actif (sauf `CLOSED_RESOLVED`) sans déclencher de transition FSM.
+
+---
+
+### 3.2 Machine à États de la Soumission de Preuves (EvidenceSubmission)
+
+Le dossier de preuves est modélisé en deux tables : `EvidenceSubmission` (le lot) et `EvidenceFile` (les fichiers rattachés). Les fichiers d'un lot `DRAFT` sont supprimables ; dès `PENDING`, ils deviennent immuables.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> DRAFT : ETP/DM cree un brouillon (fichiers + commentaire)
+    [*] --> DRAFT : Brouillon créé par ETP / DM Porteur
 
-    DRAFT --> PENDING : Soumission au DM [submit_evidence()]
-    PENDING --> ACCEPTED : DM valide [approve_for_audit()]
-    PENDING --> REJECTED : DM rejette, motif requis [reject_evidence()]
-    ACCEPTED --> REJECTED_BY_AUDIT : Audit rejette le dossier [reject_by_audit()]
+    DRAFT --> PENDING : Soumission au DM
+    PENDING --> ACCEPTED : Validation DM
+    PENDING --> REJECTED : Rejet DM (motif obligatoire)
+    ACCEPTED --> REJECTED_BY_AUDIT : Rejet Audit
 
-    REJECTED --> [*] : Conservee en historique (jamais supprimee)
-    REJECTED_BY_AUDIT --> [*] : Conservee en historique
-    ACCEPTED --> [*] : Incluse dans le sceau HMAC a la cloture
-
-    note right of DRAFT
-        Visible uniquement par son auteur.
-        Fichiers ajoutables / supprimables librement.
-    end note
-
-    note right of PENDING
-        Fichiers immuables (append-only, AC4).
-        Apres rejet, l ETP cree une nouvelle
-        soumission (re-soumission versionnee).
-    end note
+    REJECTED --> [*] : Conservée en historique
+    REJECTED_BY_AUDIT --> [*] : Conservée en historique
+    ACCEPTED --> [*] : Incluse dans le sceau HMAC
 ```
 
-### 3.2 Machine à États de la Demande de Report
+---
+
+### 3.3 Machine à États de la Demande de Report (ExtensionRequest)
+
+Modèle satellite de la recommandation. Ne déclenche aucune transition FSM sur la recommandation elle-même. Une seule demande `PENDING` est autorisée par recommandation à la fois.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING : DM soumet demande\n(nouvelle date + justification)
+    [*] --> PENDING : Demande soumise par DM / DG
 
-    PENDING --> APPROVED : Audit accepte\nNouvelle echeance enregistree\nCompteur reinitialise
-    PENDING --> REJECTED : Audit refuse\nEcheance initiale maintenue
+    PENDING --> APPROVED : Approuvée par l'Audit (échéance mise à jour)
+    PENDING --> REJECTED : Rejetée par l'Audit (échéance maintenue)
 
     APPROVED --> [*]
     REJECTED --> [*]
-
-    note right of PENDING
-        Ne bloque pas le workflow
-        Reco reste dans son etat courant
-    end note
 ```
 
 ---
@@ -575,39 +610,41 @@ sequenceDiagram
     participant SMTP as Serveur Email
 
     rect rgb(230, 245, 255)
-        Note over AU, APP: Phase 1 — Creation et Assignation
-        AU->>APP: Cree recommandation (formulaire HTMX)
-        APP->>DB: INSERT Recommendation (status=ASSIGNED)
+        Note over AU, APP: Phase 1 — Création et Assignation
+        AU->>APP: Crée recommandation (formulaire HTMX)
+        APP->>DB: INSERT Recommendation (status=DRAFT)
         APP->>DB: INSERT AuditLog (action=CREATE)
-        APP-->>AU: Fragment HTML confirme creation
+        APP-->>AU: Fragment HTML confirme création
 
         AU->>APP: Assigne au DM de la direction cible
         APP->>FSM: assign_to_dm(dm_id)
-        FSM->>DB: UPDATE status (ASSIGNED)
+        FSM->>DB: UPDATE status => ASSIGNED
         APP->>DB: INSERT AuditLog (action=TRANSITION)
         FSM-->>Q2: async_task(send_assignment_notification)
         Q2->>SMTP: Email notification au DM
-        APP-->>AU: Fragment HTML mis a jour
+        APP-->>AU: Fragment HTML mis à jour
     end
 
     rect rgb(255, 245, 230)
-        Note over DM, ETP: Phase 2 — Delegation et Execution
-        DM->>APP: Delegue a ETP de son equipe
-        APP->>FSM: delegate_to_etp(etp_id)
+        Note over DM, ETP: Phase 2 — Délégation et Exécution
+        DM->>APP: Délègue à ETP de son équipe
+        APP->>FSM: start_processing() [affecte ETP]
         FSM->>DB: UPDATE status => IN_PROGRESS
         APP->>DB: INSERT AuditLog (TRANSITION)
         FSM-->>Q2: async_task(send_delegation_notification)
-        APP-->>DM: Fragment HTML confirme delegation
+        APP-->>DM: Fragment HTML confirme délégation
 
         ETP->>APP: Upload preuve (PDF 5Mo)
         APP->>APP: Valide Magic Bytes + Extension
-        APP->>DB: INSERT Proof (status=PENDING, version=1)
-        APP->>DB: Sauvegarde fichier renomme UUID sur disque
-        APP-->>ETP: Fragment HTML ligne preuve ajoutee
+        APP->>DB: INSERT EvidenceSubmission (status=DRAFT) [si premier upload]
+        APP->>DB: INSERT EvidenceFile (tag=JUSTIFICATIF)
+        APP->>DB: Sauvegarde fichier renommé UUID sur disque
+        APP-->>ETP: Fragment HTML ligne preuve ajoutée
 
         ETP->>APP: Soumet preuves + commentaire au DM
-        APP->>FSM: submit_to_dm()
-        FSM->>DB: UPDATE status => PENDING_DM_REVIEW
+        APP->>FSM: submit_evidence()
+        FSM->>DB: UPDATE status => PENDING_DM_REVIEW (Recommendation)
+        FSM->>DB: UPDATE status => PENDING (EvidenceSubmission)
         APP->>DB: INSERT Comment (type=SUBMISSION)
         APP->>DB: INSERT AuditLog (TRANSITION)
         FSM-->>Q2: async_task(notify_dm_submission)
@@ -615,27 +652,28 @@ sequenceDiagram
     end
 
     rect rgb(230, 255, 230)
-        Note over DM, AU: Phase 3 — Validation et Cloture
-        DM->>APP: Verifie preuves + uploade PV recette signe
-        APP->>DB: INSERT Proof (type=PV_RECETTE)
-        DM->>APP: Valide pour l Audit
-        APP->>FSM: approve_by_dm()
-        FSM->>DB: UPDATE status => PENDING_AUDIT_REVIEW
+        Note over DM, AU: Phase 3 — Validation et Clôture
+        DM->>APP: Vérifie preuves + uploade PV recette signé
+        APP->>DB: INSERT EvidenceFile (tag=PV_RECETTE) rattaché à la soumission
+        DM->>APP: Valide pour l'Audit
+        APP->>FSM: approve_for_audit()
+        FSM->>DB: UPDATE status => PENDING_AUDIT_REVIEW (Recommendation)
+        FSM->>DB: UPDATE status => ACCEPTED (EvidenceSubmission)
         APP->>DB: INSERT AuditLog (TRANSITION)
         FSM-->>Q2: async_task(notify_audit_validation)
         APP-->>DM: Fragment HTML confirme validation
 
-        AU->>APP: Examine preuves et cloture
+        AU->>APP: Examine preuves et clôture
         APP->>FSM: close_by_audit()
         FSM->>DB: UPDATE status => CLOSED_RESOLVED
-        APP->>APP: Calcul HMAC-SHA256 (metadonnees + hash fichiers)
+        APP->>APP: Calcul HMAC-SHA256 (métadonnées + hash fichiers)
         APP->>DB: INSERT HmacSeal (hash, sealed_metadata)
         APP->>DB: INSERT AuditLog (TRANSITION + CLOSURE)
-        APP-->>AU: Fragment HTML avec badge CLOSED + hash affiche
+        APP-->>AU: Fragment HTML avec badge CLOSED + hash affiché
     end
 ```
 
-### 4.2 Soumission et Validation de Preuve (Détail Technique)
+### 4.2 Soumission de Preuves (Détail Technique)
 
 ```mermaid
 sequenceDiagram
@@ -643,44 +681,44 @@ sequenceDiagram
     actor USER as ETP / DM
     participant HTML as Navigateur HTMX
     participant VUE as Vue Django
-    participant SVC as ProofService
+    participant SVC as EvidenceService
     participant VALID as Validateur Fichier
     participant DISK as File Storage
     participant ORM as Django ORM
     participant LOG as AuditLog
 
-    USER->>HTML: Selectionne fichier + clic Upload
-    HTML->>VUE: POST /recos/{id}/proofs/ (multipart/form-data)
+    USER->>HTML: Sélectionne fichier + clic Upload
+    HTML->>VUE: POST /recos/{id}/evidence/add-file/ (multipart/form-data)
 
-    VUE->>VUE: Verifie RBAC (role autorise)
-    VUE->>VUE: Verifie FSM (etat autorise upload)
+    VUE->>VUE: Vérifie RBAC (rôle autorisé)
+    VUE->>VUE: Vérifie FSM (état autorisé upload)
 
-    VUE->>SVC: submit_proof(reco_id, file, user)
+    VUE->>SVC: add_file_to_draft(submission, file, uploaded_by)
     SVC->>VALID: validate_file(file)
 
-    alt Fichier Media (PDF, JPG, PNG)
-        VALID->>VALID: Verifie Magic Bytes (python-magic)
-        VALID->>VALID: Verifie Extension whitelist
+    alt Fichier Média (PDF, JPG, PNG)
+        VALID->>VALID: Vérifie Magic Bytes (python-magic)
+        VALID->>VALID: Vérifie Extension whitelist
     else Fichier Office/Texte (XLSX, CSV, TXT, MSG, EML)
-        VALID->>VALID: Verifie Extension whitelist stricte
-        VALID->>VALID: Verifie MIME type primaire
+        VALID->>VALID: Vérifie Extension whitelist stricte
+        VALID->>VALID: Vérifie MIME type primaire
         VALID->>VALID: Rejette si .xlsm ou .docm (macros)
     end
 
-    alt Validation echouee
+    alt Validation échouée
         VALID-->>SVC: ValidationError (type invalide)
         SVC-->>VUE: Erreur
         VUE-->>HTML: Fragment HTML erreur inline
-        HTML-->>USER: Message erreur affiche
+        HTML-->>USER: Message erreur affiché
     else Validation OK
         VALID-->>SVC: Fichier valide
-        SVC->>SVC: Genere nom UUID4 + conserve extension
-        SVC->>DISK: Sauvegarde media/proofs/{reco_id}/{uuid}.ext
-        SVC->>ORM: INSERT Proof (original_filename, uuid_path, version, status=PENDING)
-        SVC->>LOG: INSERT AuditLog (action=CREATE, object=Proof)
-        SVC-->>VUE: Proof creee
+        SVC->>SVC: Génère nom UUID4 + conserve extension
+        SVC->>DISK: Sauvegarde media/evidence/{uuid}.ext
+        SVC->>ORM: INSERT EvidenceFile (submission, file, original_filename, sha256_hash)
+        SVC->>LOG: INSERT AuditLog (action=CREATE, object=EvidenceFile)
+        SVC-->>VUE: EvidenceFile créée
         VUE-->>HTML: Fragment HTML avec nouvelle ligne preuve
-        HTML-->>USER: DOM mis a jour via hx-swap
+        HTML-->>USER: DOM mis à jour via hx-swap
     end
 ```
 
@@ -698,33 +736,34 @@ sequenceDiagram
 
     Note over DM: Reco en PENDING_DM_REVIEW
 
-    DM->>APP: Examine les preuves de l ETP
+    DM->>APP: Examine les preuves de l'ETP
     DM->>APP: Rejette avec motif "Signature absente"
-    APP->>FSM: reject_by_dm(reason="Signature absente")
-    FSM->>DB: UPDATE Proof status => REJECTED (version 1)
+    APP->>FSM: reject_evidence()
+    FSM->>DB: UPDATE EvidenceSubmission status => REJECTED
     FSM->>DB: UPDATE Recommendation status => IN_PROGRESS
     APP->>DB: INSERT Comment (type=REJECTION, "Signature absente")
     APP->>DB: INSERT AuditLog (TRANSITION, before=PENDING_DM_REVIEW, after=IN_PROGRESS)
     FSM-->>Q2: async_task(notify_etp_rejection, reco_id)
-    Q2->>ETP: Email "Preuve rejetee — motif: Signature absente"
+    Q2->>ETP: Email "Preuve rejetée — motif: Signature absente"
     APP-->>DM: Fragment HTML confirme rejet
 
-    Note over ETP: ETP recoit la notification
+    Note over ETP: ETP reçoit la notification
 
     ETP->>APP: Consulte la reco et le motif de rejet
-    APP-->>ETP: Affiche historique V1 REJECTED + motif
+    APP-->>ETP: Affiche historique soumission REJECTED + motif
 
-    ETP->>APP: Upload nouvelle preuve corrigee
-    APP->>DB: INSERT Proof (version=2, status=PENDING)
-    APP-->>ETP: Fragment HTML version 2 ajoutee
+    ETP->>APP: Crée nouvelle soumission et upload fichier corrigé
+    APP->>DB: INSERT EvidenceSubmission (status=DRAFT)
+    APP->>DB: INSERT EvidenceFile (rattaché à la nouvelle soumission)
+    APP-->>ETP: Fragment HTML mis à jour
 
-    ETP->>APP: Re-soumet + commentaire "Signature ajoutee"
-    APP->>FSM: submit_to_dm()
-    FSM->>DB: UPDATE status => PENDING_DM_REVIEW
+    ETP->>APP: Re-soumet + commentaire "Signature ajoutée"
+    APP->>FSM: submit_evidence()
+    FSM->>DB: UPDATE status => PENDING_DM_REVIEW (Recommendation)
+    FSM->>DB: UPDATE status => PENDING (EvidenceSubmission)
     APP->>DB: INSERT Comment (type=SUBMISSION)
     APP->>DB: INSERT AuditLog (TRANSITION)
     APP-->>ETP: Fragment HTML confirme re-soumission
-```
 
 ### 4.4 Demande de Report d'Échéance
 
@@ -950,7 +989,6 @@ sequenceDiagram
             AUTH->>SESS: Cree session (expiry=1800s)
             AUTH->>DB: INSERT django_session
             VUE->>LOG: INSERT AuditLog (LOGIN, user, ip)
-            VUE->>DB: set_config(app.tenant_id, user.department_id)
             VUE-->>HTML: Set-Cookie (HttpOnly, Secure, SameSite=Lax)
             HTML-->>USER: Redirect vers dashboard role
         end
@@ -970,6 +1008,18 @@ sequenceDiagram
         VUE->>VUE: Continue traitement normal
     end
 ```
+
+#### Description du Mécanisme d'Authentification :
+
+Le diagramme d'authentification et contrôle de session met en œuvre les couches de sécurité fondamentales de Sentinel :
+1. **Protection contre le Bruteforce (`django-axes`)** : Avant de tenter de valider les identifiants en base, le middleware de sécurité intercepte la requête HTTP et interroge la table SQL `AccessAttempt`. Si le seuil de 5 tentatives échouées consécutives est dépassé pour l'IP ou l'identifiant, le compte est verrouillé sans solliciter les fonctions d'authentification.
+2. **Double Écriture de Piste d'Audit (`AuditLog`)** : Chaque tentative de connexion (réussie avec `LOGIN` ou échouée avec `LOGIN_FAILED`) fait l'objet d'un enregistrement *append-only* asynchrone pour l'historique d'audit, capturant l'adresse IP et l'identité.
+3. **Cloisonnement de Données (RBAC applicatif)** : Le cloisonnement inter-départemental est assuré au niveau applicatif, et non par la base de données. Trois mécanismes coopèrent : les middlewares `RoleRequiredMiddleware` et `ExternalIsolationMiddleware` (filtrage des routes selon le rôle et isolation stricte des auditeurs externes), et les *selectors* (ex. `get_recommendations_for_user`) qui restreignent systématiquement les requêtes au périmètre autorisé de l'utilisateur.
+4. **Session Glissante** : Le paramètre `SESSION_SAVE_EVERY_REQUEST=True` réinitialise le délai d'expiration de session (30 minutes) à chaque action de l'utilisateur, et le redirige de force vers la page de login en cas d'inactivité prolongée.
+
+> **Note (v2) :** un cloisonnement complémentaire par *Row-Level Security* (RLS) PostgreSQL est prévu pour la version 2, en défense en profondeur du RBAC applicatif actuel.
+
+---
 
 ### 4.9 Provisioning des Comptes — Maker / Checker (Story 6.2.0)
 
@@ -1024,6 +1074,15 @@ sequenceDiagram
     end
 ```
 
+#### Description du Mécanisme de Provisioning :
+
+Ce processus est un **Diagramme de Séquence de Provisioning de Comptes (Maker/Checker)**. Il illustre le principe de séparation des tâches (Segregation of Duties — SoD) appliqué à la gestion des habilitations :
+1. **Sécurisation de la soumission (Maker)** : L'Admin IT initie la demande en saisissant les informations du compte. Le mot de passe brut saisi est immédiatement transformé en condensat sécurisé (hachage PBKDF2 via `make_password`) côté serveur avant l'insertion dans la table `users_userprovisioningrequest`. Le compte utilisateur réel n'existe pas encore.
+2. **Validation Indépendante (Checker)** : La demande en attente (`PENDING`) apparaît dans la file de traitement du Checker (un Administrateur Sentinel habilité). Le Checker peut :
+   * **Approuver** : Déclenche une transaction atomique (`transaction.atomic()`) qui crée simultanément le profil de l'utilisateur, configure ses droits, instancie son périmètre de mission externe le cas échéant, et met à jour le statut de la demande.
+   * **Rejeter** : Exige la saisie obligatoire d'un motif de rejet. La demande passe à l'état `REJECTED`, aucun utilisateur n'est créé en base.
+3. **Intégrité Transactionnelle** : La transaction garantit qu'en cas de panne réseau ou d'erreur sur l'une des écritures SQL, la base de données effectue un Rollback complet (aucun compte "partiellement configuré").
+
 ---
 
 ## 5. Diagrammes de Cas d'Utilisation
@@ -1032,610 +1091,590 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    subgraph "Système Sentinel"
-        UC1["Créer recommandation\n(unitaire, stepper)"]
-        UC2["Importer en masse via Excel\n(DRAFT — Story 6.5)"]
-        UC3["Télécharger le modèle\nd'import"]
-        UC4["Modifier / Soft Delete\nune reco en DRAFT"]
-        UC5["Assigner à un DM"]
-        UC6["Assigner directement\nà un DG (bypass)"]
-        UC7["Examiner et clôturer\n+ Sceau HMAC-SHA256"]
-        UC8["Rejeter le dossier\nen revue Audit (motif)"]
-        UC9["Approuver / Refuser\ndemande de report"]
-        UC10["Consulter Dashboard\nAudit (KPIs, files d'action)"]
-        UC11["Consulter Timeline\nd'audit d'une reco"]
-    end
+  subgraph "Système Sentinel"
+    UC1["Créer recommandation (unitaire, stepper)"]
+    UC2["Importer en masse via Excel (DRAFT)"]
+    UC3["Télécharger le modèle d'import"]
+    UC4["Modifier / Soft Delete une reco en DRAFT"]
+    UC5["Assigner à un DM"]
+    UC6["Assigner directement à un DG (bypass)"]
+    UC7["Examiner et clôturer + Sceau HMAC-SHA256"]
+    UC8["Rejeter le dossier en revue Audit (motif)"]
+    UC9["Approuver / Refuser demande de report"]
+    UC10["Consulter Dashboard Audit (KPIs, files d'action)"]
+    UC11["Consulter Timeline d'audit d'une reco"]
+    UC12["Exporter l'archive ZIP des preuves validées"]
+  end
 
-    subgraph "Réservé Audit Admin (is_audit_admin — ADR-10)"
-        UC12["Attribuer rôles & habilitations\n(habilitation des comptes)"]
-        UC13["Déléguer le flag\nis_audit_admin"]
-        UC14["Gérer le référentiel\ndes Sources (Story 3.7.b)"]
-    end
+  subgraph "Réservé Audit Admin (is_audit_admin)"
+    UC13["Attribuer rôles & habilitations (habilitation des comptes)"]
+    UC14["Déléguer le flag is_audit_admin"]
+    UC15["Gérer le référentiel des Sources"]
+  end
 
-    AU(("🔵 Auditeur\nInterne"))
+  AU(("🔵 Auditeur\nInterne"))
 
-    AU --- UC1
-    AU --- UC2
-    AU --- UC3
-    AU --- UC4
-    AU --- UC5
-    AU --- UC6
-    AU --- UC7
-    AU --- UC8
-    AU --- UC9
-    AU --- UC10
-    AU --- UC11
-    AU --- UC12
-    AU --- UC13
-    AU --- UC14
+  AU --- UC1
+  AU --- UC2
+  AU --- UC3
+  AU --- UC4
+  AU --- UC5
+  AU --- UC6
+  AU --- UC7
+  AU --- UC8
+  AU --- UC9
+  AU --- UC10
+  AU --- UC11
+  AU --- UC12
+  AU --- UC13
+  AU --- UC14
+  AU --- UC15
 ```
 
 ### 5.2 Directeur Métier (DM)
 
 ```mermaid
 flowchart LR
-    subgraph "Système Sentinel"
-        UC1["Consulter recommandations\nassignées (dashboard DM)"]
-        UC2["Déléguer reco\nà un ETP"]
-        UC3["Examiner preuves\nsoumises par ETP"]
-        UC4["Valider preuves\n+ Upload PV recette"]
-        UC5["Rejeter preuves\n(motif obligatoire)"]
-        UC6["Soumettre directement\npreuves à l'Audit"]
-        UC7["Demander report\néchéance (justification)"]
-        UC8["Supprimer preuve\nPENDING (si reco\nIN_PROGRESS)"]
-        UC9["Consulter Timeline\nAudit Trail reco"]
-        UC10["Ajouter commentaire"]
-    end
+  subgraph "Système Sentinel"
+    UC1["Consulter recommandations assignées"]
+    UC2["Déléguer reco à un ETP"]
+    UC3["S'auto-assigner comme DM Porteur"]
+    UC4["Examiner preuves soumises par ETP"]
+    UC5["Valider preuves + Upload PV recette"]
+    UC6["Rejeter preuves (motif obligatoire)"]
+    UC7["Demander report échéance (justification)"]
+    UC8["Consulter Timeline Audit Trail reco"]
+    UC9["Ajouter commentaire"]
+  end
 
-    DM(("🟢 Directeur\nMétier"))
+  DM(("🟢 Directeur\nMétier"))
 
-    DM --- UC1
-    DM --- UC2
-    DM --- UC3
-    DM --- UC4
-    DM --- UC5
-    DM --- UC6
-    DM --- UC7
-    DM --- UC8
-    DM --- UC9
-    DM --- UC10
+  DM --- UC1
+  DM --- UC2
+  DM --- UC3
+  DM --- UC4
+  DM --- UC5
+  DM --- UC6
+  DM --- UC7
+  DM --- UC8
+  DM --- UC9
 ```
 
 ### 5.3 Employé Traitant (ETP)
 
 ```mermaid
 flowchart LR
-    subgraph "Système Sentinel"
-        UC1["Consulter To-Do List\n(recos assignées)"]
-        UC2["Uploader preuves\n(PDF, XLSX, Images, etc.)"]
-        UC3["Soumettre preuves\n+ commentaire justificatif\nau DM"]
-        UC4["Re-soumettre après\nrejet (nouvelle version)"]
-        UC5["Consulter historique\ndes versions preuves"]
-        UC6["Consulter motif de\nrejet du DM/Audit"]
-        UC7["Consulter Timeline\nAudit Trail reco"]
-        UC8["Ajouter commentaire"]
-    end
+  subgraph "Système Sentinel"
+    UC1["Consulter To-Do List (recos assignées)"]
+    UC2["Uploader preuves (PDF, XLSX, Images...)"]
+    UC3["Supprimer preuve (uniquement si lot en DRAFT)"]
+    UC4["Soumettre preuves + commentaire au DM"]
+    UC5["Re-soumettre après rejet (nouvelle version)"]
+    UC6["Consulter historique des versions preuves"]
+    UC7["Consulter motif de rejet du DM/Audit"]
+    UC8["Consulter Timeline Audit Trail reco"]
+    UC9["Ajouter commentaire"]
+  end
 
-    ETP(("🟡 Employé\nTraitant"))
+  ETP(("🟡 Employé\nTraitant"))
 
-    ETP --- UC1
-    ETP --- UC2
-    ETP --- UC3
-    ETP --- UC4
-    ETP --- UC5
-    ETP --- UC6
-    ETP --- UC7
-    ETP --- UC8
+  ETP --- UC1
+  ETP --- UC2
+  ETP --- UC3
+  ETP --- UC4
+  ETP --- UC5
+  ETP --- UC6
+  ETP --- UC7
+  ETP --- UC8
+  ETP --- UC9
 ```
 
 ### 5.4 Direction Générale (DG)
 
 ```mermaid
 flowchart LR
-    subgraph "Système Sentinel"
-        UC1["Consulter Dashboard\nSupervision macro"]
-        UC2["Filtrer par source\n(COBAC, CAC, Interne)"]
-        UC3["Filtrer par priorité\net statut"]
-        UC4["Filtrer par aging\n(> 24 mois)"]
-        UC5["Visualiser code couleur\nurgence (Rouge/Orange/Vert)"]
-        UC6["Imprimer dashboard\n(CSS @media print)"]
-        UC7["Consulter détail\nd'une recommandation"]
-        UC8["Consulter Timeline\nAudit Trail reco"]
-    end
+  subgraph "Système Sentinel"
+    UC1["Consulter Dashboard Supervision macro"]
+    UC2["Filtrer par source, priorité et statut"]
+    UC3["Filtrer par aging (> 24 mois)"]
+    UC4["Imprimer dashboard (CSS @media print)"]
+    UC5["Consulter détail d'une recommandation"]
+    UC6["Consulter Timeline Audit Trail reco"]
+    UC7["Soumettre directement les preuves à l'Audit (bypass DM)"]
+    UC8["Demander report échéance (justification)"]
+  end
 
-    DG(("🟣 Direction\nGénérale"))
+  DG(("🟣 Direction\nGénérale"))
 
-    DG --- UC1
-    DG --- UC2
-    DG --- UC3
-    DG --- UC4
-    DG --- UC5
-    DG --- UC6
-    DG --- UC7
-    DG --- UC8
+  DG --- UC1
+  DG --- UC2
+  DG --- UC3
+  DG --- UC4
+  DG --- UC5
+  DG --- UC6
+  DG --- UC7
+  DG --- UC8
 ```
 
 ### 5.5 Auditeur Externe (COBAC / BEAC / CAC)
 
 ```mermaid
 flowchart LR
-    subgraph "Système Sentinel"
-        UC1["Se connecter avec\ncredentials mission"]
-        UC2["Consulter recommandations\ndu périmètre mission\n(Read-Only)"]
-        UC3["Visualiser fiche\nsynthèse conformité"]
-        UC4["Vérifier hash\nHMAC-SHA256"]
-        UC5["Télécharger Archive\nZIP par recommandation"]
-        UC6["Consulter preuves\nacceptées"]
-    end
+  subgraph "Système Sentinel"
+    UC1["Se connecter avec credentials mission"]
+    UC2["Consulter recommandations du périmètre mission (Read-Only)"]
+    UC3["Visualiser fiche synthèse conformité"]
+    UC4["Vérifier hash HMAC-SHA256"]
+    UC5["Télécharger Archive ZIP par recommandation"]
+    UC6["Consulter preuves acceptées"]
+  end
 
-    subgraph "Restrictions"
-        R1["❌ Audit Trail interne\nnon accessible"]
-        R2["❌ Flag OVERDUE\nmasqué"]
-        R3["❌ Aucune action\nde mutation"]
-    end
+  subgraph "Restrictions"
+    R1["❌ Audit Trail interne masqué"]
+    R2["❌ Flag OVERDUE masqué"]
+    R3["❌ Aucune action de mutation"]
+  end
 
-    EXT(("🔴 Auditeur\nExterne"))
+  EXT(("🔴 Auditeur\nExterne"))
 
-    EXT --- UC1
-    EXT --- UC2
-    EXT --- UC3
-    EXT --- UC4
-    EXT --- UC5
-    EXT --- UC6
+  EXT --- UC1
+  EXT --- UC2
+  EXT --- UC3
+  EXT --- UC4
+  EXT --- UC5
+  EXT --- UC6
 ```
 
 ### 5.6 Admin IT
 
 ```mermaid
 flowchart LR
-    subgraph "Organisation & Comptes"
-        UC1["Gérer l'organigramme\n(Départements : créer / éditer / supprimer)"]
-        UC2["Gérer les types d'unités\norganisationnelles (Story 3.7.b)"]
-        UC3["Créer une demande de\nprovisioning de compte (maker)"]
-        UC4["Gérer les utilisateurs\n(reset mot de passe, désactiver / réactiver)"]
-    end
+  subgraph "Gestion & Comptes (Maker)"
+    UC1["Créer une demande de provisioning de compte"]
+    UC2["Lister & filtrer les comptes utilisateurs"]
+    UC3["Réinitialiser le mot de passe d'un utilisateur"]
+    UC4["Désactiver / réactiver un compte utilisateur"]
+    UC5["Débloquer un compte verrouillé (django-axes)"]
+  end
 
-    subgraph "Surveillance (Story 7.1)"
-        UC5["Dashboard de monitoring"]
-        UC6["Consulter les sessions actives"]
-        UC7["Lister les utilisateurs inactifs"]
-        UC8["Comptes verrouillés\n(django-axes)"]
-        UC9["Consulter le journal\nd'audit global"]
-    end
+  subgraph "Surveillance & Sécurité"
+    UC6["Dashboard de monitoring IT"]
+    UC7["Consulter les sessions actives"]
+    UC8["Lister les utilisateurs inactifs"]
+    UC9["Consulter le journal d'audit global (piste d'audit)"]
+  end
 
-    subgraph "Restrictions"
-        R1["❌ Ne finalise pas seul un rôle métier\n(demande validée par un checker — 4 yeux)"]
-        R2["❌ Aucun accès aux données\nmétier (recos, preuves)"]
-    end
+  subgraph "Restrictions SoD"
+    R1["❌ Ne valide pas ses propres demandes (Checker requis)"]
+    R2["❌ Aucun accès aux données métier (recos, preuves)"]
+    R3["❌ Ne peut pas altérer la structure de la banque seule"]
+  end
 
-    ADMIN(("⚫ Admin IT"))
+  ADMIN(("⚫ Admin IT"))
 
-    ADMIN --- UC1
-    ADMIN --- UC2
-    ADMIN --- UC3
-    ADMIN --- UC4
-    ADMIN --- UC5
-    ADMIN --- UC6
-    ADMIN --- UC7
-    ADMIN --- UC8
-    ADMIN --- UC9
+  ADMIN --- UC1
+  ADMIN --- UC2
+  ADMIN --- UC3
+  ADMIN --- UC4
+  ADMIN --- UC5
+  ADMIN --- UC6
+  ADMIN --- UC7
+  ADMIN --- UC8
+  ADMIN --- UC9
 ```
 
-### 5.7 Checker / Administrateur Sentinel
-
-Acteur introduit par le provisioning Maker/Checker (Story 6.2.0) : membre du groupe
-« Administrateurs Sentinel », distinct du maker (Admin IT). Garant du contrôle à quatre yeux.
+### 5.7 Checker (Administrateur Sentinel)
 
 ```mermaid
 flowchart LR
-    subgraph "Système Sentinel"
-        UC1["Consulter la file des\ndemandes de provisioning"]
-        UC2["Approuver une demande\n(crée le compte + mission EXT)"]
-        UC3["Rejeter une demande\n(motif obligatoire)"]
-    end
+  subgraph "Contrôle à 4 yeux"
+    UC1["Consulter la file des demandes de provisioning"]
+    UC2["Approuver une demande (crée/modifie le compte + mission EXT)"]
+    UC3["Rejeter une demande (motif obligatoire)"]
+  end
 
-    CK(("🟤 Checker\n(Administrateur Sentinel)"))
+  subgraph "Gestion de la Structure Institutionnelle"
+    UC4["Gérer l'organigramme (Départements : créer / éditer / supprimer)"]
+    UC5["Gérer les types d'unités organisationnelles (OrgUnitType)"]
+  end
 
-    CK --- UC1
-    CK --- UC2
-    CK --- UC3
+  CK(("🟤 Checker\n(Administrateur Sentinel)"))
+
+  CK --- UC1
+  CK --- UC2
+  CK --- UC3
+  CK --- UC4
+  CK --- UC5
 ```
 
 ---
 
-## 6. Diagramme de Classes
+## 6. Diagramme de Classes (Modèles Cœur)
 
-Architecture Clean (HackSoft Styleguide) avec les couches Models → Selectors → Services → Views.
+Ce diagramme présente une version simplifiée et optimisée de l'architecture de données de Sentinel. Il se concentre exclusivement sur les **8 classes métier centrales** et leurs relations fondamentales, omettant volontairement les classes satellites (énumérations, mixins, services techniques) pour mettre en évidence l'essence du système.
 
 ```mermaid
 classDiagram
-    direction TB
+    direction LR
 
-    %% ===== DOMAIN: USERS =====
-    namespace UsersApp {
-        class OrgUnitType {
-            +UUID id
-            +String name
-            +String code
-            +Integer level
-            +Boolean is_active
-        }
-
-        class Department {
-            +UUID id
-            +String name
-            +String code
-            +OrgUnitType type
-            +Department parent
-            +Boolean is_active
-            +Boolean is_system
-            +get_children() QuerySet
-            +clean() void
-        }
-
-        class User {
-            +UUID id
-            +String username
-            +String email
-            +String first_name
-            +String last_name
-            +String role "vide = coquille vide"
-            +Department department
-            +Boolean is_external
-            +Boolean is_audit_admin
-            +String job_title
-            +Boolean is_active
-            +has_role() Boolean
-            +can_manage_users() Boolean
-            +is_shell_account() Boolean
-        }
-
-        class ExternalMission {
-            +UUID id
-            +User auditor
-            +String organization
-            +String scope_description
-            +Date start_date
-            +Date end_date
-            +Boolean is_active
-        }
-
-        class UserProvisioningRequest {
-            +UUID id
-            +String requested_username
-            +String requested_email
-            +String hashed_initial_password
-            +String requested_role
-            +Department requested_department
-            +Boolean requested_is_audit_admin
-            +String status "PENDING|APPROVED|REJECTED|CANCELLED"
-            +String request_type "CREATE|MODIFY"
-            +User requested_by "maker"
-            +User reviewed_by "checker"
-            +User target_user
-            +clean() void
-        }
-
-        class UserSelector {
-            +get_users_by_direction(dept_id) QuerySet
-            +get_active_dm_for_direction(dept_id) QuerySet
-            +get_etp_for_dm(dm_user) QuerySet
-        }
-
-        class UserService {
-            +create_user(data) User
-            +reset_password(user_id) None
-            +deactivate_user(user_id) None
-            +reactivate_user(user_id) None
-        }
-
-        class AccessMixins {
-            <<mixins>>
-            AuditRequiredMixin
-            AuditAdminRequiredMixin
-            AdminRequiredMixin
-            WorkflowAccessMixin
-            ProvisioningApproverRequiredMixin
-            ProvisioningListAccessMixin
-        }
+    class User {
+        +UUID id
+        +String username
+        +String role
+        +Department department
+        +Boolean is_audit_admin
+        +Boolean is_external
     }
 
-    %% ===== DOMAIN: WORKFLOW =====
-    namespace WorkflowApp {
-        class RecommendationSource {
-            +UUID id
-            +String code
-            +String label
-            +Boolean is_external
-            +Boolean is_active
-        }
-
-        class Recommendation {
-            +UUID id
-            +String reference
-            +String mission_label
-            +Date mission_date
-            +Text description
-            +Text observations
-            +Text anomalous_dossiers
-            +RecommendationSource source
-            +PriorityEnum priority
-            +Department department
-            +Department controlled_department
-            +Date due_date
-            +Date original_due_date
-            +FSMField status "6 etats"
-            +Boolean is_overdue
-            +User created_by
-            +User assigned_dm
-            +User assigned_etp
-            +String import_tag
-            +ImportBatch import_batch
-            +DateTime closed_at
-            +User closed_by
-            +Boolean is_deleted
-            +progress_percentage() Integer
-            +assign_to_dm(dm) void
-            +assign_to_dg(dg) void
-            +start_processing() void
-            +submit_evidence() void
-            +reject_evidence() void
-            +approve_for_audit() void
-            +submit_directly_to_audit() void
-            +close_by_audit() void
-            +reject_by_audit() void
-        }
-
-        class Deliverable {
-            +UUID id
-            +Recommendation recommendation
-            +String label
-            +Integer order
-            +Boolean is_completed
-            +DateTime completed_at
-            +User completed_by
-        }
-
-        class EvidenceSubmission {
-            +UUID id
-            +Recommendation recommendation
-            +Text comment
-            +User submitted_by
-            +SubmissionStatusEnum status
-            +Text review_comment
-            +DateTime reviewed_at
-            +User reviewed_by
-        }
-
-        class EvidenceFile {
-            +UUID id
-            +EvidenceSubmission submission
-            +File file
-            +String original_filename
-            +Integer file_size
-            +String mime_type
-            +String sha256_hash
-            +TagEnum tag
-            +User uploaded_by
-            +delete() void "interdit si non-DRAFT"
-        }
-
-        class ExtensionRequest {
-            +UUID id
-            +Recommendation recommendation
-            +User requested_by
-            +Date requested_date
-            +Text reason
-            +User reviewed_by
-            +DateTime reviewed_at
-            +Text audit_comment
-            +StatusEnum status
-        }
-
-        class ImportBatch {
-            +UUID id
-            +File source_file
-            +String file_name
-            +User created_by
-            +Integer recommendation_count
-        }
-
-        class RecommendationSelector {
-            +get_recommendations_for_user(user, filters) QuerySet
-            +get_recommendation_detail(pk, user) Recommendation
-            +get_pending_extension_for_recommendation(reco) ExtensionRequest
-            +get_evidence_for_recommendation(reco, user) QuerySet
-        }
-
-        class WorkflowService {
-            +create_recommendation(data, user) Recommendation
-            +soft_delete_recommendation(reco, user) None
-            +assign_recommendation_to_dm(reco, dm, user) None
-            +assign_recommendation_to_dg(reco, dg, user) None
-            +delegate_recommendation_to_etp(reco, etp, user) None
-            +flag_overdue_recommendations() Dict
-            +notify_upcoming_deadlines() Dict
-            +run_nightly_notifications() None
-        }
-
-        class EvidenceService {
-            +get_or_create_draft_submission(reco, user) EvidenceSubmission
-            +add_file_to_draft(submission, file, ...) EvidenceFile
-            +submit_evidence_for_recommendation(reco, comment, files, user) None
-            +reject_evidence_submission(reco, submission, reason, user) None
-            +validate_evidence_for_audit(reco, submission, user) None
-            +submit_evidence_by_dg(reco, files, user) None
-            +close_recommendation_by_audit(reco, user) None
-        }
-
-        class ImportExcelModule {
-            <<module import_excel.py>>
-            +build_import_template() Workbook
-            +parse_workbook(file) RowDraft[]
-            +validate_rows(rows, existing_refs) ImportReport
-            +create_recommendations_bulk(rows, user, file, ip) ImportBatch
-        }
-
-        class ExtensionService {
-            +request_extension(reco, date, reason, user) ExtensionRequest
-            +approve_extension(reco, ext, comment, user) None
-            +reject_extension(reco, ext, comment, user) None
-        }
+    class Department {
+        +UUID id
+        +String name
+        +String code
+        +Department parent
     }
 
-    %% ===== DOMAIN: AUDIT =====
-    namespace AuditApp {
-        class AuditLog {
-            +UUID id
-            +User user
-            +ActionEnum action
-            +String content_type
-            +UUID object_id
-            +JSONB changes
-            +IPAddress ip_address
-            +String description
-            +DateTime created_at
-        }
-
-        class HmacSeal {
-            +UUID id
-            +Recommendation recommendation
-            +String hmac_hash
-            +JSONB sealed_metadata
-            +JSONB file_hashes
-            +User sealed_by
-            +DateTime sealed_at
-        }
-
-        class CryptoService {
-            +generate_recommendation_seal(reco, sealed_by) HmacSeal
-            +verify_recommendation_seal(reco) Boolean
-            +_build_seal_payload(reco) Dict
-        }
-
-        class AuditSelector {
-            +get_audit_logs(action, content_type, user_id, dates) QuerySet
-        }
-
-        class ZipArchiveExport {
-            <<à implémenter — Story 6.7>>
-            +generate(reco, preuves) BytesIO
-        }
+    class Recommendation {
+        +UUID id
+        +String reference
+        +String status
+        +String priority
+        +Date due_date
+        +User created_by
+        +User assigned_dm
+        +User assigned_etp
+        +Boolean is_deleted
+        +Boolean is_overdue
     }
 
-    %% ===== DOMAIN: NOTIFICATIONS =====
-    namespace NotificationsApp {
-        class Notification {
-            +UUID id
-            +User recipient
-            +NotifTypeEnum notification_type
-            +Recommendation recommendation
-            +String title
-            +Text body
-            +String url
-            +Boolean is_urgent
-            +Boolean is_read
-            +String idempotency_key "unique (recipient, key)"
-            +DateTime created_at
-        }
-
-        class NotificationService {
-            +emit_notification(recipient, type, key, ...) Notification
-            +notify_porteur(reco, type) None
-            +notify_dm(reco, type) None
-            +notify_audit_owner(reco, type) None
-        }
-
-        class EmailDigest {
-            <<backlog post-MVP>>
-            +send_weekly_digest(user) None
-        }
+    class EvidenceSubmission {
+        +UUID id
+        +String status
+        +Text comment
+        +User submitted_by
+        +Text review_comment
+        +User reviewed_by
     }
 
-    %% ===== ENUMS =====
-    namespace Enumerations {
-        class PriorityEnum {
-            <<enumeration>>
-            CRITIQUE
-            HAUTE
-            MOYENNE
-            FAIBLE
-        }
-
-        class RecoStatusEnum {
-            <<enumeration>>
-            DRAFT
-            ASSIGNED
-            IN_PROGRESS
-            PENDING_DM_REVIEW
-            PENDING_AUDIT_REVIEW
-            CLOSED_RESOLVED
-        }
-
-        class SubmissionStatusEnum {
-            <<enumeration>>
-            DRAFT
-            PENDING
-            ACCEPTED
-            REJECTED
-            REJECTED_BY_AUDIT
-        }
-
-        class TagEnum {
-            <<enumeration>>
-            JUSTIFICATIF
-            PV_RECETTE
-            RAPPORT
-            AUTRE
-        }
+    class EvidenceFile {
+        +UUID id
+        +File file
+        +String sha256_hash
+        +String mime_type
+        +Integer file_size
+        +String tag
     }
 
-    note "Les sources de recommandation ne sont plus un enum :\nelles sont paramétrables via le modèle RecommendationSource (Story 3.7.b)."
+    class ExtensionRequest {
+        +UUID id
+        +Date requested_date
+        +Text reason
+        +String status
+        +User requested_by
+    }
 
-    %% ===== RELATIONSHIPS =====
-    OrgUnitType "1" --> "*" Department : categorizes
-    User "*" --> "0..1" Department : belongs to
-    Department "0..1" --> "0..*" Department : parent
-    ExternalMission "*" --> "1" User : auditor
-    UserProvisioningRequest "*" --> "1" User : requested_by (maker)
-    UserProvisioningRequest "*" --> "0..1" User : reviewed_by (checker)
+    class AuditLog {
+        +UUID id
+        +String action
+        +User user
+        +UUID object_id
+        +JSON changes
+        +DateTime created_at
+    }
 
-    RecommendationSource "1" --> "*" Recommendation : source
-    Recommendation "*" --> "0..1" Department : department
-    Recommendation "*" --> "0..1" Department : controlled_department
-    Recommendation "*" --> "1" User : created_by
-    Recommendation "*" --> "0..1" User : assigned_dm
-    Recommendation "*" --> "0..1" User : assigned_etp
-    Recommendation "*" --> "0..1" ImportBatch : import_batch
-    Deliverable "*" --> "1" Recommendation : belongs to
-    EvidenceSubmission "*" --> "1" Recommendation : belongs to
-    EvidenceSubmission "*" --> "1" User : submitted_by
-    EvidenceFile "*" --> "1" EvidenceSubmission : belongs to
-    ExtensionRequest "*" --> "1" Recommendation : for
-    ExtensionRequest "*" --> "1" User : requested_by
+    class HmacSeal {
+        +UUID id
+        +String hmac_hash
+        +JSON sealed_metadata
+        +JSON file_hashes
+        +DateTime sealed_at
+    }
 
-    AuditLog "*" --> "0..1" User : performed by
-    HmacSeal "1" --> "1" Recommendation : seals
-
-    Notification "*" --> "1" User : recipient
-    Notification "*" --> "0..1" Recommendation : about
-
-    Recommendation ..> PriorityEnum : uses
-    Recommendation ..> RecoStatusEnum : FSM status
-    EvidenceSubmission ..> SubmissionStatusEnum : uses
-    EvidenceFile ..> TagEnum : uses
-
-    RecommendationSelector ..> Recommendation : reads
-    WorkflowService ..> Recommendation : writes
-    EvidenceService ..> EvidenceSubmission : writes
-    ImportExcelModule ..> ImportBatch : creates
-    CryptoService ..> HmacSeal : creates
-    NotificationService ..> Notification : creates
-    AuditSelector ..> AuditLog : reads
-    UserSelector ..> User : reads
-    UserService ..> User : writes
-    ExtensionService ..> ExtensionRequest : manages
+    %% Relations
+    User "*" --> "0..1" Department : appartient à
+    Recommendation "*" --> "1" User : créée par
+    Recommendation "*" --> "0..1" User : assignée au DM
+    Recommendation "*" --> "0..1" User : déléguée à ETP
+    Recommendation "*" --> "1" Department : direction cible
+    EvidenceSubmission "*" --> "1" Recommendation : concerne
+    EvidenceSubmission "*" --> "1" User : soumise par
+    EvidenceFile "*" --> "1" EvidenceSubmission : rattaché à
+    ExtensionRequest "*" --> "1" Recommendation : porte sur
+    AuditLog "*" --> "0..1" User : effectuée par
+    HmacSeal "1" --> "1" Recommendation : scelle
 ```
+
+### Synthèse des Modèles Cœur :
+
+| Classe | Rôle dans l'architecture |
+|:---|:---|
+| **User** | Acteur central du système. Porte l'information du rôle (RBAC) et le département de rattachement pour le cloisonnement des données. |
+| **Department** | Représente la structure organisationnelle de la banque (organigramme hiérarchique). |
+| **Recommendation** | Entité métier principale. Pilote le cycle de vie via la machine à états (FSM). |
+| **EvidenceSubmission** | Le dossier de preuves (lot). Il évolue de l'état brouillon à la soumission pour validation. |
+| **EvidenceFile** | Les fichiers physiques (PDF, images) rattachés à une soumission. Validés stricto sensu via *Magic Bytes*. |
+| **ExtensionRequest** | Demande formelle de report d'échéance adressée par les métiers à l'Audit. |
+| **AuditLog** | Journal d'audit (Piste d'audit). Enregistrement *append-only* assurant la traçabilité de chaque action métier. |
+| **HmacSeal** | Sceau cryptographique HMAC-SHA256. Généré à la clôture, il garantit l'intégrité absolue de la recommandation et de ses preuves. |
+
+---
+
+## 7. Diagramme d'Architecture Logicielle
+
+Vue en couches de l'application, suivant la convention **HackSoft** (séparation stricte des responsabilités). Les dépendances sont dirigées du haut vers le bas ; les services transversaux (en pointillés) sont sollicités par plusieurs couches.
+
+```mermaid
+flowchart TB
+    subgraph PRES["Couche Présentation"]
+        BROWSER["Navigateur client<br/>HTMX · Alpine.js"]
+        TPL["Templates Django SSR<br/>Tailwind CSS · WhiteNoise"]
+    end
+
+    subgraph APP["Couche Application — Apps Django"]
+        VIEWS["Vues &amp; URLs<br/>workflow · users · dashboards<br/>audit · notifications · ui"]
+    end
+
+    subgraph BUS["Couche Métier (HackSoft)"]
+        SVC["Services<br/>écritures &amp; transitions"]
+        SEL["Selectors<br/>lectures"]
+    end
+
+    subgraph DOM["Couche Domaine"]
+        MODELS["Modèles métier"]
+        FSM["django-fsm<br/>cycle de vie"]
+    end
+
+    subgraph DATA["Couche Persistance"]
+        ORM["Django ORM"]
+        PG[("PostgreSQL 16")]
+    end
+
+    subgraph CROSS["Services transversaux"]
+        SEC["Sécurité<br/>django-axes · sessions<br/>middlewares RBAC"]
+        Q2["Django-Q2<br/>tâches planifiées"]
+        INTEG["Intégrité<br/>AuditLog · Sceau HMAC"]
+        NOTIF["Notifications in-app"]
+    end
+
+    BROWSER <-->|"HTTP / fragments HTML"| TPL
+    TPL --> VIEWS
+    VIEWS --> SVC
+    VIEWS --> SEL
+    SVC --> MODELS
+    SEL --> MODELS
+    MODELS --> FSM
+    MODELS --> ORM
+    ORM --> PG
+
+    SEC -.-> VIEWS
+    SVC -.-> INTEG
+    SVC -.-> NOTIF
+    Q2 -.-> SVC
+```
+
+### Description (architecture logicielle)
+
+Sentinel repose sur une architecture en couches qui isole chaque responsabilité. La **couche présentation** s'appuie sur le rendu côté serveur (Django SSR) enrichi par HTMX et Alpine.js : le serveur renvoie des fragments HTML plutôt que du JSON, ce qui simplifie le client et renforce la sécurité. La **couche application** regroupe les six modules métier (workflow, users, dashboards, audit, notifications, ui) à travers leurs vues et leurs URLs.
+
+Le cœur de la logique applique la convention HackSoft : la **couche métier** sépare strictement les *services* (toute écriture, incluant les transitions d'état) des *selectors* (toute lecture). Cette séparation rend le code testable et garantit que les changements d'état ne transitent que par des chemins contrôlés. La **couche domaine** porte les modèles et la machine à états `django-fsm`, et la **couche persistance** délègue à l'ORM Django au-dessus de PostgreSQL 16.
+
+Les **services transversaux** sont mobilisés par plusieurs couches : la sécurité (protection anti-bruteforce, sessions, middlewares de contrôle d'accès), les tâches planifiées Django-Q2, l'intégrité (journal d'audit append-only et sceau HMAC), et les notifications in-app. Cette transversalité explique le caractère infalsifiable du système : aucune action métier n'échappe à la traçabilité.
+
+---
+
+## 8. Diagramme d'Architecture Physique (Déploiement)
+
+Déploiement **on-premise** dans le réseau interne de la BICEC, sans accès Internet. L'hôte Docker exécute trois conteneurs. La terminaison TLS est déléguée au reverse proxy de la DSI (prévue en v2, en pointillés) ; en attendant, le poste client atteint directement Gunicorn sur le réseau interne.
+
+```mermaid
+flowchart TB
+    subgraph LAN["Réseau interne BICEC — on-premise, sans Internet"]
+        CLIENT["«device» Poste de travail BICEC<br/>Navigateur web"]
+
+        PROXY["«device» Reverse proxy DSI BICEC<br/>NGINX — terminaison TLS<br/>(prévu v2)"]
+
+        subgraph HOST["«execution environment» Serveur applicatif — Hôte Docker"]
+            WEB["«container» web<br/>Gunicorn gthread (4 threads)<br/>+ WhiteNoise<br/>+ Application Django"]
+            WORKER["«container» worker<br/>Django-Q2 (qcluster)"]
+            DB["«container» db<br/>PostgreSQL 16"]
+            VOLP[("Volume pgdata")]
+            VOLM[("Volume media")]
+            VOLS[("Volume static")]
+        end
+    end
+
+    CLIENT -.->|"HTTPS (prévu v2)"| PROXY
+    PROXY -.->|"HTTP :8000"| WEB
+    CLIENT -->|"HTTP :8000 (actuel, LAN)"| WEB
+    WEB -->|"TCP :5432"| DB
+    WORKER -->|"TCP :5432"| DB
+    DB --- VOLP
+    WEB --- VOLM
+    WORKER --- VOLM
+    WEB --- VOLS
+```
+
+### Description (architecture physique)
+
+L'application est déployée intégralement sur un serveur interne de la BICEC, conformément à l'exigence de souveraineté de la Loi 2024-017 : aucune donnée ne quitte le réseau de la banque, et le système fonctionne sans connexion Internet. L'hôte Docker orchestre trois conteneurs aux rôles distincts. Le conteneur **web** exécute Gunicorn en mode multi-thread (`gthread`, 4 threads par worker), sert lui-même les fichiers statiques via WhiteNoise, et porte l'application Django. Le conteneur **worker** exécute le cluster Django-Q2 qui traite les tâches planifiées nocturnes (détection des retards, anticipation des échéances). Le conteneur **db** héberge PostgreSQL 16.
+
+La persistance s'appuie sur trois volumes Docker : `pgdata` pour la base, `media` pour les preuves d'audit (partagé entre web et worker), et `static` pour les ressources compilées. La séparation du worker et du serveur web garantit qu'un traitement par lot lourd ne dégrade pas le temps de réponse des utilisateurs.
+
+La terminaison TLS sera assurée par le reverse proxy NGINX de la DSI BICEC (expertise déjà en place), prévu pour la version 2. Dans l'état actuel, les postes clients communiquent directement avec Gunicorn sur le port 8000 à l'intérieur du réseau interne cloisonné.
+
+---
+
+## 9. Cycle de vie d'une recommandation (synthèse pour mémoire)
+
+Vue fonctionnelle du processus complet de traitement d'une recommandation d'audit, du brouillon à la clôture. Destiné à un public non technique, ce diagramme est segmenté en deux parties pour la lisibilité du mémoire. Les détails d'implémentation sont volontairement omis.
+
+### 9.1 Partie A — Création et traitement
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor AU as Auditeur Interne
+    actor DM as Directeur Métier
+    actor DG as Direction Générale
+    actor ETP as Employé Traitant
+    participant S as Sentinel
+
+    rect rgb(230, 245, 255)
+        Note over AU, S: Phase 1 — Création
+        AU->>S: Crée la recommandation (source, criticité, échéance)
+        S-->>AU: Brouillon enregistré
+
+        alt Assignation au Directeur Métier (chemin standard)
+            AU->>S: Assigne au Directeur Métier concerné
+            S-->>DM: Notification d'assignation
+            Note over S: Statut : Assignée
+        else Assignation directe à la Direction Générale
+            AU->>S: Assigne directement à la Direction Générale
+            S-->>DG: Notification d'assignation
+            Note over S: Statut : En cours
+        end
+    end
+
+    rect rgb(255, 245, 230)
+        Note over DM, ETP: Phase 2 — Traitement
+        alt Traitement via Directeur Métier et Employé Traitant
+            DM->>S: Délègue à un Employé Traitant
+            S-->>ETP: Notification de prise en charge
+            Note over S: Statut : En cours
+            ETP->>S: Dépose les preuves documentaires et un commentaire
+            ETP->>S: Soumet le dossier au Directeur Métier
+            S-->>DM: Notification de soumission
+            Note over S: Statut : En attente de validation DM
+        else Traitement direct par la Direction Générale
+            DG->>S: Dépose les preuves documentaires et un commentaire
+            DG->>S: Soumet le dossier directement à l'Audit
+            S-->>AU: Notification de soumission DG
+            Note over S: Statut : En attente de validation Audit
+        end
+    end
+```
+
+L'Auditeur Interne ouvre le dossier et le qualifie : il renseigne la source de la recommandation, son niveau de criticité et l'échéance réglementaire de mise en conformité. Deux chemins d'assignation sont possibles. Dans le chemin standard, la recommandation est confiée au Directeur Métier de la direction concernée, qui délègue ensuite l'exécution à un Employé Traitant. Ce dernier dépose ses preuves documentaires dans Sentinel avec un commentaire justificatif obligatoire, puis soumet le dossier à la relecture de son Directeur Métier. Dans le chemin direct, réservé aux recommandations de portée stratégique ou transversale, l'Audit assigne la recommandation directement à la Direction Générale. Celle-ci traite et soumet ses preuves sans passer par une validation intermédiaire, et le dossier transite directement vers l'Audit Interne.
+
+### 9.2 Partie B — Validation et clôture
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor AU as Auditeur Interne
+    actor DM as Directeur Métier
+    actor DG as Direction Générale
+    actor ETP as Employé Traitant
+    participant S as Sentinel
+
+    Note over AU, S: Suite — les deux chemins convergent vers la validation Audit
+
+    rect rgb(255, 230, 230)
+        Note over DM, AU: Phase 3 — Validation Directeur Métier (chemin standard uniquement)
+        opt Chemin standard — validation DM requise
+            DM->>S: Examine les preuves soumises par l'ETP
+            alt Preuves insuffisantes
+                DM->>S: Rejette avec motif obligatoire
+                S-->>ETP: Notification de rejet
+                Note over ETP, S: L'ETP corrige et re-soumet (nouvelle version tracée)
+            else Preuves conformes
+                DM->>S: Approuve et joint le procès-verbal de recette
+                S-->>AU: Notification de transmission à l'Audit
+                Note over S: Statut : En attente de validation Audit
+            end
+        end
+    end
+
+    rect rgb(230, 255, 230)
+        Note over AU: Phase 4 — Clôture par l'Audit Interne
+        AU->>S: Examine le dossier complet
+        alt Dossier insuffisant
+            AU->>S: Rejette avec motif obligatoire
+            S-->>DM: Notification de rejet (chemin standard)
+            S-->>DG: Notification de rejet (chemin direct)
+            Note over DM, DG: Le porteur corrige et re-soumet
+        else Dossier conforme
+            AU->>S: Valide et prononce la clôture
+            S->>S: Appose le sceau numérique (SHA-256)
+            S-->>AU: Clôture confirmée — dossier immuable
+            Note over S: Statut : Clôturée
+        end
+    end
+```
+
+#### Description — Partie B
+
+La Partie B couvre les deux dernières phases du processus : les validations successives et la clôture définitive. Les deux chemins décrits en Partie A convergent ici vers la même étape finale.
+
+La Phase 3 ne s'applique qu'au chemin standard. Le Directeur Métier examine les preuves soumises par l'Employé Traitant. S'il juge le dossier incomplet ou insuffisant, il le rejette en indiquant un motif explicite. L'Employé Traitant prend connaissance du motif, corrige son travail et soumet une nouvelle version. Les versions précédentes ne sont jamais supprimées : elles restent conservées dans la piste d'audit. Lorsque le Directeur Métier est satisfait, il approuve le dossier et y joint son procès-verbal de recette signé, puis le transmet à l'Audit Interne pour décision finale.
+
+La Phase 4 est commune aux deux chemins. L'Audit Interne procède à la vérification finale du dossier complet. Si le dossier est jugé insuffisant, il le rejette avec motif et le porteur, qu'il s'agisse du Directeur Métier ou de la Direction Générale, doit corriger et re-soumettre. Lorsque le dossier est conforme, l'Audit prononce la clôture. Sentinel calcule alors une empreinte numérique SHA-256 sur l'ensemble des métadonnées et des fichiers de preuves, et l'appose comme sceau permanent sur le dossier. Ce sceau garantit qu'aucune modification n'est possible après la clôture et constitue une preuve opposable devant un inspecteur COBAC lors d'une mission de contrôle.
+
+---
+
+## 10. Architecture logicielle — Vue 3 couches
+
+Vue synthétique de l'architecture de Sentinel organisée en trois couches communicantes, dans un style adapté au mémoire. Ce diagramme complète la vue en couches HackSoft (§7) en adoptant une représentation plus proche des standards académiques et industriels.
+
+```mermaid
+flowchart LR
+    subgraph PRES["COUCHE DE PRÉSENTATION"]
+        direction TB
+        COMP["Composants visuels\nTemplates Django SSR\nTailwind CSS · Chart.js · Lucide"]
+        NAV["Gestionnaire de navigation\nHTMX · Alpine.js\nNavigateur client"]
+        COMP <--> NAV
+    end
+
+    subgraph APP["COUCHE MÉTIER"]
+        direction TB
+        FSM["Gestionnaire d'états\ndjango-fsm\ncycle de vie des recommandations"]
+        SVC["Services\nécritures & transitions d'état"]
+        VIEWS["Gestion des routes\nVues & URLs Django"]
+        SEL["Selectors\nlectures & filtres HackSoft"]
+        FSM <--> SVC
+        SVC <--> VIEWS
+        VIEWS <--> SEL
+    end
+
+    subgraph DATA["COUCHE D'ACCÈS AUX DONNÉES"]
+        direction TB
+        ORM["ORM\nDjango ORM"]
+        DB[("PostgreSQL 16")]
+        ORM <--> DB
+    end
+
+    PRES <-->|"HTTP\nFragments HTML\n(Hypermédia HTMX)"| APP
+    APP <-->|"QuerySets\nModèles Django"| DATA
+```
+
+### Description (vue 3 couches pour mémoire)
+
+L'architecture de Sentinel suit un découpage en trois couches dont les responsabilités sont strictement séparées.
+
+**Couche de présentation.** Le navigateur client exécute HTMX et Alpine.js, deux bibliothèques légères vendorisées localement (aucun CDN). HTMX gère les échanges avec le serveur sous forme de fragments HTML — et non d'appels REST JSON — selon le paradigme hypermédia. Alpine.js prend en charge les micro-états locaux (menus, modales, toggles). Les composants visuels sont rendus côté serveur par le moteur de templates Django avec Tailwind CSS, Chart.js pour les graphiques et Lucide pour les icônes. Le canal entre la présentation et la couche métier est donc **HTTP avec réponses HTML**, ce qui distingue Sentinel d'une architecture SPA classique.
+
+**Couche métier.** Elle concentre la logique applicative selon la convention HackSoft. Le gestionnaire d'états (`django-fsm`) protège les transitions du cycle de vie des recommandations : aucun changement d'état ne peut se produire hors des chemins autorisés. Les Services encapsulent toutes les opérations d'écriture et les déclenchements de notifications. Les Vues et URLs Django constituent le point d'entrée HTTP et orchestrent l'appel aux Services ou aux Selectors. Les Selectors centralisent toutes les lectures et filtres de données, évitant que la logique de requête se disperse dans les vues.
+
+**Couche d'accès aux données.** Le Django ORM traduit les opérations métier en requêtes SQL et retourne des QuerySets ou des instances de modèles. La base de données PostgreSQL 16 persiste les données et sert également de broker pour la file de tâches Django-Q2 (tâches planifiées nocturnes), éliminant le besoin d'un serveur Redis séparé. Le canal entre la couche métier et la couche données utilise les **QuerySets Django** (et non des DTO), ce qui est une caractéristique de l'écosystème Django.
 
 ---
 
@@ -1645,7 +1684,7 @@ classDiagram
 |---|---|
 | **FSM** | Finite State Machine (`django-fsm`) |
 | **RBAC** | Role-Based Access Control (applicatif) |
-| **RLS** | Row-Level Security (PostgreSQL) |
+| **RLS** | Row-Level Security (PostgreSQL) — *prévu v2* |
 | **HMAC-SHA256** | Hash-based Message Authentication Code |
 | **Q2** | Django-Q2 (Task Queue asynchrone) |
 | **SSR** | Server-Side Rendering (Templates Django) |

@@ -1,5 +1,5 @@
 # Requirements — Base (shared between dev and prod)
-Django==5.2.14
+Django==5.2.16
 psycopg[binary]==3.2.6
 django-htmx==1.27.0
 django-fsm-2==4.2.4

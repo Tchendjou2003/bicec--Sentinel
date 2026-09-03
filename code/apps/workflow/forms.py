@@ -13,9 +13,13 @@ from django.forms import inlineformset_factory
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.users.form_fields import (
+    GroupedByTypeIterator,
+    OrgScopedUserChoiceField,
+    department_option_label,
+)
 from apps.users.models import User
-from .models import Deliverable, EvidenceFile, Recommendation, RecommendationSource
-from .validators import validate_file_size, validate_magic_bytes
+from .models import Deliverable, Recommendation, RecommendationSource
 
 
 # ── Style Tailwind partagé ────────────────────────────────────────────
@@ -123,13 +127,28 @@ class RecommendationForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Restreindre les départements aux actifs uniquement
         from apps.users.models import Department
-        active_depts = Department.objects.filter(is_active=True)
-        
+        active_depts = Department.objects.filter(is_active=True).select_related("type")
+
         controlled_dept = cast(forms.ModelChoiceField, self.fields["controlled_department"])
         dept = cast(forms.ModelChoiceField, self.fields["department"])
-        
+
+        # Optgroups par type d'unité + libellé « Nom (CODE) » (lot Sélecteurs).
+        # L'itérateur doit être posé AVANT l'affectation du queryset : le
+        # setter de queryset fige widget.choices avec l'itérateur courant.
+        for field in (controlled_dept, dept):
+            field.iterator = GroupedByTypeIterator
+            field.label_from_instance = department_option_label  # type: ignore[method-assign]
+
         controlled_dept.queryset = active_depts
         dept.queryset = active_depts
+
+        # TomSelect — sélecteurs organisationnels (Story 6.2.0)
+        for field_name in ("department", "controlled_department"):
+            widget = self.fields[field_name].widget
+            css = widget.attrs.get("class", "")
+            if "js-tomselect" not in css:
+                widget.attrs["class"] = css + " js-tomselect"
+            widget.attrs.setdefault("data-placeholder", "Rechercher un département…")
 
         # Labels en français
         self.fields["reference"].label = _("Référence de la recommandation")
@@ -213,7 +232,9 @@ class AssignDMForm(forms.Form):
     Le queryset est filtré dynamiquement par département dans __init__.
     """
 
-    dm = forms.ModelChoiceField(
+    # Libellé enrichi « NOM Prénom (username) — CODE » uniquement :
+    # la logique (queryset scopé sur la direction concernée) ne change pas.
+    dm = OrgScopedUserChoiceField(
         queryset=User.objects.none(),  # Surchargé dans __init__
         label=_("Directeur Métier"),
         widget=forms.Select(attrs={"class": _SELECT_CLASS}),
@@ -243,7 +264,7 @@ class AssignDGForm(forms.Form):
     département : le DG a un périmètre banque entière.
     """
 
-    dg = forms.ModelChoiceField(
+    dg = OrgScopedUserChoiceField(
         queryset=User.objects.none(),  # Surchargé dans __init__
         label=_("Directeur Général"),
         widget=forms.Select(attrs={"class": _SELECT_CLASS}),
@@ -288,12 +309,18 @@ class DelegateETPForm(forms.Form):
         label=_("Action"),
     )
 
-    etp = forms.ModelChoiceField(
+    # La branche d'une direction peut contenir des dizaines d'ETP répartis
+    # sur plusieurs unités → optgroups par unité + recherche TomSelect.
+    etp = OrgScopedUserChoiceField(
         queryset=User.objects.none(),  # Surchargé dans __init__
         label=_("Employé Traitant"),
-        widget=forms.Select(attrs={"class": _SELECT_CLASS}),
+        widget=forms.Select(attrs={
+            "class": _SELECT_CLASS + " js-tomselect",
+            "data-placeholder": "Rechercher un ETP (nom, code unité…)",
+        }),
         empty_label=_("— Sélectionner un ETP —"),
         required=False,  # Non requis si action = dm_porteur
+        group_by_department=True,
     )
 
     def __init__(self, *args, department=None, **kwargs):

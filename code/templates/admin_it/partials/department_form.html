@@ -3,11 +3,17 @@
 {# ── En-tête sticky ── #}
 <div class="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
   <h2 class="text-base font-bold text-gray-900 font-heading">
-    {% if is_edit %}Modifier le département{% else %}Nouveau département{% endif %}
+    {% if is_edit %}
+      Modifier le département
+    {% elif parent_locked %}
+      Sous « {{ parent_locked.name }} »
+    {% else %}
+      Nouveau département
+    {% endif %}
   </h2>
   <button @click="$store.sentinel.showModal = false"
     class="rounded-lg p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
     </svg>
@@ -70,7 +76,17 @@
       </div>
     </div>
 
-    {# Ligne 3 : Parent (pleine largeur) #}
+    {# Ligne 3 : Parent — verrouillé (contexte carte) ou libre (bouton global) #}
+    {% if parent_locked %}
+    <div>
+      <p class="block text-xs font-semibold text-gray-600 mb-1">Département parent</p>
+      <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 min-w-0 overflow-hidden">
+        {% include "components/org_unit_badge.html" with department=parent_locked show_code=True %}
+      </div>
+      <input type="hidden" name="parent" value="{{ parent_locked.pk }}">
+      <input type="hidden" name="_parent_locked_pk" value="{{ parent_locked.pk }}">
+    </div>
+    {% else %}
     <div>
       <label for="{{ form.parent.id_for_label }}" class="block text-xs font-semibold text-gray-600 mb-1">
         {{ form.parent.label }}
@@ -81,6 +97,7 @@
         <p class="text-xs text-red-500 mt-0.5">{{ form.parent.errors.0 }}</p>
       {% endif %}
     </div>
+    {% endif %}
 
     {# Ligne 4 : Actif (checkbox compacte) #}
     <div class="flex items-center gap-2 pt-1">
@@ -98,11 +115,11 @@
   {# Pied sticky #}
   <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0 bg-white rounded-b-2xl">
     <button type="button" @click="$store.sentinel.showModal = false"
-      class="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
+      class="btn btn-secondary">
       Annuler
     </button>
     <button type="submit"
-      class="rounded-xl bg-gradient-to-r from-sentinel-orange to-[#C9631A] px-5 py-2 text-sm font-semibold text-white shadow-md shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-300">
+      class="btn btn-primary">
       {% if is_edit %}Enregistrer{% else %}Créer{% endif %}
     </button>
   </div>

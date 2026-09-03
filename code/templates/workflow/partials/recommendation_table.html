@@ -1,78 +1,71 @@
 {# Tableau des recommandations — Partial HTMX (AC2, AC3) #}
 
 {% if recommendations %}
-<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+<div class="bg-white rounded-xl border border-border-subtle shadow-sm overflow-hidden">
   <div class="overflow-x-auto">
     <table class="w-full text-left" id="tbl-recommendations">
       <thead>
-        <tr class="bg-gray-50/80 border-b border-gray-100">
-          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Réf.</th>
-          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Mission</th>
-          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Source</th>
-          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Échéance</th>
-          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Statut</th>
-          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">DM assigné</th>
-          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500 w-10"></th>
+        <tr class="bg-surface-sunken border-b border-border-subtle">
+          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Réf.</th>
+          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Mission</th>
+          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Source</th>
+          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Échéance</th>
+          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">Statut</th>
+          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint">DM assigné</th>
+          <th class="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-text-faint w-10"></th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-gray-50">
+      <tbody class="divide-y divide-surface-warm">
         {% for rec in recommendations %}
-        <tr class="group hover:bg-orange-50/30 transition-colors duration-150 relative" id="row-{{ rec.pk }}">
-          {# Lien cliquable sur toute la ligne #}
+        <tr class="group hover:bg-sentinel-orange-light cursor-pointer transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sentinel-orange"
+          tabindex="0" role="link" aria-label="Ouvrir la recommandation {{ rec.reference }}"
+          data-href="{% url 'workflow:recommendation-detail' rec.pk %}"
+          onclick="window.location.href=this.dataset.href"
+          onkeydown="if(event.key==='Enter'){window.location.href=this.dataset.href}"
+          id="row-{{ rec.pk }}">
           <td class="px-4 py-3.5">
-            <a href="{% url 'workflow:recommendation-detail' rec.pk %}" class="absolute inset-0 z-0" aria-label="Détail {{ rec.reference }}"></a>
-            <span class="relative z-10 text-sm font-semibold text-gray-900">{{ rec.reference }}</span>
+            <span class="relative z-10 font-mono text-[12.5px] font-semibold text-text-primary">{{ rec.reference }}</span>
           </td>
           <td class="px-4 py-3.5">
-            <span class="relative z-10 text-sm text-gray-600 truncate max-w-xs block">{{ rec.mission_label|default:"—" }}</span>
+            <span class="relative z-10 text-[13px] text-text-body truncate max-w-xs block">{{ rec.mission_label|default:"—" }}</span>
           </td>
           <td class="px-4 py-3.5">
-            <span class="relative z-10 inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700" title="{{ rec.source.label }}">{{ rec.source.label|truncatechars:12 }}</span>
+            <span class="relative z-10 inline-flex items-center rounded-md bg-surface-warm px-2 py-1 text-[11.5px] font-medium text-text-body" title="{{ rec.source.label }}">{{ rec.source.label|truncatechars:12 }}</span>
           </td>
           <td class="px-4 py-3.5">
             {% if rec.is_overdue %}
-            <span class="relative z-10 inline-flex items-center gap-1 text-sm font-medium text-red-600">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span class="relative z-10 inline-flex items-center gap-1 text-[12.5px] font-medium text-danger-strong">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               {{ rec.due_date|date:"d/m/Y" }}
             </span>
             {% else %}
-            <span class="relative z-10 text-sm text-gray-600">{{ rec.due_date|date:"d/m/Y" }}</span>
+            <span class="relative z-10 text-[12.5px] text-text-body tabular-nums">{{ rec.due_date|date:"d/m/Y" }}</span>
             {% endif %}
           </td>
           <td class="px-4 py-3.5">
-            {% with status=rec.status %}
-            <span class="relative z-10 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold
-              {% if status == 'DRAFT' %}bg-gray-100 text-gray-700
-              {% elif status == 'ASSIGNED' %}bg-blue-100 text-blue-700
-              {% elif status == 'IN_PROGRESS' %}bg-amber-100 text-amber-700
-              {% elif status == 'PENDING_DM_REVIEW' %}bg-purple-100 text-purple-700
-              {% elif status == 'PENDING_AUDIT_REVIEW' %}bg-indigo-100 text-indigo-700
-              {% elif status == 'CLOSED_RESOLVED' %}bg-green-100 text-green-700
-              {% endif %}
-            ">{{ rec.get_status_display }}</span>
-            {% endwith %}
+            <span class="relative z-10">{% include "components/status_badge.html" with status=rec.status %}</span>
           </td>
           <td class="px-4 py-3.5">
             {% if rec.assigned_dm %}
-            <span class="relative z-10 text-sm text-gray-700 font-medium">{{ rec.assigned_dm.get_full_name|default:rec.assigned_dm.username }}</span>
+            <span class="relative z-10 text-[12.5px] text-text-primary font-medium">{{ rec.assigned_dm.get_full_name|default:rec.assigned_dm.username }}</span>
             {% else %}
-            <span class="relative z-10 text-xs text-gray-400 italic">—</span>
+            <span class="relative z-10 text-xs text-text-faint italic">—</span>
             {% endif %}
           </td>
           <td class="px-4 py-3.5 relative z-20">
             {% if rec.status == 'DRAFT' %}
             {% if user.role == 'AUDIT' or user.is_superuser %}
             <div x-data="{ menuOpen: false }" class="relative">
-              <button @click.stop="menuOpen = !menuOpen" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" aria-label="Actions">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              <button @click.stop="menuOpen = !menuOpen" class="rounded-lg p-1.5 text-text-faint hover:bg-surface-warm hover:text-text-primary transition-colors" aria-label="Actions">
+                <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
               </button>
-              <div x-show="menuOpen" @click.outside="menuOpen = false" x-transition class="absolute right-0 top-full mt-1 w-44 rounded-xl bg-white border border-gray-100 shadow-xl py-1 z-50" style="display:none">
-                <button @click.stop="menuOpen = false; slideOverOpen = true" hx-get="{% url 'workflow:recommendation-update' rec.pk %}" hx-target="#stepper-container" hx-swap="innerHTML" class="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              <div x-show="menuOpen" @click.outside="menuOpen = false" x-transition class="absolute right-0 top-full mt-1 w-44 rounded-xl bg-white border border-border-subtle shadow-xl py-1 z-50" style="display:none">
+                <button @click.stop="menuOpen = false; slideOverOpen = true" hx-get="{% url 'workflow:recommendation-update' rec.pk %}" hx-target="#stepper-container" hx-swap="innerHTML" class="w-full flex items-center gap-2 px-4 py-2 text-sm text-text-primary hover:bg-surface-warm transition-colors">
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
                   Modifier
                 </button>
                 <button @click.stop="menuOpen = false; $dispatch('open-delete', { url: '{% url 'workflow:recommendation-delete' rec.pk %}', ref: '{{ rec.reference }}' })" class="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                   Supprimer
                 </button>
               </div>
@@ -88,17 +81,17 @@
 
   {# ── Pagination ── #}
   {% if is_paginated %}
-  <div class="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
-    <p class="text-xs text-gray-500">
+  <div class="flex items-center justify-between px-4 py-3 border-t border-border-subtle bg-surface-faint">
+    <p class="text-xs text-text-body">
       Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}
       — {{ page_obj.paginator.count }} recommandation{{ page_obj.paginator.count|pluralize }}
     </p>
     <div class="flex gap-1">
       {% if page_obj.has_previous %}
-      <a href="?page={{ page_obj.previous_page_number }}&source={{ current_source|urlencode }}&status={{ current_status|urlencode }}&priority={{ current_priority|urlencode }}&q={{ current_search|urlencode }}&import_status={{ current_import_status|urlencode }}" class="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors">Préc.</a>
+      <a href="?page={{ page_obj.previous_page_number }}&source={{ current_source|urlencode }}&status={{ current_status|urlencode }}&priority={{ current_priority|urlencode }}&q={{ current_search|urlencode }}&import_status={{ current_import_status|urlencode }}" class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">Préc.</a>
       {% endif %}
       {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}&source={{ current_source|urlencode }}&status={{ current_status|urlencode }}&priority={{ current_priority|urlencode }}&q={{ current_search|urlencode }}&import_status={{ current_import_status|urlencode }}" class="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors">Suiv.</a>
+      <a href="?page={{ page_obj.next_page_number }}&source={{ current_source|urlencode }}&status={{ current_status|urlencode }}&priority={{ current_priority|urlencode }}&q={{ current_search|urlencode }}&import_status={{ current_import_status|urlencode }}" class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">Suiv.</a>
       {% endif %}
     </div>
   </div>
@@ -107,24 +100,24 @@
 
 {% else %}
 {# ── Empty State (AC3) ── #}
-<div class="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 px-8 text-center" id="empty-state">
-  <div class="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center mb-6">
-    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange">
+<div class="bg-white rounded-2xl border border-border-subtle shadow-sm py-16 px-8 text-center" id="empty-state">
+  <div class="mx-auto w-20 h-20 rounded-full bg-sentinel-orange-light flex items-center justify-center mb-6">
+    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange">
       <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
     </svg>
   </div>
-  <h3 class="text-lg font-semibold text-gray-900 mb-2">Aucune recommandation pour le moment</h3>
-  <p class="text-sm text-gray-500 mb-8 max-w-md mx-auto">Commencez par créer votre première recommandation d'audit. L'assistant vous guidera étape par étape.</p>
+  <h3 class="text-lg font-semibold text-text-primary mb-2">Aucune recommandation pour le moment</h3>
+  <p class="text-sm text-text-body mb-8 max-w-md mx-auto">Commencez par créer votre première recommandation d'audit. L'assistant vous guidera étape par étape.</p>
   {% if user.role == 'AUDIT' or user.is_superuser %}
   <button
     @click="slideOverOpen = true"
     hx-get="{% url 'workflow:recommendation-create' %}"
     hx-target="#stepper-container"
     hx-swap="innerHTML"
-    class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sentinel-orange to-[#C9631A] px-6 py-3 text-sm font-semibold text-white shadow-md shadow-orange-500/20 hover:shadow-lg hover:shadow-orange-500/30 transition-all duration-200 hover:-translate-y-0.5"
+    class="btn btn-primary"
     id="btn-first-recommendation"
   >
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Créer ma première recommandation
   </button>
   {% endif %}

@@ -1,42 +1,57 @@
-{# Nœud récursif pour l'arborescence de l'organigramme #}
-<div class="rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow duration-300"
-    x-data="{ open: false }">
-    <div class="flex items-center justify-between p-4 cursor-pointer" @click="open = !open">
-        <div class="flex items-center gap-3">
-            <div
-                class="flex h-9 w-9 items-center justify-center rounded-lg bg-sentinel-orange/10 text-sentinel-orange text-xs font-bold">
-                {{ node.type.name|truncatechars:3 }}
-            </div>
-            <div>
-                <p class="text-sm font-semibold text-gray-900">{{ node.name }}</p>
-                <p class="text-xs text-gray-400">{{ node.code }} • {{ node.type.name }}</p>
-            </div>
-        </div>
-        <div class="flex items-center gap-2">
-            <button hx-get="{% url 'auth:department-edit' node.pk %}" hx-target="#department-modal-content"
-                hx-swap="innerHTML" @click.stop="$store.sentinel.showModal = true"
-                class="rounded-lg p-2 text-gray-400 hover:text-sentinel-orange hover:bg-orange-50 transition-colors duration-200"
-                title="Modifier">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                </svg>
-            </button>
-            {% if node.children.count %}
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                class="text-gray-400 transition-transform duration-200" :class="{ 'rotate-90': open }">
-                <path d="m9 18 6-6-6-6" />
-            </svg>
-            {% endif %}
-        </div>
+{# Nœud récursif — vue Arborescence (sans x-collapse) #}
+<div class="rounded-xl bg-white" style="border:1px solid #E8DFD6;" x-data="{ open: false }">
+  <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none rounded-xl hover:bg-sentinel-orange-light transition-colors duration-150"
+       @click="open = !open">
+    <div class="flex items-center gap-3">
+      {# Badge famille DS — même mapping que drilldown #}
+      {% with level=node.type.level %}
+      <span class="inline-flex items-center rounded-md px-2 py-1 text-[11px] font-bold"
+        {% if level == 0 or level == 1 %}style="background:#E6F2F1;color:#0A4744;"
+        {% elif level == 2 or level == 3 %}style="background:#FFF3EB;color:#A8500F;"
+        {% else %}style="background:#F5EDE6;color:#6F635B;"{% endif %}>
+        {{ node.type.name|truncatechars:4 }}
+      </span>
+      {% endwith %}
+      <div>
+        <p class="text-[13px] font-semibold" style="color:#2D1F1E;">{{ node.name }}</p>
+        <p class="text-[11.5px]" style="color:#968A80;">{{ node.code }}</p>
+      </div>
     </div>
+    <div class="flex items-center gap-2" @click.stop>
+      {# Bouton Modifier #}
+      <button type="button"
+              @click.stop="$store.sentinel.showModal = true"
+              hx-get="{% url 'auth:department-edit' node.pk %}"
+              hx-target="#department-modal-content"
+              hx-swap="innerHTML"
+              class="rounded-lg p-1.5 transition-colors hover:bg-surface-warm"
+              style="color:#968A80;"
+              title="Modifier">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+      </button>
+      {# Chevron expand/collapse #}
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+           class="transition-transform duration-200" :class="open ? 'rotate-90' : ''"
+           style="color:#968A80;" @click.stop="open = !open">
+        <path d="m9 18 6-6-6-6"/>
+      </svg>
+    </div>
+  </div>
 
-    {% if node.children.count %}
-    <div x-show="open" x-collapse class="border-t border-gray-50 pl-8 pr-4 pb-4 pt-4 space-y-4">
-        {% for child in node.children.all %}
-        {% include "admin_it/partials/organigramme_node.html" with node=child %}
-        {% endfor %}
+  {# Enfants #}
+  <div x-show="open"
+       x-transition:enter="transition ease-out duration-200"
+       x-transition:enter-start="opacity-0"
+       x-transition:enter-end="opacity-100"
+       x-transition:leave="transition ease-in duration-150"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0"
+       style="display:none;padding-left:1.5rem;padding-right:1rem;padding-bottom:0.75rem;">
+    <div class="space-y-2 pt-2" style="border-left:2px solid #F5EDE6;padding-left:1rem;">
+      {% for child in node.children.all %}{% if child.is_active %}
+      {% include "admin_it/partials/organigramme_node.html" with node=child %}
+      {% endif %}{% endfor %}
     </div>
-    {% endif %}
+  </div>
 </div>

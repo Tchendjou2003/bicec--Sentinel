@@ -1,0 +1,46 @@
+{# Skeleton table — affiché via htmx-indicator pendant les requêtes HTMX de filtrage #}
+<div class="bg-white rounded-xl border border-border-subtle overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-left">
+      <thead>
+        <tr class="border-b border-border-subtle" style="background:#F3EFEA;">
+          <th class="px-4 py-3"><div class="h-2.5 w-28 skeleton"></div></th>
+          <th class="px-4 py-3"><div class="h-2.5 w-16 skeleton"></div></th>
+          <th class="px-4 py-3"><div class="h-2.5 w-16 skeleton"></div></th>
+          <th class="px-4 py-3"><div class="h-2.5 w-20 skeleton"></div></th>
+          <th class="px-4 py-3"><div class="h-2.5 w-14 skeleton"></div></th>
+          <th class="px-4 py-3"><div class="h-2.5 w-20 skeleton"></div></th>
+          <th class="px-4 py-3 w-10"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-surface-warm">
+        {% for i in "12345"|make_list %}
+        <tr>
+          <td class="px-4 py-3.5">
+            <div class="h-3 w-28 skeleton mb-2"></div>
+          </td>
+          <td class="px-4 py-3.5">
+            <div class="h-3 w-36 skeleton"></div>
+          </td>
+          <td class="px-4 py-3.5">
+            <div class="h-5 w-20 skeleton rounded-md"></div>
+          </td>
+          <td class="px-4 py-3.5">
+            <div class="h-3 w-20 skeleton"></div>
+          </td>
+          <td class="px-4 py-3.5">
+            <div class="h-5 w-24 skeleton rounded-full"></div>
+          </td>
+          <td class="px-4 py-3.5">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-full skeleton shrink-0"></div>
+              <div class="h-3 w-20 skeleton"></div>
+            </div>
+          </td>
+          <td class="px-4 py-3.5"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -37,6 +37,59 @@ urlpatterns = [
         views.AdminDashboardView.as_view(),
         name="admin-dashboard",
     ),
+    # ── Monitoring & Surveillance (Story 7.1) ──
+    path(
+        "admin/monitoring/",
+        views.AdminMonitoringDashboardView.as_view(),
+        name="admin-monitoring",
+    ),
+    path(
+        "admin/monitoring/sessions/",
+        views.AdminActiveSessionsView.as_view(),
+        name="admin-sessions",
+    ),
+    path(
+        "admin/monitoring/inactive-users/",
+        views.AdminInactiveUsersView.as_view(),
+        name="admin-inactive-users",
+    ),
+    path(
+        "admin/monitoring/lockouts/<int:pk>/unlock/",
+        views.AdminUnlockAccountView.as_view(),
+        name="admin-unlock",
+    ),
+    # ── Provisioning Maker/Checker (Story 6.2.0) ──
+    path(
+        "admin/provisioning/",
+        views.ProvisioningRequestListView.as_view(),
+        name="provisioning-list",
+    ),
+    path(
+        "admin/provisioning/create/",
+        views.ProvisioningRequestCreateView.as_view(),
+        name="provisioning-create",
+    ),
+    path(
+        "admin/provisioning/<uuid:pk>/approve/",
+        views.ProvisioningRequestApproveView.as_view(),
+        name="provisioning-approve",
+    ),
+    path(
+        "admin/provisioning/<uuid:pk>/reject/",
+        views.ProvisioningRequestRejectView.as_view(),
+        name="provisioning-reject",
+    ),
+    path(
+        "admin/provisioning/<uuid:pk>/cancel/",
+        views.ProvisioningRequestCancelView.as_view(),
+        name="provisioning-cancel",
+    ),
+    # ── Point d'entrée Audit — délégation is_audit_admin (Story 6.2.0 / AC5) ──
+    path(
+        "audit/admin-membres/",
+        views.AuditAdminMembersView.as_view(),
+        name="audit-admin-members",
+    ),
     path(
         "admin/organigramme/",
         views.OrganigrammeListView.as_view(),
@@ -66,11 +119,6 @@ urlpatterns = [
         "admin/utilisateurs/",
         views.ITUserListView.as_view(),
         name="admin-user-list",
-    ),
-    path(
-        "admin/utilisateurs/create/",
-        views.ITUserCreateView.as_view(),
-        name="admin-user-create",
     ),
     # ── Types d'unités organisationnelles (Story 3.7.b / Phase B) ──
     path(

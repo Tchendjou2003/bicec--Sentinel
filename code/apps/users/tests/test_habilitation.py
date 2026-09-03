@@ -6,6 +6,7 @@ Vérifie les vues d'habilitation : accès, filtrage, édition, toggle admin.
 Note : force_login() est utilisé au lieu de login() car django-axes
 exige un objet request dans authenticate() (incompatible avec les tests).
 """
+from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
 
@@ -13,14 +14,28 @@ from apps.audit.models import AuditLog
 from apps.users.models import Department, OrgUnitType, User
 
 
+def _get_or_create_approvers_group():
+    group, _ = Group.objects.get_or_create(name="Administrateurs Sentinel")
+    return group
+
+
 class HabilitationAccessTest(TestCase):
-    """Tests de contrôle d'accès aux vues d'habilitation (ADR-10)."""
+    """
+    Tests de contrôle d'accès aux vues d'habilitation (ADR-10 / Story 6.2.0).
+
+    Depuis Story 6.2.0 : HabilitationListView et HabilitationEditView sont
+    protégées par ProvisioningApproverRequiredMixin (groupe IT), NON plus par
+    AuditAdminRequiredMixin. HabilitationToggleAdminView reste Audit.
+    """
 
     def setUp(self):
+        self.group = _get_or_create_approvers_group()
+        # audit_admin : Audit Admin ET membre du groupe (pour les tests d'accès)
         self.audit_admin = User.objects.create_user(
             username="dir_audit", password="testpass123",
             role=User.Role.AUDIT, is_audit_admin=True,
         )
+        self.audit_admin.groups.add(self.group)  # accès via le groupe
         self.dm_user = User.objects.create_user(
             username="dm_lambda", password="testpass123",
             role=User.Role.DM,
@@ -29,8 +44,8 @@ class HabilitationAccessTest(TestCase):
             username="coquille", password="testpass123",
         )
 
-    def test_list_accessible_by_audit_admin(self):
-        """Un audit_admin peut accéder à la liste d'habilitation."""
+    def test_list_accessible_by_group_member(self):
+        """Un membre du groupe « Administrateurs Sentinel » peut accéder à la liste."""
         self.client.force_login(self.audit_admin)
         response = self.client.get(reverse("workflow:habilitation-list"))
         self.assertEqual(response.status_code, 200)
@@ -62,10 +77,12 @@ class HabilitationListFilterTest(TestCase):
     """Tests des filtres de la liste d'habilitation."""
 
     def setUp(self):
+        self.group = _get_or_create_approvers_group()
         self.audit_admin = User.objects.create_user(
             username="dir_audit", password="testpass123",
             role=User.Role.AUDIT, is_audit_admin=True,
         )
+        self.audit_admin.groups.add(self.group)  # requis depuis Story 6.2.0
         self.shell_user = User.objects.create_user(
             username="coquille", password="testpass123",
         )
@@ -95,9 +112,10 @@ class HabilitationListFilterTest(TestCase):
 
 
 class HabilitationEditTest(TestCase):
-    """Tests du formulaire d'édition de rôle (FR3)."""
+    """Tests du formulaire d'édition de rôle (FR3 / Story 6.2.0)."""
 
     def setUp(self):
+        self.group = _get_or_create_approvers_group()
         self.type_direction, _ = OrgUnitType.objects.get_or_create(
             code="DIRECTION", defaults={"name": "Direction", "level": 1},
         )
@@ -109,6 +127,7 @@ class HabilitationEditTest(TestCase):
             username="dir_audit", password="testpass123",
             role=User.Role.AUDIT, is_audit_admin=True,
         )
+        self.audit_admin.groups.add(self.group)  # requis depuis Story 6.2.0
         self.shell_user = User.objects.create_user(
             username="coquille", password="testpass123",
         )
@@ -180,14 +199,18 @@ class HabilitationToggleAdminTest(TestCase):
         self.assertFalse(self.auditor.is_audit_admin)
 
     def test_toggle_non_audit_shows_error(self):
-        """Toggle sur un non-AUDIT redirige avec un message d'erreur."""
+        """
+        Toggle sur un non-AUDIT redirige vers audit-admin-members avec un message d'erreur.
+        (Story 6.2.0 : habilitation-list réservée au groupe IT — la vue Audit redirige
+        désormais vers auth:audit-admin-members.)
+        """
         dm = User.objects.create_user(
             username="dm_test", password="testpass123",
             role=User.Role.DM,
         )
         url = reverse("workflow:habilitation-toggle-admin", args=[dm.pk])
         response = self.client.post(url)
-        self.assertRedirects(response, reverse("workflow:habilitation-list"))
+        self.assertRedirects(response, reverse("auth:audit-admin-members"))
         dm.refresh_from_db()
         self.assertFalse(dm.is_audit_admin)
 

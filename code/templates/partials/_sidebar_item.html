@@ -1,0 +1,17 @@
+{% load lucide %}
+{# Lien de nav sidebar partagé. Params : href, icon, label, route, soon (optionnel — entrée non implémentée, affichée désactivée « Bientôt »). #}
+<li>
+  {% if soon %}
+  <span class="flex items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-medium text-graphite-fg opacity-50 cursor-not-allowed select-none" aria-disabled="true">
+    {% lucide icon size=18 class="shrink-0 opacity-90" %}
+    <span>{{ label }}</span>
+    <span class="ml-auto text-[9px] font-bold uppercase tracking-wide text-graphite-section">Bientôt</span>
+  </span>
+  {% else %}
+  <a href="{{ href }}"
+     class="group flex items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 {% if active_route == route %}bg-sentinel-orange text-white{% else %}text-graphite-fg hover:bg-graphite-hover hover:text-graphite-fg-strong{% endif %}">
+    {% lucide icon size=18 class="shrink-0 opacity-90" %}
+    <span>{{ label }}</span>
+  </a>
+  {% endif %}
+</li>

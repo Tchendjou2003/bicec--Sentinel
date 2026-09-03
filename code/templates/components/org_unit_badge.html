@@ -1,0 +1,11 @@
+{% if department %}
+<span class="inline-flex items-center gap-1.5 min-w-0 max-w-full overflow-hidden" title="{{ department.name }}">
+  {% if department.type %}
+  <span class="inline-flex items-center shrink-0 rounded border border-border-strong bg-white px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-wide text-text-body"
+    title="{{ department.type.name }}">{{ department.type.code }}</span>
+  {% endif %}
+  <span class="truncate">{{ department.name }}{% if show_code and department.code %} <span class="text-text-faint">({{ department.code }})</span>{% endif %}</span>
+</span>
+{% else %}
+<span class="text-text-faint">—</span>
+{% endif %}

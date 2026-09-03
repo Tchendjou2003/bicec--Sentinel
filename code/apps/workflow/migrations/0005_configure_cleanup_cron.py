@@ -37,7 +37,9 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('workflow', '0004_add_draft_status_to_evidence_submission'),
-        ('django_q', '0001_initial'),
+        # Importe le VRAI modèle Schedule (SELECT sur toutes les colonnes courantes)
+        # → dépendre de la dernière migration django_q pour un ordre déterministe.
+        ('django_q', '0018_task_success_index'),
     ]
 
     operations = [

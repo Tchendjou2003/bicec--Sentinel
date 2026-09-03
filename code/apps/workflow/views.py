@@ -31,7 +31,6 @@ from .forms import (
     DelegateETPForm,
     DeliverableFormSet,
     EvidenceDMApprovalForm,
-    EvidenceDraftCommentForm,
     EvidenceRejectForm,
     ExtensionApproveForm,
     ExtensionRejectForm,
@@ -79,7 +78,7 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
 
     template_name = "workflow/recommendation_list.html"
     context_object_name = "recommendations"
-    paginate_by = 25
+    paginate_by = 20
 
     def get_queryset(self):
         filters = {
@@ -279,6 +278,7 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
         # Livrables
         context["deliverables"] = rec.deliverables.all()
         context["progress"] = rec.progress_percentage
+        context["completed_deliverables_count"] = rec.deliverables.filter(is_completed=True).count()
 
         # AuditLog Timeline — 5 entrées inline + total pour le slide-over
         from apps.audit.models import AuditLog
@@ -424,6 +424,15 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
             and rec.status == Recommendation.Status.PENDING_AUDIT_REVIEW
         )
         context["is_closed"] = rec.status == Recommendation.Status.CLOSED_RESOLVED
+
+        # ── Sceau HMAC (Story 3.10 — FR24) ─────────────────────────────────
+        hmac_seal = getattr(rec, "hmac_seal", None)
+        context["hmac_seal"] = hmac_seal
+        if hmac_seal is not None:
+            from apps.audit.services import verify_recommendation_seal
+            context["seal_valid"] = verify_recommendation_seal(rec)
+        else:
+            context["seal_valid"] = None
 
         return context
 
@@ -1035,15 +1044,15 @@ def _render_submit_evidence_modal(
     draft,
     *,
     submit_url_name="workflow:recommendation-submit-evidence",
-    panel_close_state="submitEvidenceModalOpen",
     is_dg_direct=False,
 ):
     """Render le partial du slide-over de soumission de preuves.
 
     Composant unique réutilisé par l'ETP/DM et le DG (Story 3.7). Seuls
-    diffèrent l'endpoint de soumission (``submit_url_name``), l'état Alpine
-    de fermeture du conteneur (``panel_close_state``) et le bandeau de
-    destination (``is_dg_direct`` → soumission directe à l'Audit, FR33).
+    diffèrent l'endpoint de soumission (``submit_url_name``) et le bandeau
+    de destination (``is_dg_direct`` → soumission directe à l'Audit, FR33).
+    La fermeture passe par l'événement ``close-evidence-panel`` (lot 3.1/3.3),
+    mappé par la page hôte sur son état ``modal``.
     """
     from django.template.loader import render_to_string
 
@@ -1064,7 +1073,6 @@ def _render_submit_evidence_modal(
             "quota_max_mb": quota_max / (1024 * 1024),
             "quota_percentage": min(round((quota_used / quota_max) * 100), 100) if quota_max else 0,
             "submit_url_name": submit_url_name,
-            "panel_close_state": panel_close_state,
             "is_dg_direct": is_dg_direct,
         },
         request=request,
@@ -1503,7 +1511,7 @@ class DraftSaveCommentView(WorkflowAccessMixin, View):
                 comment=comment,
                 user=request.user,
             )
-        except (ValueError, PermissionError) as e:
+        except (ValueError, PermissionError):
             return HttpResponse(status=422)
 
         from django.template.loader import render_to_string
@@ -1909,7 +1917,6 @@ class EvidenceDGDirectSubmitView(WorkflowAccessMixin, View):
             self._rec,
             draft,
             submit_url_name="workflow:evidence-submit-dg",
-            panel_close_state="dgSubmitPanelOpen",
             is_dg_direct=True,
         )
 
@@ -2163,6 +2170,7 @@ class RecommendationSourceListView(AuditAdminRequiredMixin, ListView):
 
     template_name = "workflow/admin/sources/list.html"
     context_object_name = "sources"
+    paginate_by = 25
 
     def get_queryset(self):
         return selectors.get_all_sources()

@@ -1,23 +1,14 @@
-{% load static %}
-<aside x-show="$store.sentinel.sidebarOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="-translate-x-full opacity-0" x-transition:enter-end="translate-x-0 opacity-100" class="fixed inset-y-0 left-0 z-50 lg:static w-72 shrink-0 bg-white shadow-[4px_0_24px_rgba(0,0,0,0.02)] border-r border-gray-100 flex flex-col z-10" style="display:none">
-  <div class="p-6 border-b border-gray-100 flex items-center justify-center">
-    <div class="flex items-center gap-3 w-full">
-      <div class="flex h-12 w-12 items-center justify-center shrink-0 overflow-hidden rounded-xl bg-white shadow-sm border border-gray-100 p-1">
-        <img src="{% static 'img/logo.jpeg' %}" alt="BICEC" class="h-full w-full object-contain">
-      </div>
-      <div class="min-w-0">
-        <p class="text-lg font-extrabold text-gray-900 font-heading tracking-tight leading-tight">SENTINEL</p>
-        <p class="text-xs text-sentinel-orange font-semibold truncate uppercase tracking-wider">Compte en attente</p>
-      </div>
-    </div>
-  </div>
-  <nav class="flex-1 overflow-y-auto py-6 px-4">
-    <p class="text-gray-400 text-[10px] font-bold uppercase tracking-widest px-2 mb-3 mt-6 first:mt-0">Accès restreint</p>
-    <div class="px-3 py-4 text-xs text-sidebar-foreground/70 text-center">
+{# Sidebar — Compte sans rôle / en attente (DS graphite). #}
+<aside x-show="$store.sentinel.sidebarOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="-translate-x-full opacity-0" x-transition:enter-end="translate-x-0 opacity-100" x-cloak class="fixed inset-y-0 left-0 z-50 lg:static w-64 shrink-0 bg-graphite text-graphite-fg border-r border-graphite-border flex flex-col" style="display:none">
+
+  {% include "partials/_sidebar_brand.html" with profile_label="Compte en attente" %}
+
+  <nav class="flex-1 overflow-y-auto px-3 py-4">
+    <p class="text-[10px] font-bold uppercase tracking-[0.08em] text-graphite-section px-3 mb-2 mt-1">Accès restreint</p>
+    <div class="px-3 py-4 text-xs text-graphite-fg/70 text-center leading-relaxed">
       Votre compte est en attente d'habilitation par l'Audit Interne.
     </div>
   </nav>
-  <div class="p-4 border-t border-gray-100 bg-gray-50/50">
-    <p class="text-[11px] text-gray-400 font-medium text-center">© 2026 BICEC Sentinel</p>
-  </div>
+
+  {% include "partials/_sidebar_footer.html" %}
 </aside>

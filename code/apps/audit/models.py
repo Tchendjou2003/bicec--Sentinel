@@ -10,6 +10,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
@@ -93,3 +94,58 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.action} — {self.content_type} ({self.object_id}) par {self.user}"
+
+
+class HmacSeal(models.Model):
+    """
+    Sceau cryptographique HMAC-SHA256 d'une recommandation clôturée (FR24 / NFR-SEC-03).
+
+    Généré comme effet de bord de la transaction de clôture (Story 3.10, ADR-07) :
+    une empreinte inaltérable du dossier (métadonnées figées + hashs SHA-256 des
+    preuves acceptées) calculée avec ``HMAC_SECRET_KEY`` (distincte de ``SECRET_KEY``).
+
+    Relation 1:1 avec ``Recommendation``. Toute altération post-clôture d'un champ
+    scellé rompt le hash et est détectable via ``verify_recommendation_seal()``.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    recommendation = models.OneToOneField(
+        "workflow.Recommendation",
+        on_delete=models.PROTECT,
+        related_name="hmac_seal",
+        verbose_name=_("Recommandation"),
+    )
+    hmac_hash = models.CharField(
+        _("Empreinte HMAC-SHA256"),
+        max_length=64,
+        help_text=_("Digest hexadécimal HMAC-SHA256 du dossier scellé."),
+    )
+    sealed_metadata = models.JSONField(
+        _("Métadonnées scellées"),
+        help_text=_("Snapshot figé des champs métier entrant dans le calcul HMAC."),
+    )
+    file_hashes = models.JSONField(
+        _("Hashs des preuves"),
+        default=dict,
+        help_text=_("{evidence_file_id: sha256_hash} des preuves acceptées."),
+    )
+    sealed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="sealed_recommendations",
+        verbose_name=_("Scellé par"),
+        help_text=_("Auditeur ayant clôturé et scellé le dossier."),
+    )
+    sealed_at = models.DateTimeField(_("Scellé le"), default=timezone.now)
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+
+    class Meta:
+        db_table = "audit_hmac_seal"
+        verbose_name = _("Sceau HMAC")
+        verbose_name_plural = _("Sceaux HMAC")
+        ordering = ["-sealed_at"]
+
+    def __str__(self):
+        return f"Sceau {self.hmac_hash[:12]}… (reco {self.recommendation_id})"

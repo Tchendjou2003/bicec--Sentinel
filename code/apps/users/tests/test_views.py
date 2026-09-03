@@ -115,4 +115,4 @@ class PendingActivationViewTest(TestCase):
         """Un compte actif (avec rôle) est expulsé de la page d'attente vers la home."""
         self.client.force_login(self.dm_user)
         response = self.client.get(self.pending_url)
-        self.assertRedirects(response, self.home_url)
+        self.assertRedirects(response, self.home_url, fetch_redirect_response=False)

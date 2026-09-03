@@ -97,8 +97,8 @@ This document provides the complete epic and story breakdown for bicec--Sentinel
 - FR6: Epic 2 - Soft-delete en état DRAFT
 - FR6b: Epic 2 - État transitoire DRAFT pré-assignation
 - FR7: Différé en V2 (Bulk create)
-- FR8: Epic 4 - Droits d'import pour l'Audit uniquement
-- FR9: Epic 4 - File import transactionnel atomique + date originale Excel
+- FR8: Epic 6 - Droits d'import pour l'Audit uniquement
+- FR9: Epic 6 - File import transactionnel atomique + date originale Excel
 - FR10: Epic 2 - Auto-assignation pour triage
 - FR11: Epic 2 - Assigner à un DM cible
 
@@ -412,61 +412,73 @@ So that **l'information soit exacte dans les tableaux de bord le lendemain matin
 **When** le job de nuit (cron) s'exécute,
 **Then** l'état passe automatiquement à `OVERDUE` (FR21).
 
-### Epic 4: Proactive Alerting & Notification Engine
-**User Goal:** Users are proactively informed of approaching deadlines, daily critical issues, and weekly summaries, drastically reducing the mental load of compliance tracking.
-**FRs covered:** FR22, FR23
-**Implementation Notes:** Operates mostly in the background via Django-Q2 async queues to prevent UI blocking. Protects users via daily consolidated digests to prevent notification fatigue.
+### Epic 4: Proactive Alerting & Notification Engine (In-App d'abord)
+**User Goal:** Les utilisateurs sont informés **en temps réel, dans l'application** (feed + badge), des événements qui les concernent (assignation, rejet, validation, clôture, retard, échéances proches) — réduisant la charge mentale **sans dépendre de l'e-mail**.
+**FRs covered:** FR22, FR23 (volet **in-app** ; le volet e-mail est reporté post-MVP)
+**Implementation Notes:** Focus MVP = **notifications in-app** (modèle `Notification` channel-agnostic + feed/badge). Génération synchrone sur événements workflow + jobs Django-Q2 pour les ruptures/anticipations. L'**idempotence** (pas de doublon) repose sur le modèle `Notification` (**Story 4.0**, prérequis de 4.1/4.2). Le **canal e-mail** (alertes immédiates « alarme incendie » + digest hebdomadaire) est **reporté post-MVP / backlog** et réutilisera le même modèle sans refonte. La **doctrine « alarme incendie »** reste le principe directeur du futur e-mail (canal rare, haut-signal) ; l'in-app, lui, peut porter le routinier.
 
-#### Story 4.1: Alertes journalières "Critiques"
+#### Story 4.0: Socle Notifications In-App (Modèle + Feed)
 
-As a **Système (Background Job)**,
-I want **envoyer un récapitulatif quotidien aux responsables pour les recommandations "Critiques" en cours**,
-So that **l'attention soit focalisée chaque matin sur les dossiers à hauts risques (FR22).**
-
-**Acceptance Criteria:**
-
-**Given** des recommandations actives avec une priorité "Critique",
-**When** le job s'exécute le matin,
-**Then** un email consolidé (digest) est envoyé à chaque utilisateur concerné avec la liste de ses dossiers prioritaires.
-
-#### Story 4.2: Digest Hebdomadaire et Anticipation J-7
-
-As a **Système (Background Job)**,
-I want **envoyer un bilan hebdomadaire et alerter de manière proactive 7 jours avant l'échéance**,
-So that **les DMs et ETPs puissent anticiper les retards potentiels sans être spammés (FR23).**
+As a **Utilisateur (DM, ETP, DG, Audit)**,
+I want **un modèle `Notification` et un feed in-app (badge + liste déroulante) signalant les événements qui me concernent**,
+So that **je sois informé en temps réel sans e-mail, et que le futur canal e-mail (post-MVP) réutilise ce socle.**
 
 **Acceptance Criteria:**
 
-**Given** des recommandations arrivant à échéance dans 7 jours ou un bilan de fin de semaine,
-**When** le job hebdomadaire ou anticipatif s'exécute,
-**Then** un email d'anticipation ou de résumé est envoyé aux assignés concernés (Le format de l'email sera du pur texte formaté pour éviter la dette HTML).
+**Given** un événement notifiable destiné à un utilisateur,
+**When** il est émis,
+**Then** un enregistrement `Notification` est créé (destinataire, type, recommandation liée éventuelle, **clé d'idempotence**, date, statut **lu/non-lu**) — **channel-agnostic** (aucune dépendance e-mail).
+**And** un **badge** (compteur de non-lus) et une **liste déroulante** in-app (dans la topbar) affichent les notifications de l'utilisateur, avec **« marquer comme lu »** (individuel + tout).
+**And** l'émission est **idempotente** : un même événement (même clé) ne crée jamais de doublon.
+**And** le modèle est conçu pour qu'un **canal e-mail** (post-MVP) puisse consommer les mêmes `Notification` sans refonte.
 
-#### Story 4.3: Importation Atomique Historique (Substitut de Masse MVP)
+#### Story 4.1: Notifications In-App sur Événements (Workflow + Ruptures)
 
-As an **Audit Interne (Seulement)**,
-I want **uploader le template Excel officiel contenant l'historique massif (2000 lignes)**,
-So that **tout l'historique soit intégré de manière fiable dans la base de données.**
-
-**Acceptance Criteria:**
-
-**Given** l'upload d'un Excel par l'Audit,
-**When** déclenché,
-**Then** l'import exécute une transaction atomique stricte (tout ou rien).
-**And** les recos importées avec succès ont le statut `ASSIGNED`, le tag `IMPORTED`, et conservent leur date de création Excel originale (FR8, FR9).
-
-
-#### Story 4.4: Triage et Auto-Assignation
-
-As an **Audit Interne**,
-I want **m'auto-assigner des recommandations à trier (notamment les imports historiques)**,
-So that **mon équipe puisse finaliser la complétion des données avant l'envoi légal aux métiers.**
+As a **Utilisateur concerné**,
+I want **recevoir une notification in-app quand un événement me concernant survient — assignation, délégation, rejet, validation, clôture, et surtout les ruptures (retard d'une Critique, jalons 30/60 j)**,
+So that **je voie immédiatement ce qui exige mon action, sans e-mail (FR22).**
 
 **Acceptance Criteria:**
 
-**Given** une reco importée ou en brouillon,
-**When** l'audit se l'auto-assigne,
-**Then** elle n'est visible que par le pool Audit et ne déclenche aucune alerte (FR10).
+**Given** un événement workflow me concernant (assignation/délégation, rejet de preuves, validation DM, clôture Audit, demande/décision de report),
+**When** il se produit,
+**Then** une `Notification` in-app est créée pour le bon destinataire (porteur, DM ou Audit selon l'événement).
+**And** pour les **ruptures** : passage à `OVERDUE` (via l'AuditLog `action=SYSTEM` de la Story 3.9) d'une **Critique**, ou franchissement d'un **jalon `≥ 30 j`** de retard (`aujourd'hui − due_date`, **seuil** non encore notifié — pas une égalité « exactement 30 j » fragile aux pannes de cron), une notification **prioritaire** (visuellement distincte) est créée pour le porteur (ETP assigné, ou DM porteur).
+**And** au **jalon `≥ 60 j`** de retard sans action, une **escalade** notifie le **supérieur hiérarchique** (le DM assigné si le porteur est un ETP ; sinon le responsable du `Department.parent`).
+**And** chaque jalon/événement est **idempotent** (Story 4.0) : jamais plus de deux fois la même notification.
 
+#### Story 4.2: Anticipation In-App des Échéances (J-7 / J-3) et Résumé de Portefeuille
+
+As a **DM / ETP / DG (et Audit pour ses validations)**,
+I want **voir in-app, sans e-mail, les échéances qui approchent (J-7, J-3) et un résumé de mon portefeuille**,
+So that **je pilote mes échéances de manière proactive sans être spammé (FR23).**
+
+**Acceptance Criteria:**
+
+**Given** une recommandation active dont l'échéance approche (J-7 puis J-3),
+**When** le job quotidien s'exécute,
+**Then** une `Notification` in-app d'anticipation est créée pour le porteur (**idempotente** : une seule par palier J-7 et une seule par palier J-3).
+**And** un **résumé de portefeuille** in-app (en cours / en retard / échéances proches) est consultable par chaque utilisateur ; pour l'**Audit**, les reports en attente de validation y figurent.
+**And** **aucun e-mail** n'est émis.
+
+> **Reporté post-MVP / backlog (réutilisera le modèle `Notification`) :**
+> - **Digest e-mail hebdomadaire** (lundi matin, un seul e-mail/utilisateur, skip si portefeuille vide, texte brut).
+> - **Alertes e-mail immédiates « alarme incendie »** (ruptures Critiques + escalade), texte brut via `EMAIL_BACKEND`.
+> Prérequis de réouverture : infra SMTP on-premise COBAC disponible.
+
+#### Story 4.5: Bannière Contextuelle de Notifications In-App
+
+As a **Utilisateur (DM, ETP, Audit, DG)**,
+I want **voir une bannière légère résumant l'activité survenue depuis ma dernière connexion (sans système lourd de type "lu/non-lu")**,
+So that **je sois informé des assignations, rejets, et échéances proches dès mon arrivée sur le dashboard, sans recevoir d'e-mail pour ces événements courants.**
+
+**Acceptance Criteria:**
+
+**Given** un utilisateur qui se connecte au dashboard Sentinel,
+**When** des événements courants (assignation, preuve rejetée, commentaire ajouté, approche échéance J-14/J-7) ont eu lieu depuis sa dernière visite,
+**Then** une bannière contextuelle non intrusive s'affiche en haut de l'écran résumant l'activité (ex: "Depuis votre dernière visite : 1 preuve rejetée, 2 échéances proches").
+**And** la bannière peut être fermée et ne gère pas d'états complexes "lu/non-lu" paritairement (stateless feeling).
+**And** les indicateurs d'urgence (badges, couleurs) sur les tableaux restent la source de vérité persistante.
 
 #### Story 3.10: Génération du Sceau HMAC-SHA256 à la Clôture
 
@@ -531,6 +543,20 @@ So that **je puisse identifier immédiatement les zones et services en alerte (F
 **Then** les recommandations sont groupées et triées par priorité et niveau d'urgence.
 **And** les indicateurs visuels (codes couleurs) reflètent l'urgence et le vieillissement de façon claire.
 
+#### Story 6.2.0: Gouvernance IT (Maker/Checker) & Refonte UX Sélecteurs
+
+As a **Responsable Sécurité / Gouvernance**,
+I want **que la création de comptes et la gestion de l'organigramme soient centralisées par l'IT via un flux Maker/Checker, et que la sélection des départements soit ergonomique**,
+So that **l'Audit Interne soit déchargé de la gestion des identités, tout en garantissant un contrôle strict à quatre yeux (IT crée, Administrateur valide) et une traçabilité parfaite, avec une UX optimale.**
+
+**Acceptance Criteria:**
+**Given** un besoin de création de compte ou de modification d'organisation,
+**When** un Admin IT soumet la demande,
+**Then** elle doit être validée par le groupe "Administrateurs Sentinel" avant d'être effective,
+**And** l'Audit Interne n'a plus accès à ces interfaces,
+**And** les sélecteurs organisationnels de l'application utilisent le composant TomSelect avec recherche et groupement.
+> **Note :** Cette story remplace et refond fonctionnellement les anciennes stories 1.4, 1.5 et 1.7.
+
 #### Story 6.2: To-Do List Executive
 
 As a **DG**,
@@ -567,3 +593,29 @@ So that **l'intérimaire puisse agir au nom de l'absent avec une traçabilité t
 **When** l'ETP effectue une action métier (ex: validation preuve),
 **Then** le système permet l'action
 **And** l'Audit Log enregistre explicitement que l'action a été effectuée par l'ETP agissant pour le DM (FR4).
+
+#### Story 6.5: Importation Atomique Historique (Substitut de Masse MVP)
+
+As an **Audit Interne (Seulement)**,
+I want **uploader le template Excel officiel contenant l'historique massif (2000 lignes)**,
+So that **tout l'historique soit intégré de manière fiable dans la base de données.**
+
+**Acceptance Criteria:**
+
+**Given** l'upload d'un Excel par l'Audit,
+**When** déclenché,
+**Then** l'import exécute une transaction atomique stricte (tout ou rien).
+**And** les recos importées avec succès ont le statut `ASSIGNED`, le tag `IMPORTED`, et conservent leur date de création Excel originale (FR8, FR9).
+
+
+#### Story 6.6: Triage et Auto-Assignation
+
+As an **Audit Interne**,
+I want **m'auto-assigner des recommandations à trier (notamment les imports historiques)**,
+So that **mon équipe puisse finaliser la complétion des données avant l'envoi légal aux métiers.**
+
+**Acceptance Criteria:**
+
+**Given** une reco importée ou en brouillon,
+**When** l'audit se l'auto-assigne,
+**Then** elle n'est visible que par le pool Audit et ne déclenche aucune alerte (FR10).

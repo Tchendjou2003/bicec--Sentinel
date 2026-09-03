@@ -1,0 +1,71 @@
+{% comment %}
+  Sous-modale de rejet d'une demande provisioning (Story 6.2.0 / AC3).
+  Le motif est obligatoire.
+{% endcomment %}
+<div
+  id="reject-modal-container"
+  class="fixed inset-0 z-50 flex items-center justify-center"
+  x-data
+  @keydown.escape.window="$el.remove()"
+>
+  {# Overlay #}
+  <div class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" @click="$el.closest('[id=reject-modal-container]').remove()"></div>
+
+  {# Panneau #}
+  <div class="relative z-10 w-full max-w-md mx-4 bg-surface-card rounded-xl shadow-premium-lg border border-border-subtle animate-slide-up"
+       role="dialog" aria-modal="true" aria-labelledby="reject-modal-title">
+
+    <div class="px-6 py-4 border-b border-border-subtle">
+      <h2 id="reject-modal-title" class="text-base font-semibold text-text-primary font-heading">
+        Rejeter la demande
+      </h2>
+      <p class="text-xs text-text-muted mt-0.5">
+        Compte demandé : <span class="font-medium text-text-primary">{{ req.requested_username }}</span>
+      </p>
+    </div>
+
+    <form
+      hx-post="{% url 'auth:provisioning-reject' req.pk %}"
+      hx-target="#reject-modal-container"
+      hx-swap="outerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      hx-disabled-elt="find button[type='submit']"
+      class="px-6 py-5 space-y-4"
+    >
+      {% csrf_token %}
+
+      <div>
+        <label class="block text-xs font-medium text-text-secondary mb-1" for="rejection_reason">
+          Motif du rejet <span class="text-status-rejected">*</span>
+        </label>
+        <textarea
+          name="rejection_reason"
+          id="rejection_reason"
+          rows="4"
+          required
+          placeholder="Expliquer la raison du rejet (informations incorrectes, demande non autorisée…)"
+          class="w-full rounded-xl border border-border-subtle bg-surface-card px-3 py-2 text-sm text-text-primary resize-none focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200"
+        ></textarea>
+        {% if error %}
+        <p class="mt-1 text-xs text-status-rejected">{{ error }}</p>
+        {% endif %}
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button
+          type="button"
+          @click="$el.closest('[id=reject-modal-container]').remove()"
+          class="btn btn-secondary"
+        >
+          Annuler
+        </button>
+        <button
+          type="submit"
+          class="btn btn-danger"
+        >
+          Confirmer le rejet
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

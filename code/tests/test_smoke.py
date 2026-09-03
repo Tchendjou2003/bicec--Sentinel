@@ -64,17 +64,19 @@ class HomePageSmokeTest(TestCase):
         )
         self.client.force_login(self.user)
 
-    def test_home_page_returns_200(self):
-        """La page d'accueil renvoie 200 pour un utilisateur connecté."""
-        response = self.client.get("/")
+    def test_home_redirects_to_dashboard(self):
+        """
+        Depuis la Story 6.1a, « / » redirige (302) vers le tableau de bord.
+        On suit la redirection et on vérifie qu'elle aboutit à une page 200.
+        """
+        response = self.client.get("/", follow=True)
         self.assertEqual(response.status_code, 200)
-
-    def test_home_page_uses_correct_template(self):
-        response = self.client.get("/")
-        self.assertTemplateUsed(response, "home.html")
+        # Au moins une redirection a eu lieu (/ → dashboards:home)
+        self.assertTrue(len(response.redirect_chain) >= 1)
 
     def test_home_page_contains_sentinel_title(self):
-        response = self.client.get("/")
+        """La page de destination contient le branding Sentinel (base.html)."""
+        response = self.client.get("/", follow=True)
         self.assertContains(response, "Sentinel")
 
     def test_security_headers_present(self):

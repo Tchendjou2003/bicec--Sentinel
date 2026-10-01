@@ -27,7 +27,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.audit.models import AuditLog
+from apps.audit.models import AuditLog, HmacSeal
 from apps.users.models import Department, OrgUnitType, User
 from apps.workflow.import_historical import (
     DATA_SHEET_NAME,
@@ -42,6 +42,7 @@ from apps.workflow.import_historical import (
     create_historical_recommendations,
     parse_historical_workbook,
     parse_zip_members,
+    run_historical_import_task,
     validate_historical_rows,
 )
 from apps.workflow.models import (
@@ -596,6 +597,138 @@ class CreateHistoricalRecommendationsTests(HistoricalImportMixin, TestCase):
             )
         # Aucune nouvelle reco créée
         self.assertEqual(Recommendation.all_objects.count(), initial_count)
+
+
+# ── Tests : run_historical_import_task (Django-Q2 async) ──────────────────────
+
+
+class RunHistoricalImportTaskTests(HistoricalImportMixin, TestCase):
+
+    def _make_pending_batch(self, rows: list[HistoricalRow], file_name="hist_async.xlsx") -> ImportBatch:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = DATA_SHEET_NAME
+        ws.append(HEADERS)
+        for row in rows:
+            ws.append([
+                row.reference, row.source_raw, row.priority, row.description,
+                row.due_date_raw.isoformat() if row.due_date_raw else "",
+                row.closed_at_raw.isoformat() if row.closed_at_raw else "",
+                row.created_at_original_raw.isoformat() if row.created_at_original_raw else "",
+                row.mission_label, row.controlled_department_raw,
+                row.department_raw, row.observations,
+            ])
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return ImportBatch.objects.create(
+            source_file=SimpleUploadedFile(
+                file_name, buf.read(),
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ),
+            file_name=file_name,
+            created_by=self.audit_user,
+            status=ImportBatch.Status.PENDING,
+            kind=ImportBatch.Kind.HISTORICAL,
+        )
+
+    @mock.patch("apps.workflow.import_historical.validate_magic_bytes")
+    @mock.patch("apps.workflow.import_historical.validate_file_size")
+    def test_traitement_reussi_cree_la_reco_et_le_sceau(self, mock_size, mock_magic):
+        rows = [HistoricalRow(
+            row_number=2, reference="RECO-ASYNC-001", source_raw="COBAC", priority="HAUTE",
+            description="Reco async", due_date_raw=date.today() - timedelta(days=365),
+            closed_at_raw=date.today() - timedelta(days=30),
+            created_at_original_raw=date.today() - timedelta(days=400),
+            mission_label="Mission 2022", controlled_department_raw="",
+            department_raw="", observations="",
+        )]
+        batch = self._make_pending_batch(rows)
+        result = run_historical_import_task(
+            batch_id=str(batch.pk), performed_by_id=self.audit_user.pk,
+        )
+        batch.refresh_from_db()
+        self.assertEqual(result, "done")
+        self.assertEqual(batch.status, ImportBatch.Status.DONE)
+        reco = Recommendation.all_objects.get(reference="RECO-ASYNC-001")
+        self.assertEqual(reco.status, Recommendation.Status.CLOSED_RESOLVED)
+        self.assertTrue(HmacSeal.objects.filter(recommendation=reco).exists())
+
+    @mock.patch("apps.workflow.import_historical.validate_magic_bytes")
+    @mock.patch("apps.workflow.import_historical.validate_file_size")
+    def test_retry_apres_succes_ne_duplique_pas_le_sceau(self, mock_size, mock_magic):
+        """Idempotence : un retry Django-Q2 après un DONE ne recrée ni reco ni sceau."""
+        rows = [HistoricalRow(
+            row_number=2, reference="RECO-ASYNC-RETRY", source_raw="COBAC", priority="HAUTE",
+            description="Reco retry", due_date_raw=date.today() - timedelta(days=365),
+            closed_at_raw=date.today() - timedelta(days=30),
+            created_at_original_raw=date.today() - timedelta(days=400),
+            mission_label="Mission 2022", controlled_department_raw="",
+            department_raw="", observations="",
+        )]
+        batch = self._make_pending_batch(rows)
+        run_historical_import_task(batch_id=str(batch.pk), performed_by_id=self.audit_user.pk)
+        reco = Recommendation.all_objects.get(reference="RECO-ASYNC-RETRY")
+
+        result = run_historical_import_task(
+            batch_id=str(batch.pk), performed_by_id=self.audit_user.pk,
+        )
+        self.assertIn("skip", result)
+        self.assertEqual(
+            Recommendation.all_objects.filter(reference="RECO-ASYNC-RETRY").count(), 1,
+        )
+        self.assertEqual(HmacSeal.objects.filter(recommendation=reco).count(), 1)
+
+    @mock.patch("apps.workflow.import_historical.validate_magic_bytes")
+    @mock.patch("apps.workflow.import_historical.validate_file_size")
+    def test_zip_temporaire_supprime_apres_traitement(self, mock_size, mock_magic):
+        from django.core.files.storage import default_storage
+
+        rows = [HistoricalRow(
+            row_number=2, reference="RECO-ASYNC-ZIP", source_raw="COBAC", priority="HAUTE",
+            description="Reco zip", due_date_raw=date.today() - timedelta(days=365),
+            closed_at_raw=date.today() - timedelta(days=30),
+            created_at_original_raw=date.today() - timedelta(days=400),
+            mission_label="Mission 2022", controlled_department_raw="",
+            department_raw="", observations="",
+        )]
+        batch = self._make_pending_batch(rows)
+        zip_buf = self._make_zip({"RECO-ASYNC-ZIP_preuve.pdf": b"%PDF-test"})
+        zip_path = default_storage.save(f"imports/zip/{batch.pk}.zip", zip_buf)
+
+        run_historical_import_task(
+            batch_id=str(batch.pk), performed_by_id=self.audit_user.pk, zip_storage_path=zip_path,
+        )
+        self.assertFalse(default_storage.exists(zip_path))
+
+    def test_echec_marque_failed_avec_audit_log_hors_transaction(self):
+        rows = [HistoricalRow(
+            row_number=2, reference="RECO-ASYNC-FAIL", source_raw="COBAC", priority="HAUTE",
+            description="Reco fail", due_date_raw=date.today() - timedelta(days=365),
+            closed_at_raw=date.today() - timedelta(days=30),
+            created_at_original_raw=date.today() - timedelta(days=400),
+            mission_label="Mission 2022", controlled_department_raw="",
+            department_raw="", observations="",
+        )]
+        batch = self._make_pending_batch(rows)
+        with mock.patch(
+            "apps.workflow.import_historical.parse_historical_workbook",
+            side_effect=ValidationError("Fichier corrompu"),
+        ):
+            with self.assertRaises(ValidationError):
+                run_historical_import_task(
+                    batch_id=str(batch.pk), performed_by_id=self.audit_user.pk,
+                )
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, ImportBatch.Status.FAILED)
+        self.assertTrue(batch.error_message)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.SYSTEM,
+                content_type="ImportBatch",
+                object_id=batch.pk,
+            ).exists()
+        )
 
 
 # ── Tests : protection read-only (_ensure_not_closed) ─────────────────────────

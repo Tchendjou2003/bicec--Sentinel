@@ -7,7 +7,7 @@ Chart.js doit être chargé avant via block extra_js.
   <canvas id="{{ chart_id }}" height="260" aria-label="Flux mensuel des recommandations" role="img"></canvas>
 </div>
 <script>
-(function () {
+document.addEventListener("DOMContentLoaded", function () {
   var chartId = "{{ chart_id }}";
   var chartJson = "{{ chart_data_json|escapejs }}";
   var d = JSON.parse(chartJson);
@@ -47,5 +47,5 @@ Chart.js doit être chargé avant via block extra_js.
       animation: { duration: 400 }
     }
   });
-}());
+});
 </script>

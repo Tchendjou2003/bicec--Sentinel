@@ -139,7 +139,7 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         draft_rec = self._create_draft_recommendation()
         assigned_rec = self._create_draft_recommendation()
         Recommendation.all_objects.filter(pk=assigned_rec.pk).update(status=Recommendation.Status.ASSIGNED)
-        
+
         response = self.client.get(reverse("workflow:recommendation-list"))
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, draft_rec.reference)
@@ -150,14 +150,14 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         self._login_as(self.dm_user)
         own_rec = self._create_draft_recommendation()
         Recommendation.all_objects.filter(pk=own_rec.pk).update(status=Recommendation.Status.ASSIGNED)
-        
+
         type_dir, _ = OrgUnitType.objects.get_or_create(code="DIRECTION", defaults={"name": "Direction", "level": 1})
         other_dept = Department.objects.create(name="Other", code="OTH", type=type_dir)
         other_rec = self._create_draft_recommendation()
         Recommendation.all_objects.filter(pk=other_rec.pk).update(
             status=Recommendation.Status.ASSIGNED, department=other_dept
         )
-        
+
         response = self.client.get(reverse("workflow:recommendation-list"))
         self.assertContains(response, own_rec.reference)
         self.assertNotContains(response, other_rec.reference)
@@ -186,7 +186,7 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         Recommendation.all_objects.filter(pk=rec_assigned.pk).update(
             status=Recommendation.Status.IN_PROGRESS, assigned_etp=self.etp_user
         )
-        
+
         response = self.client.get(reverse("workflow:recommendation-list"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, rec_assigned.reference)
@@ -196,20 +196,20 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         """Audit voit tout et le filtre par statut d'import fonctionne."""
         self._login_as(self.audit_user)
         rec_recent = self._create_draft_recommendation()
-        
+
         rec_historical = self._create_draft_recommendation()
         Recommendation.all_objects.filter(pk=rec_historical.pk).update(import_tag="IMPORTED")
-        
+
         # Test Recent (default behavior if no param, or explicit 'recent')
         response = self.client.get(reverse("workflow:recommendation-list"), {"import_status": "recent"})
         self.assertContains(response, rec_recent.reference)
         self.assertNotContains(response, rec_historical.reference)
-        
+
         # Test Historical
         response = self.client.get(reverse("workflow:recommendation-list"), {"import_status": "historical"})
         self.assertNotContains(response, rec_recent.reference)
         self.assertContains(response, rec_historical.reference)
-        
+
         # Test All
         response = self.client.get(reverse("workflow:recommendation-list"), {"import_status": "all"})
         self.assertContains(response, rec_recent.reference)
@@ -251,7 +251,7 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         for i in range(30): # Create 30 to trigger pagination
             rec = self._create_draft_recommendation()
             Recommendation.all_objects.filter(pk=rec.pk).update(import_tag="IMPORTED")
-            
+
         response = self.client.get(reverse("workflow:recommendation-list"), {"import_status": "historical", "page": "1"})
         self.assertEqual(response.status_code, 200)
 
@@ -260,7 +260,7 @@ class RecommendationListViewTest(ViewTestMixin, TestCase):
         self._login_as(self.dm_user)
         response = self.client.get(reverse("workflow:recommendation-list"))
         self.assertNotContains(response, 'hx-get="/audit/recommandations/create/"')
-        
+
         self._login_as(self.etp_user)
         response = self.client.get(reverse("workflow:recommendation-list"))
         self.assertNotContains(response, 'hx-get="/audit/recommandations/create/"')
@@ -467,6 +467,57 @@ class RecommendationDetailViewTest(ViewTestMixin, TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
+    def test_sceau_altere_enqueue_la_detection_sans_ecrire_en_synchrone(self):
+        """Consulter un dossier scellé altéré ne doit pas écrire l'AuditLog en
+        synchrone dans la requête GET — elle est déportée en tâche async."""
+        from unittest import mock
+        from apps.audit.models import HmacSeal, AuditLog
+
+        self._login_as(self.audit_user)
+        rec = self._create_draft_recommendation()
+        HmacSeal.objects.create(
+            recommendation=rec, hmac_hash="0" * 64, sealed_metadata={}, file_hashes={},
+        )
+
+        with mock.patch("apps.workflow.views.async_task") as mock_async_task:
+            response = self.client.get(
+                reverse("workflow:recommendation-detail", args=[rec.pk])
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["seal_valid"])
+        mock_async_task.assert_called_once_with(
+            "apps.audit.services.run_tamper_detection_task",
+            recommendation_id=str(rec.pk),
+            detected_by_id=self.audit_user.pk,
+            ip_address=mock.ANY,
+        )
+        # Aucune écriture synchrone : la tâche a été enqueuée (mockée), pas exécutée.
+        self.assertFalse(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.TAMPER_DETECTED, object_id=rec.pk,
+            ).exists()
+        )
+
+    def test_sceau_intact_n_enqueue_rien(self):
+        from unittest import mock
+        from apps.audit.services import generate_recommendation_seal
+
+        self._login_as(self.audit_user)
+        rec = self._create_draft_recommendation()
+        generate_recommendation_seal(
+            recommendation=rec, sealed_by=self.audit_user, allow_empty_files=True,
+        )
+
+        with mock.patch("apps.workflow.views.async_task") as mock_async_task:
+            response = self.client.get(
+                reverse("workflow:recommendation-detail", args=[rec.pk])
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["seal_valid"])
+        mock_async_task.assert_not_called()
+
     def test_dg_assigned_is_not_considered_dm_porteur(self):
         """Non-régression — un DG assigné (stored in assigned_dm) ne doit pas
         déclencher le chemin DM porteur dans le contexte de la vue détail.
@@ -581,7 +632,7 @@ class RecommendationAssignViewTest(ViewTestMixin, TestCase):
         rec_empty = self._create_draft_recommendation()
         rec_empty.department = empty_dept
         rec_empty.save(update_fields=["department"])
-        
+
         response_empty = self.client.get(
             reverse("workflow:recommendation-assign", args=[rec_empty.pk])
         )
@@ -1473,10 +1524,10 @@ class EvidenceVisibilityRBACTest(EvidenceSubmissionTestMixin, TestCase):
         """Crée une recommandation et soumet une preuve (status=PENDING)."""
         from apps.workflow import services
         rec = self._create_in_progress_recommendation_etp()
-        
+
         self._login_as(self.etp_user)
         draft, _ = self._create_draft_and_upload(rec, self.etp_user, "Preuve PENDING")
-        
+
         services.submit_evidence_for_recommendation(
             recommendation=rec, performed_by=self.etp_user,
         )
@@ -1504,7 +1555,7 @@ class EvidenceVisibilityRBACTest(EvidenceSubmissionTestMixin, TestCase):
         response = self.client.get(
             reverse("workflow:recommendation-detail", args=[rec.pk])
         )
-        
+
         self.assertEqual(response.status_code, 200)
         qs = response.context["evidence_submissions"]
         self.assertEqual(qs.count(), 0)
@@ -1517,7 +1568,7 @@ class EvidenceVisibilityRBACTest(EvidenceSubmissionTestMixin, TestCase):
         response = self.client.get(
             reverse("workflow:recommendation-detail", args=[rec.pk])
         )
-        
+
         self.assertEqual(response.status_code, 200)
         qs = response.context["evidence_submissions"]
         self.assertEqual(qs.count(), 1)
@@ -1531,7 +1582,7 @@ class EvidenceVisibilityRBACTest(EvidenceSubmissionTestMixin, TestCase):
         response = self.client.get(
             reverse("workflow:recommendation-detail", args=[rec.pk])
         )
-        
+
         self.assertEqual(response.status_code, 200)
         qs = response.context["evidence_submissions"]
         self.assertEqual(qs.count(), 1)
@@ -2046,7 +2097,7 @@ class ExtensionRequestViewTest(EvidenceSubmissionTestMixin, TestCase):
                         "reason": "Tentative non autorisée.",
                     },
                 )
-                self.assertEqual(response.status_code, 403) 
+                self.assertEqual(response.status_code, 403)
 
     # ─────────────────────────────────────────────────────────────
     # 7.5 — Audit peut approuver ; due_date est mise à jour

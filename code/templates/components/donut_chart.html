@@ -9,7 +9,7 @@ Utiliser escapejs (pas safe) pour XSS prevention.
   <canvas id="{{ chart_id }}" height="220" aria-label="Repartition des recommandations" role="img"></canvas>
 </div>
 <script>
-(function () {
+document.addEventListener("DOMContentLoaded", function () {
   var chartId = "{{ chart_id }}";
   var chartJson = "{{ chart_data_json|escapejs }}";
   var d = JSON.parse(chartJson);
@@ -47,5 +47,5 @@ Utiliser escapejs (pas safe) pour XSS prevention.
       animation: { duration: 500 }
     }
   });
-}());
+});
 </script>

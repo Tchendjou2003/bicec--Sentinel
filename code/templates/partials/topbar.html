@@ -21,7 +21,7 @@
       hx-get="{% url 'notifications:dropdown' %}"
       hx-target="#notif-panel-container"
       hx-swap="innerHTML"
-      hx-trigger="click once"
+      hx-trigger="click"
       class="relative rounded-full p-2 text-text-secondary hover:text-text-primary hover:bg-surface-warm transition-colors"
       aria-label="Notifications"
     >
@@ -78,7 +78,6 @@
     </button>
     <div x-show="open" @click.outside="open = false" @keydown.escape.window="open = false" x-transition x-cloak class="absolute right-0 mt-2 w-48 rounded-lg border border-border-subtle bg-surface-card shadow-premium-lg py-1 z-40" style="display:none">
       <a href="{% url 'auth:user-profile' %}" class="block w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-surface-warm transition-colors">Mon profil</a>
-      <button type="button" disabled class="block w-full text-left px-3 py-2 text-sm text-text-muted cursor-not-allowed opacity-60">Paramètres <span class="text-[10px] uppercase ml-1">(Bientôt)</span></button>
       <hr class="my-1 border-border-subtle" />
       {% comment %}
       Déconnexion : vrai POST → Django logout → redirection LOGOUT_REDIRECT_URL (/auth/login/).

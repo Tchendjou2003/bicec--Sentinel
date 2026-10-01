@@ -550,10 +550,19 @@ def parse_zip_members(zip_file) -> list[ZipFileEntry]:
                 raw_bytes = zf.read(member.filename)
 
                 # Valider chaque fichier extrait (magic bytes + taille)
+                # validate_file_size attend file.size (Django UploadedFile) ; ici on
+                # a un BytesIO, donc on compare len(raw_bytes) directement.
+                max_bytes = MAX_FILE_SIZE_MB * 1024 * 1024
+                if len(raw_bytes) > max_bytes:
+                    raise ValidationError(
+                        _(
+                            f"Fichier « {safe_name} » invalide dans le ZIP : "
+                            f"dépasse {MAX_FILE_SIZE_MB} Mo."
+                        )
+                    )
                 buf = io.BytesIO(raw_bytes)
                 buf.name = safe_name
                 try:
-                    validate_file_size(buf, max_size_mb=MAX_FILE_SIZE_MB)
                     buf.seek(0)
                     validate_magic_bytes(buf, original_filename=safe_name)
                 except ValidationError as exc:
@@ -798,6 +807,7 @@ def create_historical_recommendations(
     file_name: str,
     provenance: str = "",
     ip_address: str | None = None,
+    batch: ImportBatch | None = None,
 ) -> ImportBatch:
     """
     Crée atomiquement toutes les recommandations historiques et leurs preuves.
@@ -816,17 +826,22 @@ def create_historical_recommendations(
         zip_entries: Fichiers ZIP extraits (optionnel).
         performed_by: Auditeur connecté (created_by, closed_by, sealed_by).
         uploaded_file: Fichier Excel Django (archivé dans ImportBatch).
+            Ignoré si ``batch`` est fourni (fichier déjà archivé dessus).
         file_name: Nom original du fichier Excel.
         provenance: Origine des données (ex: "Archives papier numérisées").
         ip_address: IP client pour AuditLog.
+        batch: Lot déjà créé en PENDING par la vue (traitement asynchrone
+            Django-Q2). Si None (appel synchrone historique), un nouveau lot
+            est créé ici — comportement inchangé pour les appelants existants.
 
     Returns:
-        ImportBatch: Le lot créé.
+        ImportBatch: Le lot créé (ou réutilisé).
 
     Raises:
         ValidationError: Si re-validation échoue (concurrence, données invalides).
     """
     batch_file = None
+    created_new_batch = batch is None
     try:
         with transaction.atomic():
             # Re-validation dans la transaction (concurrence)
@@ -849,14 +864,22 @@ def create_historical_recommendations(
             if zip_entries:
                 matched_by_ref, unmatched = _match_zip_to_refs(zip_entries, valid_refs)
 
-            batch = ImportBatch.objects.create(
-                source_file=uploaded_file,
-                file_name=file_name,
-                created_by=performed_by,
-                recommendation_count=len(report.valid_rows),
-            )
+            if batch is None:
+                batch = ImportBatch.objects.create(
+                    source_file=uploaded_file,
+                    file_name=file_name,
+                    created_by=performed_by,
+                    recommendation_count=len(report.valid_rows),
+                    kind=ImportBatch.Kind.HISTORICAL,
+                    total_rows=len(report.valid_rows),
+                )
+            else:
+                batch.recommendation_count = len(report.valid_rows)
+                batch.total_rows = len(report.valid_rows)
+                batch.save(update_fields=["recommendation_count", "total_rows"])
             batch_file = batch.source_file
 
+            processed_count = 0
             for vrow in report.valid_rows:
                 row_data = dict(vrow.data)
                 row_data["status"] = Recommendation.Status.CLOSED_RESOLVED
@@ -882,6 +905,10 @@ def create_historical_recommendations(
                         datetime.min.time().replace(hour=12),
                     ).replace(tzinfo=dt_tz.utc)
                 )
+                # queryset.update() modifie la DB mais pas l'objet Python.
+                # refresh_from_db() échoue ici car django-fsm bloque toute assignation
+                # directe au champ status — on re-fetch un objet neuf à la place.
+                reco = Recommendation.objects.get(pk=reco.pk)
 
                 # Preuves ZIP
                 proof_entries = matched_by_ref.get(vrow.data.get("reference", ""), [])
@@ -933,6 +960,22 @@ def create_historical_recommendations(
                     ),
                     ip_address=ip_address,
                 )
+                processed_count += 1
+                # Progression pour le polling de suivi (mode async) : tous les
+                # 25 lignes, pas à chaque ligne, pour ne pas multiplier les UPDATE.
+                # updated_at est touché à chaque fois pour signaler au reconciliateur
+                # de batches bloqués (reconcile_stale_processing_batches) qu'un import
+                # long est toujours actif, pas planté.
+                if processed_count % 25 == 0:
+                    ImportBatch.objects.filter(pk=batch.pk).update(
+                        processed_rows=processed_count, updated_at=timezone.now(),
+                    )
+
+            # Valeur finale explicite : le compteur périodique ci-dessus saute la
+            # dernière tranche si processed_count n'est pas multiple de 25.
+            ImportBatch.objects.filter(pk=batch.pk).update(
+                processed_rows=processed_count, updated_at=timezone.now(),
+            )
 
             prov_label = provenance or "Non précisée"
             AuditLog.objects.create(
@@ -948,6 +991,7 @@ def create_historical_recommendations(
                     "zip_total": report.zip_total,
                     "zip_matched": report.zip_matched,
                     "zip_unmatched": len(unmatched),
+                    "seals_generated": processed_count,
                 },
                 description=(
                     f"Import historique (Provenance : {prov_label}) — "
@@ -961,6 +1005,122 @@ def create_historical_recommendations(
         return batch
 
     except Exception:
-        if batch_file:
+        # En mode async (batch fourni par l'appelant), le fichier reste archivé
+        # pour diagnostic — c'est run_historical_import_task qui gère l'échec.
+        if batch_file and created_new_batch:
             batch_file.delete(save=False)
         raise
+
+
+def _notify_import_result(batch: ImportBatch, performed_by, *, success: bool, error: str = "") -> None:
+    """Notifie l'auditeur qui a lancé l'import historique de l'issue du traitement asynchrone."""
+    from apps.notifications.services import emit_notification
+    from apps.notifications.models import Notification
+
+    if success:
+        emit_notification(
+            recipient=performed_by,
+            notification_type=Notification.Type.IMPORT_COMPLETED,
+            title=f"Import historique « {batch.file_name} » terminé",
+            idempotency_key=f"IMPORT_COMPLETED:{batch.pk}",
+            body=f"{batch.recommendation_count} recommandation(s) créée(s).",
+            url=f"/workflow/recommandations/import/status/{batch.pk}/",
+        )
+    else:
+        emit_notification(
+            recipient=performed_by,
+            notification_type=Notification.Type.IMPORT_FAILED,
+            title=f"Échec de l'import historique « {batch.file_name} »",
+            idempotency_key=f"IMPORT_FAILED:{batch.pk}",
+            body=error[:500],
+            url=f"/workflow/recommandations/import/status/{batch.pk}/",
+            is_urgent=True,
+        )
+
+
+def run_historical_import_task(
+    *,
+    batch_id: str,
+    performed_by_id: int,
+    provenance: str = "",
+    zip_storage_path: str | None = None,
+    ip_address: str | None = None,
+) -> str:
+    """
+    Point d'entrée Django-Q2 pour l'import historique.
+
+    Relit le fichier Excel archivé dans ``ImportBatch.source_file`` et, si présent,
+    le ZIP sauvegardé sur ``zip_storage_path`` (le ZIP brut est déplacé sur le
+    volume media partagé par la vue avant l'enqueue — les octets décompressés en
+    mémoire ne sont pas sérialisables entre la requête et la tâche). Délègue à
+    ``create_historical_recommendations`` (logique métier inchangée).
+
+    Idempotence : si le batch n'est plus PENDING (déjà DONE/PROCESSING/CANCELLED),
+    sortie immédiate — protège contre un retry Django-Q2 après un succès tardif.
+    Le sceau HMAC (get_or_create) et le transaction.atomic() de la fonction métier
+    garantissent qu'un retry après crash ne duplique ni recommandation ni sceau.
+
+    Le nom de cette fonction est sérialisé tel quel par Django-Q2 dans la table
+    des tâches : ne pas la renommer sans migrer les tâches en vol.
+    """
+    from django.contrib.auth import get_user_model
+    from django.core.files.storage import default_storage
+
+    with transaction.atomic():
+        batch = ImportBatch.objects.select_for_update().get(pk=batch_id)
+        if batch.status != ImportBatch.Status.PENDING:
+            return f"skip: batch {batch_id} already {batch.status}"
+        batch.status = ImportBatch.Status.PROCESSING
+        batch.save(update_fields=["status"])
+
+    performed_by = get_user_model().objects.get(pk=performed_by_id)
+
+    try:
+        with batch.source_file.open("rb") as f:
+            rows = parse_historical_workbook(f)
+
+        zip_entries = None
+        if zip_storage_path:
+            with default_storage.open(zip_storage_path, "rb") as zf:
+                zip_entries = parse_zip_members(zf)
+
+        create_historical_recommendations(
+            rows=rows,
+            zip_entries=zip_entries,
+            performed_by=performed_by,
+            uploaded_file=None,
+            file_name=batch.file_name,
+            provenance=provenance,
+            ip_address=ip_address,
+            batch=batch,
+        )
+        batch.refresh_from_db()
+        batch.status = ImportBatch.Status.DONE
+        batch.save(update_fields=["status"])
+        _notify_import_result(batch, performed_by, success=True)
+        return "done"
+    except Exception as exc:
+        error_message = str(exc)[:2000]
+        ImportBatch.objects.filter(pk=batch_id).update(
+            status=ImportBatch.Status.FAILED,
+            error_message=error_message,
+        )
+        # La transaction de create_historical_recommendations a fait un rollback
+        # complet — aucune trace de l'échec n'existe dans l'AuditLog. On la crée
+        # ici, hors transaction annulée, pour que l'échec reste visible.
+        AuditLog.objects.create(
+            action=AuditLog.Action.SYSTEM,
+            user=performed_by,
+            content_type="ImportBatch",
+            object_id=batch.pk,
+            changes={"file": batch.file_name, "error": error_message},
+            description=f"Échec de l'import historique « {batch.file_name} » : {error_message}",
+            ip_address=ip_address,
+        )
+        _notify_import_result(batch, performed_by, success=False, error=error_message)
+        raise
+    finally:
+        # Nettoyage du ZIP temporaire uniquement sur issue définitive (pas avant
+        # un retry potentiel) — le batch est DONE ou FAILED à ce stade.
+        if zip_storage_path and default_storage.exists(zip_storage_path):
+            default_storage.delete(zip_storage_path)

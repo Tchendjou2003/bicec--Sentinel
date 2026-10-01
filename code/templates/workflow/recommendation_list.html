@@ -4,7 +4,7 @@
 {% block title %}Recommandations — Sentinel{% endblock %}
 
 {% block content %}
-<div x-data="{ slideOverOpen: false }" class="space-y-6">
+<div x-data="{ slideOverOpen: false, importStatus: '{{ current_import_status|default:'recent' }}' }" class="space-y-6">
 
   {# ── Header + Bouton Créer ── #}
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -19,6 +19,8 @@
         Importer Excel
       </a>
       <button
+        x-show="importStatus !== 'historical'"
+        x-cloak
         @click="slideOverOpen = true"
         hx-get="{% url 'workflow:recommendation-create' %}"
         hx-target="#stepper-container"
@@ -52,7 +54,7 @@
   <form id="filter-form" hx-indicator="#table-loading" class="bg-white rounded-xl border border-border-subtle shadow-sm mb-4">
 
     {# ── Ligne 1 : Onglets Historique / Récent (Alpine.js) ── #}
-    <div class="px-4 pt-3 border-b border-border-subtle bg-surface-faint rounded-t-xl" x-data="{ importStatus: '{{ current_import_status|default:'recent' }}' }">
+    <div class="px-4 pt-3 border-b border-border-subtle bg-surface-faint rounded-t-xl">
       <input type="hidden" name="import_status" x-model="importStatus" id="id_import_status"
         hx-get="{% url 'workflow:recommendation-list' %}"
         hx-target="#recommendation-table"
@@ -63,13 +65,13 @@
         <button type="button" @click="importStatus = 'recent'; $nextTick(() => htmx.trigger('#id_import_status', 'change'))"
           :class="{'border-sentinel-orange text-sentinel-orange': importStatus === 'recent', 'border-transparent text-text-body hover:text-text-primary hover:border-border-strong': importStatus !== 'recent'}"
           class="pb-3 text-sm font-semibold border-b-2 transition-colors relative top-[1px]">
-          Nouvelles Recos
+          Courantes
         </button>
 
         <button type="button" @click="importStatus = 'historical'; $nextTick(() => htmx.trigger('#id_import_status', 'change'))"
           :class="{'border-sentinel-orange text-sentinel-orange': importStatus === 'historical', 'border-transparent text-text-body hover:text-text-primary hover:border-border-strong': importStatus !== 'historical'}"
           class="pb-3 text-sm font-semibold border-b-2 transition-colors relative top-[1px]">
-          Backlog Historique
+          Historique
         </button>
 
         <button type="button" @click="importStatus = 'all'; $nextTick(() => htmx.trigger('#id_import_status', 'change'))"
@@ -122,7 +124,7 @@
           class="rounded-lg border border-border-strong bg-white px-3 py-2 text-xs text-text-primary focus:border-sentinel-orange focus:ring-1 focus:ring-sentinel-orange/20 transition-all min-w-[140px]"
           id="filter-priority"
         >
-          <option value="">Toutes criticités</option>
+          <option value="">Toutes les criticités</option>
           {% for value, label in priorities %}
           <option value="{{ value }}" {% if value == current_priority %}selected{% endif %}>{{ label }}</option>
           {% endfor %}

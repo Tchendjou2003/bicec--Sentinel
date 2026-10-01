@@ -36,7 +36,7 @@ from .mixins import (
     ProvisioningApproverRequiredMixin,
     ProvisioningListAccessMixin,
 )
-from .models import Department, OrgUnitType, User, UserProvisioningRequest
+from .models import AuditAdminDelegation, Department, OrgUnitType, User, UserProvisioningRequest
 from .forms import (
     ChangeOwnPasswordForm,
     DepartmentForm,
@@ -79,26 +79,14 @@ class SentinelLoginView(LoginView):
         if user.role == User.Role.ADMIN or user.is_staff:
             return reverse("auth:admin-dashboard")
 
-        # En attendant les tableaux de bord spécifiques de l'Epic 6,
-        # tous les acteurs du workflow collab (Audit, DM, ETP, DG) sont redirigés
-        # directement vers le suivi des recommandations (Story 3.1).
-        if user.role in [User.Role.AUDIT, User.Role.DM, User.Role.ETP, User.Role.DG]:
+        if user.role == User.Role.AUDIT:
+            return reverse("dashboards:home")
+
+        if user.role in [User.Role.DM, User.Role.ETP, User.Role.DG]:
             return reverse("workflow:recommendation-list")
 
         return super().get_success_url()
 
-    def form_valid(self, form):
-        """
-        Gère la checkbox « Se souvenir de moi ».
-
-        Si décochée, la session expire à la fermeture du navigateur
-        (cookie de session). Si cochée, la durée par défaut
-        SESSION_COOKIE_AGE (30 min) s’applique.
-        """
-        remember = self.request.POST.get("remember_me")
-        if not remember:
-            self.request.session.set_expiry(0)
-        return super().form_valid(form)
 
 
 class PendingActivationView(LoginRequiredMixin, TemplateView):
@@ -725,10 +713,10 @@ class ProvisioningRequestListView(ProvisioningListAccessMixin, ListView):
     """
     File des demandes de provisioning (Story 6.2.0).
 
-    Accessible à tous les Admin IT (makers voient leurs propres demandes ;
-    membres du groupe « Administrateurs Sentinel » voient tout).
-    Un Admin IT hors groupe voit uniquement ses propres soumissions — il
-    peut les annuler mais ne peut pas approuver/rejeter.
+    Gestion unifiée (commit 02522c0) : tous les Admin IT voient la file
+    complète des demandes. La sécurité sur les actions (approbation/rejet)
+    est assurée côté template via le contexte ``is_approver`` : les boutons
+    d'action sont masqués pour les makers hors groupe.
     """
 
     template_name = "admin_it/provisioning_list.html"
@@ -744,10 +732,9 @@ class ProvisioningRequestListView(ProvisioningListAccessMixin, ListView):
         qs = UserProvisioningRequest.objects.select_related(
             "requested_by", "reviewed_by", "requested_department"
         )
-        # Les checkers (membres du groupe Administrateurs Sentinel) voient toutes
-        # les demandes. Les makers ne voient que leurs propres soumissions.
-        if not self._is_approver:
-            qs = qs.filter(requested_by=self.request.user)
+        # Tous les Admin IT voient la file complète — la sécurité sur les
+        # actions est portée par le template (is_approver=False masque les
+        # boutons d'approbation/rejet pour les makers hors groupe).
 
         status_filter = self.request.GET.get("status", "")
         if status_filter:
@@ -1006,7 +993,94 @@ class AuditAdminMembersView(AuditAdminRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["topbar_title"] = "Administrateurs Audit"
         context["topbar_subtitle"] = "Délégation du flag is_audit_admin"
+        context.update(_build_delegation_context())
         return context
+
+
+def _build_delegation_context() -> dict:
+    """Builds context shared by AuditAdminMembersView and delegation HTMX partials."""
+    from datetime import date, timedelta
+    today = date.today()
+    return {
+        "delegations": AuditAdminDelegation.objects.filter(
+            revoked_at__isnull=True,
+            valid_until__gte=today,
+        ).select_related("delegated_to", "delegated_by"),
+        "eligible_auditors": User.objects.filter(
+            role=User.Role.AUDIT,
+            is_active=True,
+            is_audit_admin=False,
+        ).order_by("last_name", "first_name"),
+        "tomorrow": (today + timedelta(days=1)).isoformat(),
+    }
+
+
+class DelegateAuditAdminView(AuditAdminRequiredMixin, View):
+    """Creates a timed is_audit_admin delegation via HTMX modal form (FR36)."""
+
+    def post(self, request):
+        from datetime import date as date_type
+        delegated_to_id = request.POST.get("delegated_to")
+        valid_until_raw = request.POST.get("valid_until")
+        error_msg = None
+        try:
+            delegated_to = get_object_or_404(User, pk=delegated_to_id, role=User.Role.AUDIT)
+            valid_until = date_type.fromisoformat(valid_until_raw)
+            services.delegate_audit_admin_timed(
+                delegated_to=delegated_to,
+                valid_until=valid_until,
+                performed_by=request.user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+            msg = f"Délégation accordée à {delegated_to.get_full_name()} jusqu'au {valid_until}."
+        except (PermissionDenied, ValueError) as exc:
+            msg = None
+            error_msg = str(exc)
+
+        if request.headers.get("HX-Request") == "true":
+            context = _build_delegation_context()
+            context["delegation_error"] = error_msg
+            response = render(
+                request,
+                "habilitation/partials/delegation_section.html",
+                context,
+            )
+            if msg:
+                response["HX-Trigger"] = json.dumps({"notify": {"msg": msg, "type": "success"}})
+            return response
+
+        if msg:
+            messages.success(request, msg)
+        else:
+            messages.error(request, error_msg)
+        return redirect("auth:audit-admin-members")
+
+
+class RevokeAuditAdminDelegationView(AuditAdminRequiredMixin, View):
+    """Revokes an active timed audit_admin delegation early (FR36)."""
+
+    def post(self, request, pk):
+        delegation = get_object_or_404(AuditAdminDelegation, pk=pk)
+        try:
+            services.revoke_audit_admin_delegation(
+                delegation=delegation,
+                revoked_by=request.user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+            msg = f"Délégation révoquée pour {delegation.delegated_to.get_full_name()}."
+            if request.headers.get("HX-Request") == "true":
+                context = _build_delegation_context()
+                response = render(
+                    request,
+                    "habilitation/partials/delegation_section.html",
+                    context,
+                )
+                response["HX-Trigger"] = json.dumps({"notify": {"msg": msg, "type": "success"}})
+                return response
+            messages.success(request, msg)
+        except (PermissionDenied, ValueError) as exc:
+            messages.error(request, str(exc))
+        return redirect("auth:audit-admin-members")
 
 
 # =============================================================================

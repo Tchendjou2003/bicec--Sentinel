@@ -60,7 +60,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 1024M  # Import historique : ZIP jusqu'à 100 Mo décompressé, un seul worker (workers=1)
     depends_on:
       db:
         condition: service_healthy

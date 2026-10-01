@@ -60,6 +60,12 @@ def emit_notification(
             "is_urgent": is_urgent,
         },
     )
+    if created:
+        # Canal e-mail « alarme incendie » (Story 4.3) : seuls les types
+        # whitelistés partent par e-mail, et uniquement si le flag est actif.
+        # L'enqueue n'échoue jamais vers l'appelant (garde interne).
+        from .emails import enqueue_email_for_notification
+        enqueue_email_for_notification(notif)
     return notif if created else None
 
 

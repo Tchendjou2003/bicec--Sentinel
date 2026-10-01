@@ -1,0 +1,11 @@
+SENTINEL — Alerte {% if notification.is_urgent %}URGENTE{% else %}importante{% endif %}
+
+{{ notification.title }}
+{% if notification.body %}
+{{ notification.body }}
+{% endif %}{% if absolute_url %}
+Consulter dans Sentinel : {{ absolute_url }}
+{% endif %}
+--
+Message automatique émis par Sentinel (suivi des recommandations d'audit).
+Ne pas répondre à cet e-mail.

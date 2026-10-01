@@ -129,6 +129,8 @@
               {% if log.user.role %}
               <span class="text-[11px] text-text-faint">{{ log.user.get_role_display }}</span>
               {% endif %}
+              {% elif log.action == 'TAMPER_DETECTED' %}
+              <span class="text-[12.5px] italic text-text-faint">Auteur inconnu</span>
               {% else %}
               <span class="text-[12.5px] italic text-text-faint">Système</span>
               {% endif %}
@@ -147,6 +149,9 @@
                 {% elif log.action == 'IMPORT' %}bg-sentinel-orange-light text-sentinel-orange-darker
                 {% elif log.action == 'EXPORT' %}bg-surface-warm text-text-faint
                 {% elif log.action == 'SYSTEM' %}bg-surface-warm text-text-faint
+                {% elif log.action == 'TAMPER_DETECTED' %}bg-danger-tint text-danger
+                {% elif log.action == 'PRIVILEGE_GRANT' %}bg-sentinel-orange-light text-sentinel-orange-darker
+                {% elif log.action == 'PRIVILEGE_REVOKE' %}bg-surface-warm text-text-faint
                 {% elif log.action|slice:":9" == 'EXTENSION' %}bg-sentinel-orange-light text-sentinel-orange-darker
                 {% else %}bg-surface-warm text-text-body
                 {% endif %}">
@@ -168,9 +173,13 @@
               {% endif %}
             </td>
 
-            {# IP #}
+            {# IP — pour TAMPER_DETECTED, l'IP est celle du détecteur (stockée dans changes) #}
             <td class="px-4 py-3 whitespace-nowrap">
+              {% if log.action == 'TAMPER_DETECTED' %}
+              <span class="text-[12px] tabular-nums text-text-faint font-mono">IP inconnue</span>
+              {% else %}
               <span class="text-[12px] tabular-nums text-text-faint font-mono">{{ log.ip_address|default:"—" }}</span>
+              {% endif %}
             </td>
 
           </tr>

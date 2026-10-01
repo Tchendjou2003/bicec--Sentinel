@@ -656,6 +656,7 @@ def create_recommendations_bulk(
     uploaded_file,
     file_name: str,
     ip_address: str | None = None,
+    batch: ImportBatch | None = None,
 ) -> ImportBatch:
     """
     Crée atomiquement toutes les recommandations d'un lot d'import.
@@ -667,11 +668,15 @@ def create_recommendations_bulk(
         rows: Lignes parsées depuis parse_workbook.
         performed_by: Auditeur connecté.
         uploaded_file: Fichier Django pour archivage (ImportBatch.source_file).
+            Ignoré si ``batch`` est fourni (le fichier est déjà archivé dessus).
         file_name: Nom original du fichier.
         ip_address: IP client pour AuditLog.
+        batch: Lot déjà créé en PENDING par la vue (traitement asynchrone
+            Django-Q2). Si None (appel synchrone historique), un nouveau lot
+            est créé ici — comportement inchangé pour les appelants existants.
 
     Returns:
-        ImportBatch: Le lot d'import créé avec toutes les recommandations liées.
+        ImportBatch: Le lot d'import créé (ou réutilisé) avec les recommandations liées.
 
     Raises:
         ValidationError: Si re-validation échoue (concurrence, date passée, etc.).
@@ -679,7 +684,10 @@ def create_recommendations_bulk(
     # Le fichier est écrit sur disque DANS la transaction (archivage COBAC), mais
     # l'écriture FileField n'est pas transactionnelle : on suit le FieldFile pour
     # le supprimer si la transaction rollback (sinon fichier orphelin — finding #2).
+    # Un batch fourni par l'appelant (mode async) est déjà persisté avant l'appel :
+    # son fichier ne doit pas être supprimé ici, il reste consultable en cas d'échec.
     batch_file = None
+    created_new_batch = batch is None
     try:
         with transaction.atomic():
             # Recharger les références existantes DANS la transaction (Piège 7 —
@@ -717,13 +725,19 @@ def create_recommendations_bulk(
                     )
                 )
 
-            # Créer le lot d'import
-            batch = ImportBatch.objects.create(
-                source_file=uploaded_file,
-                file_name=file_name,
-                created_by=performed_by,
-                recommendation_count=len(report.valid_rows),
-            )
+            # Créer le lot d'import (ou réutiliser celui fourni par l'appelant async)
+            if batch is None:
+                batch = ImportBatch.objects.create(
+                    source_file=uploaded_file,
+                    file_name=file_name,
+                    created_by=performed_by,
+                    recommendation_count=len(report.valid_rows),
+                    total_rows=len(report.valid_rows),
+                )
+            else:
+                batch.recommendation_count = len(report.valid_rows)
+                batch.total_rows = len(report.valid_rows)
+                batch.save(update_fields=["recommendation_count", "total_rows"])
             batch_file = batch.source_file  # à nettoyer si la transaction échoue
 
             # Boucle par ligne — PAS de bulk_create sur les recos (Piège 1 :
@@ -784,6 +798,22 @@ def create_recommendations_bulk(
                     ip_address=ip_address,
                 )
                 created_count += 1
+                # Progression pour le polling de suivi (mode async) : mise à jour tous
+                # les 25 lignes, pas à chaque ligne, pour ne pas multiplier les UPDATE.
+                # updated_at est touché à chaque fois pour signaler au reconciliateur
+                # de batches bloqués (reconcile_stale_processing_batches) qu'un import
+                # long est toujours actif, pas planté.
+                if created_count % 25 == 0:
+                    ImportBatch.objects.filter(pk=batch.pk).update(
+                        processed_rows=created_count, updated_at=timezone.now(),
+                    )
+
+            # Valeur finale explicite : le compteur périodique ci-dessus saute la
+            # dernière tranche si created_count n'est pas multiple de 25 (import_pending.html
+            # afficherait sinon une progression figée sous 100 % jusqu'au statut DONE).
+            ImportBatch.objects.filter(pk=batch.pk).update(
+                processed_rows=created_count, updated_at=timezone.now(),
+            )
 
             # AuditLog IMPORT de batch — une seule entrée pour le lot (JSON-safe, Piège 6)
             AuditLog.objects.create(
@@ -806,7 +836,101 @@ def create_recommendations_bulk(
         return batch
     except Exception:
         # Transaction rollback → supprimer le fichier physique déjà écrit pour
-        # ne pas laisser d'orphelin dans media/imports/ (finding #2).
-        if batch_file:
+        # ne pas laisser d'orphelin dans media/imports/ (finding #2). En mode
+        # async (batch fourni par l'appelant), le fichier reste archivé pour
+        # diagnostic — c'est run_recommendations_import_task qui gère l'échec.
+        if batch_file and created_new_batch:
             batch_file.delete(save=False)
+        raise
+
+
+def _notify_import_result(batch: ImportBatch, performed_by, *, success: bool, error: str = "") -> None:
+    """Notifie l'auditeur qui a lancé l'import de l'issue du traitement asynchrone."""
+    from apps.notifications.services import emit_notification
+    from apps.notifications.models import Notification
+
+    if success:
+        emit_notification(
+            recipient=performed_by,
+            notification_type=Notification.Type.IMPORT_COMPLETED,
+            title=f"Import « {batch.file_name} » terminé",
+            idempotency_key=f"IMPORT_COMPLETED:{batch.pk}",
+            body=f"{batch.recommendation_count} recommandation(s) créée(s).",
+            url=f"/workflow/recommandations/import/status/{batch.pk}/",
+        )
+    else:
+        emit_notification(
+            recipient=performed_by,
+            notification_type=Notification.Type.IMPORT_FAILED,
+            title=f"Échec de l'import « {batch.file_name} »",
+            idempotency_key=f"IMPORT_FAILED:{batch.pk}",
+            body=error[:500],
+            url=f"/workflow/recommandations/import/status/{batch.pk}/",
+            is_urgent=True,
+        )
+
+
+def run_recommendations_import_task(
+    *, batch_id: str, performed_by_id: int, ip_address: str | None = None
+) -> str:
+    """
+    Point d'entrée Django-Q2 pour l'import Excel massif.
+
+    Relit le fichier archivé dans ``ImportBatch.source_file`` (sauvegardé par
+    la vue avant l'enqueue), re-parse et délègue à ``create_recommendations_bulk``
+    (logique métier inchangée, couverte par les tests synchrones existants).
+
+    Idempotence : si le batch n'est plus PENDING (déjà DONE/PROCESSING/CANCELLED
+    par un run antérieur ou une annulation), sortie immédiate — protège contre
+    un retry Django-Q2 après un succès déclaré tardivement.
+
+    Le nom de cette fonction est sérialisé tel quel par Django-Q2 dans la table
+    des tâches : ne pas la renommer sans migrer les tâches en vol.
+    """
+    from django.contrib.auth import get_user_model
+
+    with transaction.atomic():
+        batch = ImportBatch.objects.select_for_update().get(pk=batch_id)
+        if batch.status != ImportBatch.Status.PENDING:
+            return f"skip: batch {batch_id} already {batch.status}"
+        batch.status = ImportBatch.Status.PROCESSING
+        batch.save(update_fields=["status"])
+
+    performed_by = get_user_model().objects.get(pk=performed_by_id)
+
+    try:
+        with batch.source_file.open("rb") as f:
+            rows = parse_workbook(f)
+            create_recommendations_bulk(
+                rows=rows,
+                performed_by=performed_by,
+                uploaded_file=None,
+                file_name=batch.file_name,
+                ip_address=ip_address,
+                batch=batch,
+            )
+        batch.refresh_from_db()
+        batch.status = ImportBatch.Status.DONE
+        batch.save(update_fields=["status"])
+        _notify_import_result(batch, performed_by, success=True)
+        return "done"
+    except Exception as exc:
+        error_message = str(exc)[:2000]
+        ImportBatch.objects.filter(pk=batch_id).update(
+            status=ImportBatch.Status.FAILED,
+            error_message=error_message,
+        )
+        # La transaction de create_recommendations_bulk a fait un rollback complet —
+        # aucune trace de l'échec n'existe dans l'AuditLog. On la crée ici, hors
+        # transaction annulée, pour que l'échec reste visible dans le journal d'audit.
+        AuditLog.objects.create(
+            action=AuditLog.Action.SYSTEM,
+            user=performed_by,
+            content_type="ImportBatch",
+            object_id=batch.pk,
+            changes={"file": batch.file_name, "error": error_message},
+            description=f"Échec de l'import Excel « {batch.file_name} » : {error_message}",
+            ip_address=ip_address,
+        )
+        _notify_import_result(batch, performed_by, success=False, error=error_message)
         raise

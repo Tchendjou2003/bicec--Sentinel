@@ -35,6 +35,7 @@ from apps.workflow.import_excel import (
     build_import_template,
     create_recommendations_bulk,
     parse_workbook,
+    run_recommendations_import_task,
     validate_rows,
 )
 from apps.workflow.models import (
@@ -480,6 +481,192 @@ class CreateRecommendationsBulkTest(ImportTestMixin, TestCase):
     # create_recommendations_bulk (qui reçoit des RowDraft déjà parsés).
     # Ce cas est couvert par ParseWorkbookTest.test_plafond_max_rows_raise.
 
+    def test_batch_fourni_est_reutilise(self):
+        """Mode async : un ImportBatch déjà créé en PENDING est réutilisé,
+        pas recréé (non-régression du chemin sans batch=)."""
+        batch = ImportBatch.objects.create(
+            source_file=self._fake_file(),
+            file_name="reuse.xlsx",
+            created_by=self.audit_user,
+            status=ImportBatch.Status.PENDING,
+        )
+        rows = [self._valid_row_draft("REC-REUSE-001")]
+        returned = create_recommendations_bulk(
+            rows=rows,
+            performed_by=self.audit_user,
+            uploaded_file=None,
+            file_name="reuse.xlsx",
+            ip_address="127.0.0.1",
+            batch=batch,
+        )
+        self.assertEqual(returned.pk, batch.pk)
+        self.assertEqual(ImportBatch.objects.count(), 1)
+        self.assertEqual(returned.recommendation_count, 1)
+
+
+# ── Tests run_recommendations_import_task (Django-Q2 async) ──────────────────
+
+
+class RunRecommendationsImportTaskTest(ImportTestMixin, TestCase):
+
+    def _make_pending_batch(self, rows_data: list[list], file_name="async.xlsx") -> ImportBatch:
+        buf = self._make_xlsx(rows_data)
+        buf.name = file_name
+        batch = ImportBatch.objects.create(
+            source_file=SimpleUploadedFile(
+                file_name, buf.read(),
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ),
+            file_name=file_name,
+            created_by=self.audit_user,
+            status=ImportBatch.Status.PENDING,
+            kind=ImportBatch.Kind.EXCEL,
+        )
+        return batch
+
+    def test_traitement_reussi_passe_par_processing_puis_done(self):
+        batch = self._make_pending_batch([self._valid_row_list("REC-TASK-001")])
+        result = run_recommendations_import_task(
+            batch_id=str(batch.pk), performed_by_id=self.audit_user.pk, ip_address="127.0.0.1",
+        )
+        batch.refresh_from_db()
+        self.assertEqual(result, "done")
+        self.assertEqual(batch.status, ImportBatch.Status.DONE)
+        self.assertEqual(batch.recommendation_count, 1)
+        self.assertEqual(Recommendation.objects.filter(import_batch=batch).count(), 1)
+
+    def test_notification_emise_sur_succes(self):
+        from apps.notifications.models import Notification
+
+        batch = self._make_pending_batch([self._valid_row_list("REC-TASK-NOTIF")])
+        run_recommendations_import_task(
+            batch_id=str(batch.pk), performed_by_id=self.audit_user.pk,
+        )
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.audit_user,
+                notification_type=Notification.Type.IMPORT_COMPLETED,
+            ).exists()
+        )
+
+    def test_retry_sur_batch_deja_done_ne_duplique_pas(self):
+        """Idempotence : un retry Django-Q2 après un succès déjà déclaré ne
+        recrée aucune recommandation (protection contre le double run)."""
+        batch = self._make_pending_batch([self._valid_row_list("REC-TASK-RETRY")])
+        run_recommendations_import_task(batch_id=str(batch.pk), performed_by_id=self.audit_user.pk)
+        count_after_first_run = Recommendation.objects.filter(import_batch=batch).count()
+
+        result = run_recommendations_import_task(
+            batch_id=str(batch.pk), performed_by_id=self.audit_user.pk,
+        )
+        self.assertIn("skip", result)
+        self.assertEqual(
+            Recommendation.objects.filter(import_batch=batch).count(), count_after_first_run,
+        )
+
+    def test_annulation_empeche_le_traitement(self):
+        batch = self._make_pending_batch([self._valid_row_list("REC-TASK-CANCEL")])
+        ImportBatch.objects.filter(pk=batch.pk).update(status=ImportBatch.Status.CANCELLED)
+
+        result = run_recommendations_import_task(
+            batch_id=str(batch.pk), performed_by_id=self.audit_user.pk,
+        )
+        self.assertIn("skip", result)
+        self.assertEqual(Recommendation.objects.filter(import_batch=batch).count(), 0)
+
+    def test_echec_marque_failed_avec_audit_log_hors_transaction(self):
+        """Le rollback de create_recommendations_bulk efface ses propres AuditLog —
+        la tâche doit en recréer un hors transaction pour tracer l'échec."""
+        row_invalide = RowDraft(
+            row_number=2, reference="REC-TASK-FAIL", source_raw="", priority="",
+            description="", due_date_raw=self._past(), mission_label="",
+            mission_date_raw=None, controlled_department_raw="", department_raw="",
+            observations="", anomalous_dossiers="", deliverables_raw="",
+        )
+        batch = self._make_pending_batch([self._valid_row_list("REC-TASK-VALID-SIDE")])
+        with mock.patch(
+            "apps.workflow.import_excel.parse_workbook", return_value=[row_invalide],
+        ):
+            with self.assertRaises(ValidationError):
+                run_recommendations_import_task(
+                    batch_id=str(batch.pk), performed_by_id=self.audit_user.pk,
+                )
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, ImportBatch.Status.FAILED)
+        self.assertTrue(batch.error_message)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.SYSTEM,
+                content_type="ImportBatch",
+                object_id=batch.pk,
+            ).exists()
+        )
+        self.assertEqual(Recommendation.objects.filter(import_batch=batch).count(), 0)
+
+    def test_processed_rows_finalise_meme_sous_25_lignes(self):
+        """Le compteur périodique (tous les 25) sautait la finalisation pour un
+        lot de moins de 25 lignes — processed_rows devait rester bloqué à 0."""
+        batch = self._make_pending_batch([
+            self._valid_row_list("REC-TASK-PROG-1"),
+            self._valid_row_list("REC-TASK-PROG-2"),
+        ])
+        run_recommendations_import_task(batch_id=str(batch.pk), performed_by_id=self.audit_user.pk)
+        batch.refresh_from_db()
+        self.assertEqual(batch.processed_rows, 2)
+
+
+class ReconcileStaleProcessingBatchesTest(ImportTestMixin, TestCase):
+    """Un worker qui crashe entre PENDING→PROCESSING et DONE ne doit pas
+    bloquer l'utilisateur indéfiniment (voir _has_active_import_batch)."""
+
+    def _make_batch(self, *, status, updated_delta):
+        from django.utils import timezone as tz
+        batch = ImportBatch.objects.create(
+            file_name="stale.xlsx",
+            created_by=self.audit_user,
+            status=status,
+            kind=ImportBatch.Kind.EXCEL,
+        )
+        ImportBatch.objects.filter(pk=batch.pk).update(
+            updated_at=tz.now() + updated_delta,
+        )
+        return ImportBatch.objects.get(pk=batch.pk)
+
+    def test_batch_processing_stale_est_marque_failed(self):
+        from datetime import timedelta
+        from apps.workflow.services import reconcile_stale_processing_batches
+
+        batch = self._make_batch(
+            status=ImportBatch.Status.PROCESSING, updated_delta=-timedelta(seconds=700),
+        )
+        count = reconcile_stale_processing_batches()
+        batch.refresh_from_db()
+        self.assertEqual(count, 1)
+        self.assertEqual(batch.status, ImportBatch.Status.FAILED)
+        self.assertTrue(batch.error_message)
+
+    def test_batch_processing_recent_nest_pas_touche(self):
+        from datetime import timedelta
+        from apps.workflow.services import reconcile_stale_processing_batches
+
+        batch = self._make_batch(
+            status=ImportBatch.Status.PROCESSING, updated_delta=-timedelta(seconds=5),
+        )
+        count = reconcile_stale_processing_batches()
+        batch.refresh_from_db()
+        self.assertEqual(count, 0)
+        self.assertEqual(batch.status, ImportBatch.Status.PROCESSING)
+
+    def test_guard_import_actif_liberee_apres_reconciliation(self):
+        """_has_active_import_batch ne bloque plus une fois le batch orphelin réconcilié."""
+        from datetime import timedelta
+        from apps.workflow.views import _has_active_import_batch
+
+        self._make_batch(
+            status=ImportBatch.Status.PROCESSING, updated_delta=-timedelta(seconds=700),
+        )
+        self.assertFalse(_has_active_import_batch(self.audit_user))
+
 
 # ── Tests build_import_template ───────────────────────────────────────────────
 
@@ -643,13 +830,113 @@ class ImportConfirmViewTest(ImportTestMixin, TestCase):
         self.assertIsNotNone(log)
         self.assertEqual(log.object_id, batch.pk)
 
-    def test_confirm_affiche_ecran_succes(self):
+    def test_confirm_affiche_ecran_attente(self):
+        """La confirmation enqueue la tâche Django-Q2 et affiche l'écran de
+        suivi (import_pending.html) — le traitement réel se fait en tâche
+        de fond, pas synchrone dans la requête HTTP."""
         buf = self._make_xlsx_buf(self._valid_row_list("REC-CONF-004"))
         response = self._post_confirm(buf)
-        self.assertContains(response, "brouillon")
+        self.assertContains(response, "Import en attente")
 
     def test_filtre_batch_dans_url_succes(self):
         buf = self._make_xlsx_buf(self._valid_row_list("REC-CONF-005"))
         response = self._post_confirm(buf)
         batch = ImportBatch.objects.first()
         self.assertContains(response, str(batch.pk))
+
+    def test_refuse_second_import_pendant_que_le_premier_tourne(self):
+        """Garde-fou : un seul import actif à la fois par utilisateur."""
+        ImportBatch.objects.create(
+            file_name="deja_en_cours.xlsx",
+            created_by=self.audit_user,
+            status=ImportBatch.Status.PROCESSING,
+        )
+        buf = self._make_xlsx_buf(self._valid_row_list("REC-CONF-006"))
+        response = self._post_confirm(buf)
+        self.assertContains(response, "déjà en cours")
+        self.assertEqual(Recommendation.objects.filter(reference="REC-CONF-006").count(), 0)
+
+    def test_race_condition_double_soumission_ne_cree_pas_deux_batches(self):
+        """Le check-then-act de _has_active_import_batch n'est pas atomique :
+        c'est la contrainte DB (uniq_active_import_batch_per_user) qui protège
+        réellement contre un double clic ou une requête dupliquée."""
+        buf = self._make_xlsx_buf(self._valid_row_list("REC-CONF-RACE"))
+        with mock.patch(
+            "apps.workflow.views._has_active_import_batch", return_value=False,
+        ):
+            # Un premier batch existe déjà en PENDING (simulation de la fenêtre
+            # de course : le garde a répondu False juste avant sa création).
+            ImportBatch.objects.create(
+                file_name="course.xlsx",
+                created_by=self.audit_user,
+                status=ImportBatch.Status.PENDING,
+            )
+            response = self._post_confirm(buf)
+
+        self.assertContains(response, "déjà en cours")
+        self.assertEqual(
+            ImportBatch.objects.filter(created_by=self.audit_user).count(), 1,
+        )
+        self.assertEqual(Recommendation.objects.filter(reference="REC-CONF-RACE").count(), 0)
+
+
+class ImportBatchStatusViewTest(ImportTestMixin, TestCase):
+
+    def test_batch_pending_affiche_ecran_attente(self):
+        batch = ImportBatch.objects.create(
+            file_name="s.xlsx", created_by=self.audit_user, status=ImportBatch.Status.PENDING,
+        )
+        self.client.force_login(self.audit_user)
+        response = self.client.get(reverse("workflow:import-batch-status", args=[batch.pk]))
+        self.assertContains(response, "Import en attente")
+
+    def test_batch_done_affiche_ecran_succes(self):
+        batch = ImportBatch.objects.create(
+            file_name="s.xlsx", created_by=self.audit_user, status=ImportBatch.Status.DONE,
+        )
+        self.client.force_login(self.audit_user)
+        response = self.client.get(reverse("workflow:import-batch-status", args=[batch.pk]))
+        self.assertContains(response, batch.file_name)
+
+    def test_batch_failed_affiche_ecran_erreur(self):
+        batch = ImportBatch.objects.create(
+            file_name="s.xlsx", created_by=self.audit_user,
+            status=ImportBatch.Status.FAILED, error_message="Fichier corrompu",
+        )
+        self.client.force_login(self.audit_user)
+        response = self.client.get(reverse("workflow:import-batch-status", args=[batch.pk]))
+        self.assertContains(response, "Fichier corrompu")
+
+    def test_refuse_acces_a_un_autre_utilisateur(self):
+        other = User.objects.create_user(
+            username="autre_audit", password="TestPass123!", role=User.Role.AUDIT,
+        )
+        batch = ImportBatch.objects.create(
+            file_name="s.xlsx", created_by=other, status=ImportBatch.Status.PENDING,
+        )
+        self.client.force_login(self.audit_user)
+        response = self.client.get(reverse("workflow:import-batch-status", args=[batch.pk]))
+        self.assertEqual(response.status_code, 404)
+
+
+class ImportBatchCancelViewTest(ImportTestMixin, TestCase):
+
+    def test_annule_batch_pending(self):
+        batch = ImportBatch.objects.create(
+            file_name="c.xlsx", created_by=self.audit_user, status=ImportBatch.Status.PENDING,
+        )
+        self.client.force_login(self.audit_user)
+        response = self.client.post(reverse("workflow:import-batch-cancel", args=[batch.pk]))
+        batch.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(batch.status, ImportBatch.Status.CANCELLED)
+
+    def test_refuse_annulation_si_deja_en_cours(self):
+        batch = ImportBatch.objects.create(
+            file_name="c.xlsx", created_by=self.audit_user, status=ImportBatch.Status.PROCESSING,
+        )
+        self.client.force_login(self.audit_user)
+        response = self.client.post(reverse("workflow:import-batch-cancel", args=[batch.pk]))
+        batch.refresh_from_db()
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(batch.status, ImportBatch.Status.PROCESSING)

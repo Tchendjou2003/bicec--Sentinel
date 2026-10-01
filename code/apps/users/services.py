@@ -153,6 +153,193 @@ def toggle_audit_admin(
 
 
 @transaction.atomic
+def delegate_audit_admin_timed(
+    *,
+    delegated_to: User,
+    valid_until,
+    performed_by: User,
+    ip_address: str | None = None,
+):
+    """Creates a timed is_audit_admin delegation for an internal auditor (FR36).
+
+    The delegatee gains can_manage_users until valid_until (inclusive).
+    The permanent admin keeps is_audit_admin=True regardless.
+
+    Args:
+        delegated_to: The AUDIT user receiving the temporary flag.
+        valid_until: Last day the delegation is valid (datetime.date).
+        performed_by: The permanent audit admin granting the flag.
+
+    Raises:
+        PermissionDenied: performed_by is not the permanent admin or superuser.
+        ValueError: Target is self, non-AUDIT, past date, or already has an active delegation.
+    """
+    from apps.audit.models import AuditLog
+    from apps.notifications.models import Notification
+    from apps.notifications.services import emit_notification
+    from .models import AuditAdminDelegation
+
+    if not (performed_by.is_audit_admin or performed_by.is_superuser):
+        # Garde volontairement plus strict que can_manage_users : un délégué
+        # temporaire ne doit pas pouvoir créer de sous-délégation qu'il serait
+        # ensuite incapable de révoquer lui-même (revoke_audit_admin_delegation
+        # n'autorise que l'admin permanent), et sans borne liée à sa propre
+        # échéance. Seul l'admin permanent délègue (FR36).
+        raise PermissionDenied("Seul l'administrateur Audit permanent peut déléguer ce droit.")
+    if delegated_to == performed_by:
+        raise ValueError("Un administrateur ne peut pas se déléguer le flag à lui-même.")
+    if delegated_to.role != User.Role.AUDIT:
+        raise ValueError("La délégation ne peut cibler qu'un Auditeur Interne.")
+    if valid_until <= timezone.now().date():
+        raise ValueError("La date de fin doit être dans le futur.")
+    if delegated_to.received_delegations.filter(
+        revoked_at__isnull=True,
+        valid_until__gte=timezone.now().date(),
+    ).exists():
+        raise ValueError("Cet auditeur possède déjà une délégation active.")
+
+    delegation = AuditAdminDelegation.objects.create(
+        delegated_to=delegated_to,
+        delegated_by=performed_by,
+        valid_until=valid_until,
+    )
+
+    target_name = delegated_to.get_full_name() or delegated_to.username
+    AuditLog.objects.create(
+        action=AuditLog.Action.PRIVILEGE_GRANT,
+        user=performed_by,
+        content_type="User",
+        object_id=delegated_to.pk,
+        ip_address=ip_address,
+        changes={"valid_until": str(valid_until), "delegation_id": str(delegation.pk)},
+        description=f"Délégation is_audit_admin accordée à {target_name} jusqu'au {valid_until}.",
+    )
+
+    ts_key = timezone.now().strftime("%Y-%m-%d")
+    emit_notification(
+        recipient=delegated_to,
+        notification_type=Notification.Type.PRIVILEGE_ALERT,
+        title="Délégation Administrateur Audit reçue",
+        body=(
+            f"Le flag Administrateur Audit vous a été délégué par "
+            f"{performed_by.get_full_name() or performed_by.username} "
+            f"jusqu'au {valid_until}."
+        ),
+        idempotency_key=f"PRIVILEGE_GRANT:{delegation.pk}:{ts_key}",
+        is_urgent=False,
+    )
+    return delegation
+
+
+@transaction.atomic
+def revoke_audit_admin_delegation(
+    *,
+    delegation,
+    revoked_by: User,
+    ip_address: str | None = None,
+):
+    """Revokes an active timed delegation before its expiry date (FR36).
+
+    Only the permanent audit admin (is_audit_admin=True) or a superuser
+    can revoke. A delegated admin cannot revoke another delegated admin.
+
+    Raises:
+        PermissionDenied: revoked_by is not the permanent admin or superuser.
+        ValueError: delegation is already revoked.
+    """
+    from apps.audit.models import AuditLog
+    from apps.notifications.models import Notification
+    from apps.notifications.services import emit_notification
+
+    if not (revoked_by.is_audit_admin or revoked_by.is_superuser):
+        raise PermissionDenied(
+            "Seul l'administrateur Audit principal peut révoquer une délégation."
+        )
+    if delegation.revoked_at is not None:
+        raise ValueError("Cette délégation est déjà révoquée.")
+
+    delegation.revoked_at = timezone.now()
+    delegation.revoked_by = revoked_by
+    delegation.save(update_fields=["revoked_at", "revoked_by"])
+
+    target_name = delegation.delegated_to.get_full_name() or delegation.delegated_to.username
+    AuditLog.objects.create(
+        action=AuditLog.Action.PRIVILEGE_REVOKE,
+        user=revoked_by,
+        content_type="User",
+        object_id=delegation.delegated_to_id,
+        ip_address=ip_address,
+        changes={"delegation_id": str(delegation.pk), "revoked_early": True},
+        description=f"Délégation is_audit_admin révoquée pour {target_name} (révocation manuelle).",
+    )
+
+    ts_key = timezone.now().strftime("%Y-%m-%d")
+    emit_notification(
+        recipient=delegation.delegated_to,
+        notification_type=Notification.Type.PRIVILEGE_ALERT,
+        title="Délégation Administrateur Audit révoquée",
+        body=(
+            f"Votre délégation is_audit_admin a été révoquée par "
+            f"{revoked_by.get_full_name() or revoked_by.username}."
+        ),
+        idempotency_key=f"PRIVILEGE_REVOKE:{delegation.pk}:{ts_key}",
+        is_urgent=False,
+    )
+    return delegation
+
+
+def run_nightly_delegation_expiry_check() -> dict:
+    """Logs newly expired delegations and notifies former delegatees.
+
+    Targets delegations whose valid_until == yesterday (newly expired today).
+    At runtime can_manage_users already denies access for expired delegations,
+    so this function only adds the AuditLog trace and sends the expiry notification.
+
+    Returns:
+        {"expired": int}
+    """
+    from datetime import timedelta
+    from apps.audit.models import AuditLog
+    from apps.notifications.models import Notification
+    from apps.notifications.services import emit_notification
+    from .models import AuditAdminDelegation
+
+    yesterday = timezone.now().date() - timedelta(days=1)
+    expired_qs = AuditAdminDelegation.objects.filter(
+        revoked_at__isnull=True,
+        valid_until=yesterday,
+    ).select_related("delegated_to")
+
+    count = 0
+    for delegation in expired_qs:
+        target = delegation.delegated_to
+        target_name = target.get_full_name() or target.username
+        AuditLog.objects.create(
+            action=AuditLog.Action.PRIVILEGE_REVOKE,
+            user=None,
+            content_type="User",
+            object_id=target.pk,
+            changes={"delegation_id": str(delegation.pk), "expired": True},
+            description=(
+                f"Délégation is_audit_admin expirée pour {target_name} "
+                f"(valide jusqu'au {delegation.valid_until})."
+            ),
+        )
+        ts_key = timezone.now().strftime("%Y-%m-%d")
+        emit_notification(
+            recipient=target,
+            notification_type=Notification.Type.PRIVILEGE_ALERT,
+            title="Délégation Administrateur Audit expirée",
+            body=f"Votre délégation is_audit_admin a expiré le {delegation.valid_until}.",
+            idempotency_key=f"PRIVILEGE_EXPIRED:{delegation.pk}:{ts_key}",
+            is_urgent=False,
+        )
+        count += 1
+
+    return {"expired": count}
+
+
+@transaction.atomic
 def create_department_with_audit(
     *,
     form,

@@ -96,6 +96,16 @@ urlpatterns = [
         name="audit-admin-members",
     ),
     path(
+        "audit/delegation/create/",
+        views.DelegateAuditAdminView.as_view(),
+        name="audit-admin-delegate",
+    ),
+    path(
+        "audit/delegation/<uuid:pk>/revoke/",
+        views.RevokeAuditAdminDelegationView.as_view(),
+        name="audit-admin-delegation-revoke",
+    ),
+    path(
         "admin/organigramme/",
         views.OrganigrammeListView.as_view(),
         name="organigramme-list",

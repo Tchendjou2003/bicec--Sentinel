@@ -192,7 +192,7 @@ def build_governance_excel(*, user) -> bytes:
         ws1.cell(
             row=row_idx,
             column=8,
-            value=r.source.name if r.source else "—",
+            value=r.source.label if r.source else "—",
         )
 
     # ── Onglet 2 : Tendances snapshots ──────────────────────────────────────

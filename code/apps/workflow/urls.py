@@ -196,6 +196,17 @@ urlpatterns = [
         views.HistoricalImportConfirmView.as_view(),
         name="historical-import-confirm",
     ),
+    # ── Suivi asynchrone des imports (Django-Q2) ──
+    path(
+        "recommandations/import/status/<uuid:pk>/",
+        views.ImportBatchStatusView.as_view(),
+        name="import-batch-status",
+    ),
+    path(
+        "recommandations/import/<uuid:pk>/annuler/",
+        views.ImportBatchCancelView.as_view(),
+        name="import-batch-cancel",
+    ),
     # ── Missions Externes (Audit) ──
     path(
         "missions/",

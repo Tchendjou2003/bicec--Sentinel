@@ -79,20 +79,57 @@
     </table>
   </div>
 
-  {# ── Pagination ── #}
+  {# ── Pagination numérotée ── #}
   {% if is_paginated %}
   <div class="flex items-center justify-between px-4 py-3 border-t border-border-subtle bg-surface-faint">
     <p class="text-xs text-text-body">
       Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}
       — {{ page_obj.paginator.count }} recommandation{{ page_obj.paginator.count|pluralize }}
     </p>
-    <div class="flex gap-1">
+    <div class="flex items-center gap-1">
+
+      {# ← Bouton Précédent #}
       {% if page_obj.has_previous %}
-      <a href="?page={{ page_obj.previous_page_number }}&source={{ current_source|urlencode }}&status={{ current_status|urlencode }}&priority={{ current_priority|urlencode }}&q={{ current_search|urlencode }}&import_status={{ current_import_status|urlencode }}" class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">Préc.</a>
+      <a href="?page={{ page_obj.previous_page_number }}&source={{ current_source|urlencode }}&status={{ current_status|urlencode }}&priority={{ current_priority|urlencode }}&q={{ current_search|urlencode }}&import_status={{ current_import_status|urlencode }}"
+         class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors"
+         aria-label="Page précédente">‹</a>
+      {% else %}
+      <span class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-faint bg-surface-faint border border-border-subtle cursor-not-allowed">‹</span>
       {% endif %}
+
+      {# Numéros de pages avec ellipses #}
+      {% for page_num in page_obj.paginator.page_range %}
+        {% if page_num == 1 or page_num == page_obj.paginator.num_pages %}
+          {# Toujours afficher la première et la dernière page #}
+          {% if page_num == page_obj.number %}
+          <span class="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-sentinel-orange border border-sentinel-orange">{{ page_num }}</span>
+          {% else %}
+          <a href="?page={{ page_num }}&source={{ current_source|urlencode }}&status={{ current_status|urlencode }}&priority={{ current_priority|urlencode }}&q={{ current_search|urlencode }}&import_status={{ current_import_status|urlencode }}"
+             class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">{{ page_num }}</a>
+          {% endif %}
+        {% elif page_num >= page_obj.number|add:"-2" and page_num <= page_obj.number|add:"2" %}
+          {# Afficher les pages proches de la page courante (fenêtre de ±2) #}
+          {% if page_num == page_obj.number %}
+          <span class="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-sentinel-orange border border-sentinel-orange">{{ page_num }}</span>
+          {% else %}
+          <a href="?page={{ page_num }}&source={{ current_source|urlencode }}&status={{ current_status|urlencode }}&priority={{ current_priority|urlencode }}&q={{ current_search|urlencode }}&import_status={{ current_import_status|urlencode }}"
+             class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">{{ page_num }}</a>
+          {% endif %}
+        {% elif page_num == page_obj.number|add:"-3" or page_num == page_obj.number|add:"3" %}
+          {# Ellipses aux extrémités #}
+          <span class="px-1 text-xs text-text-faint">…</span>
+        {% endif %}
+      {% endfor %}
+
+      {# Bouton Suivant → #}
       {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}&source={{ current_source|urlencode }}&status={{ current_status|urlencode }}&priority={{ current_priority|urlencode }}&q={{ current_search|urlencode }}&import_status={{ current_import_status|urlencode }}" class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors">Suiv.</a>
+      <a href="?page={{ page_obj.next_page_number }}&source={{ current_source|urlencode }}&status={{ current_status|urlencode }}&priority={{ current_priority|urlencode }}&q={{ current_search|urlencode }}&import_status={{ current_import_status|urlencode }}"
+         class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-primary bg-white border border-border-strong hover:bg-surface-warm transition-colors"
+         aria-label="Page suivante">›</a>
+      {% else %}
+      <span class="rounded-lg px-3 py-1.5 text-xs font-medium text-text-faint bg-surface-faint border border-border-subtle cursor-not-allowed">›</span>
       {% endif %}
+
     </div>
   </div>
   {% endif %}

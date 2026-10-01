@@ -10,16 +10,22 @@ import importlib
 import json
 import uuid
 from datetime import timedelta
+from unittest import mock
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from apps.audit.models import HmacSeal
+from apps.audit.models import AuditLog, HmacSeal
 from apps.audit.services import (
     _build_seal_payload,
+    diff_seal,
     generate_recommendation_seal,
+    run_tamper_detection_task,
+    log_tamper_detected,
+    run_nightly_seal_verification,
     verify_recommendation_seal,
 )
+from apps.notifications.models import Notification
 from apps.users.models import Department, OrgUnitType, User
 from apps.workflow.models import (
     EvidenceFile,
@@ -219,3 +225,311 @@ class HmacSealServiceTest(TestCase):
             rec, accepted_subs, files_by_submission
         )
         self.assertEqual(service_hash, backfill_hash)
+
+
+class TamperDetectionTest(TestCase):
+    """Tests pour diff_seal, log_tamper_detected et run_nightly_seal_verification."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.type_dir, _ = OrgUnitType.objects.get_or_create(
+            code="DIRECTION", defaults={"name": "Direction", "level": 1},
+        )
+        cls.department = Department.objects.create(
+            name="Dept Tamper Tests", code="TMP", type=cls.type_dir,
+        )
+        # audit_admin recevra les notifications TAMPER_ALERT
+        cls.audit_admin = User.objects.create_user(
+            username="tamper_audit_admin",
+            password="TestPass123!",
+            role=User.Role.AUDIT,
+            is_audit_admin=True,
+        )
+        cls.dm_user = User.objects.create_user(
+            username="tamper_dm",
+            password="TestPass123!",
+            role=User.Role.DM,
+            department=cls.department,
+        )
+        cls.source, _ = RecommendationSource.objects.get_or_create(
+            code="COBAC", defaults={"label": "COBAC", "is_external": True},
+        )
+
+    def _make_sealed_reco(self, description="Description originale."):
+        """Crée une recommandation clôturée avec une preuve acceptée et son sceau HMAC."""
+        rec = create_recommendation(
+            data={
+                "reference": f"REC-T-{uuid.uuid4().hex[:6].upper()}",
+                "mission_date": timezone.now().date(),
+                "mission_label": "Mission tamper",
+                "controlled_department": self.department,
+                "observations": "obs",
+                "anomalous_dossiers": "",
+                "description": description,
+                "source": self.source,
+                "priority": Recommendation.Priority.HAUTE,
+                "department": self.department,
+                "due_date": timezone.now().date() + timedelta(days=30),
+            },
+            deliverables_data=[],
+            performed_by=self.audit_admin,
+        )
+        Recommendation.all_objects.filter(pk=rec.pk).update(
+            status=Recommendation.Status.CLOSED_RESOLVED,
+            assigned_dm=self.dm_user,
+            closed_at=timezone.now(),
+            closed_by=self.audit_admin,
+        )
+        rec = Recommendation.all_objects.get(pk=rec.pk)
+        sub = EvidenceSubmission.objects.create(
+            recommendation=rec,
+            submitted_by=self.dm_user,
+            status=EvidenceSubmission.SubmissionStatus.ACCEPTED,
+            comment="Preuves fournies.",
+        )
+        EvidenceFile.objects.create(
+            submission=sub,
+            file="evidence/tamper_test.pdf",
+            original_filename="tamper_test.pdf",
+            file_size=1024,
+            mime_type="application/pdf",
+            sha256_hash="a" * 64,
+            uploaded_by=self.dm_user,
+        )
+        generate_recommendation_seal(recommendation=rec, sealed_by=self.audit_admin)
+        return Recommendation.all_objects.select_related(
+            "source", "controlled_department", "department", "hmac_seal",
+        ).get(pk=rec.pk)
+
+    def _reload(self, rec):
+        return Recommendation.all_objects.select_related(
+            "source", "controlled_department", "department", "hmac_seal",
+        ).get(pk=rec.pk)
+
+    # ── diff_seal ─────────────────────────────────────────────────────────
+
+    def test_diff_seal_returns_empty_dict_when_no_seal(self):
+        rec = self._make_sealed_reco()
+        HmacSeal.objects.filter(recommendation=rec).delete()
+        self.assertEqual(diff_seal(self._reload(rec)), {})
+
+    def test_diff_seal_no_changes_when_intact(self):
+        rec = self._make_sealed_reco()
+        result = diff_seal(rec)
+        self.assertEqual(result["metadata_changes"], {})
+        self.assertEqual(result["file_changes"], {})
+
+    def test_diff_seal_detects_metadata_change(self):
+        rec = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec.pk).update(description="ALTÉRÉ")
+        result = diff_seal(self._reload(rec))
+        self.assertIn("description", result["metadata_changes"])
+        sealed_val, current_val = result["metadata_changes"]["description"]
+        self.assertEqual(sealed_val, "Description originale.")
+        self.assertEqual(current_val, "ALTÉRÉ")
+
+    def test_diff_seal_detects_file_hash_change(self):
+        rec = self._make_sealed_reco()
+        EvidenceFile.objects.filter(submission__recommendation=rec).update(sha256_hash="b" * 64)
+        result = diff_seal(self._reload(rec))
+        self.assertEqual(len(result["file_changes"]), 1)
+        self.assertIn("modifié", result["file_changes"].values())
+
+    # ── log_tamper_detected ───────────────────────────────────────────────
+
+    def test_log_creates_audit_log_entry(self):
+        rec = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec.pk).update(description="ALTÉRÉ")
+        rec = self._reload(rec)
+        log_tamper_detected(rec, detected_by=self.audit_admin, diff=diff_seal(rec))
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.TAMPER_DETECTED,
+                content_type="Recommendation",
+                object_id=rec.pk,
+            ).exists()
+        )
+
+    def test_log_user_is_none_not_detector(self):
+        """Le champ user doit être None : le détecteur n'est pas l'auteur de l'altération."""
+        rec = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec.pk).update(description="ALTÉRÉ")
+        rec = self._reload(rec)
+        log_tamper_detected(rec, detected_by=self.audit_admin, diff=diff_seal(rec))
+        entry = AuditLog.objects.get(
+            action=AuditLog.Action.TAMPER_DETECTED,
+            object_id=rec.pk,
+        )
+        self.assertIsNone(entry.user)
+
+    def test_log_stores_diff_and_detector_in_changes(self):
+        rec = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec.pk).update(description="ALTÉRÉ")
+        rec = self._reload(rec)
+        diff = diff_seal(rec)
+        log_tamper_detected(
+            rec, detected_by=self.audit_admin, diff=diff, ip_address="10.0.0.1"
+        )
+        entry = AuditLog.objects.get(
+            action=AuditLog.Action.TAMPER_DETECTED,
+            object_id=rec.pk,
+        )
+        self.assertIn("description", entry.changes["metadata_changes"])
+        self.assertIsNotNone(entry.changes["detected_by"])
+        self.assertEqual(entry.changes["detector_ip"], "10.0.0.1")
+
+    def test_log_notifies_admin_it_with_audit_trail_link(self):
+        """Un Admin IT n'a pas accès aux vues workflow (403) : son lien pointe
+        vers le journal d'audit global (Story 5.1) plutôt que le détail de
+        la recommandation, contrairement à l'Audit Admin."""
+        admin_it = User.objects.create_user(
+            username="tamper_admin_url", password="TestPass123!", role=User.Role.ADMIN,
+        )
+        rec = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec.pk).update(description="ALTÉRÉ")
+        rec = self._reload(rec)
+        log_tamper_detected(rec, detected_by=None, diff=diff_seal(rec))
+
+        admin_notif = Notification.objects.get(
+            recipient=admin_it, notification_type=Notification.Type.TAMPER_ALERT,
+        )
+        self.assertEqual(admin_notif.url, "/auth/admin/audit-trail/?action=TAMPER_DETECTED")
+
+        audit_notif = Notification.objects.get(
+            recipient=self.audit_admin, notification_type=Notification.Type.TAMPER_ALERT,
+        )
+        self.assertEqual(audit_notif.url, f"/audit/recommandations/{rec.pk}/")
+
+    def test_log_notifies_audit_admin(self):
+        rec = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec.pk).update(description="ALTÉRÉ")
+        rec = self._reload(rec)
+        log_tamper_detected(rec, detected_by=None, diff=diff_seal(rec))
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.audit_admin,
+                notification_type=Notification.Type.TAMPER_ALERT,
+                is_urgent=True,
+            ).exists()
+        )
+
+    def test_log_notifies_admin_it(self):
+        """Les admins IT doivent aussi recevoir l'alerte (incident de sécurité)."""
+        admin_it = User.objects.create_user(
+            username="tamper_admin_it",
+            password="TestPass123!",
+            role=User.Role.ADMIN,
+        )
+        rec = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec.pk).update(description="ALTÉRÉ")
+        rec = self._reload(rec)
+        log_tamper_detected(rec, detected_by=None, diff=diff_seal(rec))
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=admin_it,
+                notification_type=Notification.Type.TAMPER_ALERT,
+                is_urgent=True,
+            ).exists()
+        )
+
+    def test_log_idempotent_within_24h(self):
+        rec = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec.pk).update(description="ALTÉRÉ")
+        rec = self._reload(rec)
+        diff = diff_seal(rec)
+        log_tamper_detected(rec, detected_by=self.audit_admin, diff=diff)
+        log_tamper_detected(rec, detected_by=self.audit_admin, diff=diff)
+        count = AuditLog.objects.filter(
+            action=AuditLog.Action.TAMPER_DETECTED,
+            object_id=rec.pk,
+        ).count()
+        self.assertEqual(count, 1)
+
+    # ── run_nightly_seal_verification ─────────────────────────────────────
+
+    def test_nightly_counts_checked_and_tampered(self):
+        self._make_sealed_reco()
+        rec_tampered = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec_tampered.pk).update(description="FALSIFIÉ")
+        result = run_nightly_seal_verification()
+        self.assertGreaterEqual(result["checked"], 2)
+        self.assertGreaterEqual(result["tampered"], 1)
+
+    def test_nightly_creates_audit_log_for_tampered_reco(self):
+        rec = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec.pk).update(description="FALSIFIÉ")
+        run_nightly_seal_verification()
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.TAMPER_DETECTED,
+                content_type="Recommendation",
+                object_id=rec.pk,
+            ).exists()
+        )
+
+    def test_nightly_does_not_log_intact_recos(self):
+        rec = self._make_sealed_reco()
+        run_nightly_seal_verification()
+        self.assertFalse(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.TAMPER_DETECTED,
+                object_id=rec.pk,
+            ).exists()
+        )
+
+    def test_nightly_isole_les_erreurs_par_sceau(self):
+        """Une exception sur un sceau ne doit pas empêcher la vérification des
+        autres (sinon toute la vérification nocturne s'arrête au premier
+        sceau corrompu — NFR-SEC-03)."""
+        rec_broken = self._make_sealed_reco()
+        rec_tampered = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec_tampered.pk).update(description="FALSIFIÉ")
+
+        real_verify = verify_recommendation_seal
+
+        def _raise_for_broken(rec):
+            if rec.pk == rec_broken.pk:
+                raise RuntimeError("payload corrompu")
+            return real_verify(rec)
+
+        with mock.patch(
+            "apps.audit.services.verify_recommendation_seal", side_effect=_raise_for_broken,
+        ):
+            result = run_nightly_seal_verification()
+
+        self.assertEqual(result["errors"], 1)
+        self.assertGreaterEqual(result["tampered"], 1)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.TAMPER_DETECTED,
+                object_id=rec_tampered.pk,
+            ).exists()
+        )
+
+    # ── run_tamper_detection_task (déport async depuis la vue GET) ────────
+
+    def test_task_ignore_un_sceau_intact(self):
+        rec = self._make_sealed_reco()
+        result = run_tamper_detection_task(
+            recommendation_id=str(rec.pk), detected_by_id=self.audit_admin.pk,
+        )
+        self.assertEqual(result, "intact: no action")
+        self.assertFalse(
+            AuditLog.objects.filter(
+                action=AuditLog.Action.TAMPER_DETECTED, object_id=rec.pk,
+            ).exists()
+        )
+
+    def test_task_journalise_un_sceau_altere(self):
+        rec = self._make_sealed_reco()
+        Recommendation.all_objects.filter(pk=rec.pk).update(description="ALTÉRÉ")
+        result = run_tamper_detection_task(
+            recommendation_id=str(rec.pk), detected_by_id=self.audit_admin.pk,
+        )
+        self.assertEqual(result, "tamper logged")
+        log = AuditLog.objects.filter(
+            action=AuditLog.Action.TAMPER_DETECTED, object_id=rec.pk,
+        ).first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.user, None)  # le détecteur n'est pas l'auteur — voir log_tamper_detected
+        self.assertIn(self.audit_admin.get_full_name() or self.audit_admin.username, str(log.changes))

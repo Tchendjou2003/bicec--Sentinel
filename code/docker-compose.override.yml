@@ -9,7 +9,7 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.dev
     volumes:
-      - .:/app  # Live-reload du code
+      - .:/app # Live-reload du code
       # Les volumes static et media sont hérités de docker-compose.yml
     ports:
       - "8000:8000"
@@ -17,11 +17,25 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1024M  # Plus large en dev pour le debug
+          memory: 1024M # Plus large en dev pour le debug
 
   worker:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.dev
     volumes:
-      - .:/app  # Live-reload du code
+      - .:/app # Live-reload du code
       # Le volume media est hérité de docker-compose.yml
+
+  # Serveur SMTP local de test (Story 4.3) — dev uniquement.
+  # UI web : http://localhost:8025 — SMTP : localhost:1025
+  # Côté Django (.env) : EMAIL_HOST=mailpit, EMAIL_PORT=1025, EMAIL_USE_TLS=False,
+  # EMAIL_NOTIFICATIONS_ENABLED=True. Aucun e-mail ne quitte la machine.
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    deploy:
+      resources:
+        limits:
+          memory: 128M

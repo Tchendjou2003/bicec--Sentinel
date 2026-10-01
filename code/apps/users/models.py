@@ -15,9 +15,11 @@ Les requêtes complexes sont dans selectors.py, la logique d'écriture dans serv
 """
 import uuid
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 
 
@@ -310,16 +312,26 @@ class User(AbstractUser):
         """
         return bool(self.role)
 
-    @property
+    @cached_property
     def can_manage_users(self) -> bool:
         """
         Indique si l'utilisateur peut gérer les habilitations (ADR-10).
 
-        Seuls les Auditeurs Internes ayant le flag ``is_audit_admin``
-        activé (Directeur Audit ou délégué) peuvent attribuer des rôles
-        et des périmètres aux comptes « coquilles vides » (FR3, FR36).
+        Vrai si l'utilisateur est Auditeur Interne et détient le flag permanent
+        ``is_audit_admin``, ou une délégation horodatée active (FR36).
+        Mis en cache par objet pour éviter des requêtes SQL répétées dans un
+        même cycle de requête. En test, re-fetch via ``User.objects.get(pk=...)``
+        plutôt que ``refresh_from_db()`` pour vider le cache.
         """
-        return self.role == self.Role.AUDIT and self.is_audit_admin
+        if self.role != self.Role.AUDIT:
+            return False
+        if self.is_audit_admin:
+            return True
+        from django.utils import timezone
+        return self.received_delegations.filter(
+            revoked_at__isnull=True,
+            valid_until__gte=timezone.now().date(),
+        ).exists()
 
     @property
     def is_shell_account(self) -> bool:
@@ -694,3 +706,66 @@ class ExternalMission(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+# =============================================================================
+# Délégation horodatée du flag is_audit_admin (Story FR36 — timed delegation)
+# =============================================================================
+
+
+class AuditAdminDelegation(models.Model):
+    """
+    Trace une délégation temporaire du flag is_audit_admin (FR36 / ADR-10).
+
+    Le Directeur Audit (permanent admin) peut déléguer ses droits à un
+    Auditeur Interne pour une période définie. La délégation expire
+    automatiquement à ``valid_until``. Elle peut aussi être révoquée
+    manuellement avant expiration via ``revoke_audit_admin_delegation()``.
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    delegated_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="received_delegations",
+        verbose_name=_("Bénéficiaire"),
+    )
+    delegated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="granted_delegations",
+        verbose_name=_("Délégant"),
+    )
+    valid_until = models.DateField(_("Valide jusqu'au"))
+    created_at = models.DateTimeField(auto_now_add=True)
+    revoked_at = models.DateTimeField(
+        _("Révoquée le"),
+        null=True,
+        blank=True,
+    )
+    revoked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="revoked_delegations",
+        verbose_name=_("Révoquée par"),
+    )
+
+    class Meta:
+        app_label = "users"
+        ordering = ["-created_at"]
+        verbose_name = _("Délégation admin audit")
+        verbose_name_plural = _("Délégations admin audit")
+
+    def __str__(self) -> str:
+        return f"Délégation → {self.delegated_to} (jusqu'au {self.valid_until})"
+
+    @property
+    def is_active(self) -> bool:
+        from django.utils import timezone
+        return self.revoked_at is None and self.valid_until >= timezone.now().date()

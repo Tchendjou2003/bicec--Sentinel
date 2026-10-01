@@ -40,6 +40,11 @@ class AuditLog(models.Model):
         EXTENSION_REJECTED  = "EXTENSION_REJECTED",  _("Demande de report rejetée")
         # Story 6.5 — Import massif de recommandations en DRAFT (FR7)
         IMPORT = "IMPORT", _("Import Excel")
+        # Story 3.10 — Détection d'altération post-scellement (NFR-SEC-03)
+        TAMPER_DETECTED = "TAMPER_DETECTED", _("Altération détectée")
+        # FR36 — Délégation horodatée du flag is_audit_admin
+        PRIVILEGE_GRANT  = "PRIVILEGE_GRANT",  _("Privilège accordé")
+        PRIVILEGE_REVOKE = "PRIVILEGE_REVOKE", _("Privilège révoqué")
 
     id = models.UUIDField(
         primary_key=True,

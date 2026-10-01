@@ -195,8 +195,8 @@ PROVISIONING_APPROVER_GROUP_NAME = "Administrateurs Sentinel"
 Q_CLUSTER = {
     "name": "sentinel",
     "workers": 1,
-    "timeout": 60,
-    "retry": 120,
+    "timeout": 300,  # Imports historiques volumineux (500 lignes + ZIP 100 Mo)
+    "retry": 360,    # Doit rester > timeout, sinon Django-Q2 retente une tâche en cours
     "queue_limit": 50,
     "bulk": 10,
     "orm": "default",
@@ -234,14 +234,44 @@ MEDIA_ROOT = BASE_DIR / "media"
 FILE_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024  # 6 Mo (FR15/NFR-SCA-01)
 
 # ============================================
-# Email — SMTP BICEC (ADR-03)
+# Email — SMTP BICEC (ADR-03, Story 4.3)
 # ============================================
+EMAIL_BACKEND = config(
+    "EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend"
+)
 EMAIL_HOST = config("EMAIL_HOST", default="localhost")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="sentinel@bicec.cm")
+
+# Flag maître du canal e-mail (Story 4.3). False tant que les SMTP BICEC ne sont
+# pas fournis : le moteur in-app fonctionne, aucun e-mail ne part, aucune tâche
+# n'est enqueuée. La bascule prod se fait uniquement par variables d'environnement.
+EMAIL_NOTIFICATIONS_ENABLED = config(
+    "EMAIL_NOTIFICATIONS_ENABLED", default=False, cast=bool
+)
+EMAIL_SUBJECT_PREFIX = "[SENTINEL] "
+
+# Types de notification qui partent aussi par e-mail. Doctrine « alarme
+# incendie » assouplie (décision 2026-07-16) : les ruptures rares/haut-signal
+# ET deux événements de workflow à forte valeur d'action (assignation, rejet
+# de preuves) sont e-mailés ; le reste (J-7/J-3, OVERDUE simple, clôtures…)
+# demeure in-app. OVERDUE_J60_ESCALATION est listé par anticipation — le type
+# n'est émis nulle part tant que l'escalade J60 (v2) n'est pas implémentée.
+EMAIL_NOTIFICATION_TYPES = (
+    "TAMPER_ALERT",
+    "OVERDUE_J30",
+    "OVERDUE_J60_ESCALATION",
+    "SYSTEM_ALERT",
+    "ASSIGNED",
+    "EVIDENCE_REJECTED",
+)
+
+# Base des URLs absolues dans les e-mails (les notifications stockent des URLs
+# relatives). À pointer vers l'URL interne du serveur Sentinel en production.
+SITE_BASE_URL = config("SITE_BASE_URL", default="http://localhost:8000")
 
 # ============================================
 # Default primary key
@@ -256,8 +286,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # même si le DSN est présent dans l'environnement par erreur.
 SENTRY_DSN = config("SENTRY_DSN", default="")
 
-if SENTRY_DSN and DEBUG:
+# Import résilient : l'absence du paquet (image Docker pas encore reconstruite,
+# environnement minimal) ne doit jamais empêcher le démarrage — Sentry est de
+# l'observabilité, pas une dépendance métier.
+try:
     import sentry_sdk
+except ImportError:
+    sentry_sdk = None
+
+if SENTRY_DSN and DEBUG and sentry_sdk is not None:
 
     def _strip_local_vars(event, hint):
         # Retire les valeurs des variables locales de chaque frame.

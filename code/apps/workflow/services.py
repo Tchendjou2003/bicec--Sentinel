@@ -15,7 +15,7 @@ import logging
 
 from uuid import UUID
 
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
@@ -1568,6 +1568,113 @@ def notify_upcoming_deadlines() -> dict:
     return {"j7": j7, "j3": j3, "cleared": cleared}
 
 
+def reconcile_stale_processing_batches() -> int:
+    """Marks ImportBatch rows stuck in PROCESSING as FAILED after a worker crash.
+
+    run_recommendations_import_task and run_historical_import_task only ever
+    resume a batch in PENDING — a batch already in PROCESSING is treated as
+    "someone else is handling it" and skipped on retry. If the Django-Q2 worker
+    is killed (OOM, deploy, SIGKILL) between the PENDING→PROCESSING commit and
+    the final DONE/FAILED write, the batch is orphaned forever: no retry ever
+    resumes it, and the user's single-active-import guard blocks any new import.
+
+    A batch legitimately still running touches `updated_at` at each progress
+    checkpoint, so a batch untouched for longer than twice the Django-Q2 task
+    timeout is treated as abandoned rather than merely slow.
+
+    Returns:
+        int: number of batches reconciled.
+    """
+    from django.conf import settings
+    from .models import ImportBatch
+
+    task_timeout = settings.Q_CLUSTER.get("timeout", 300)
+    cutoff = timezone.now() - timezone.timedelta(seconds=2 * task_timeout)
+
+    stale = ImportBatch.objects.filter(
+        status=ImportBatch.Status.PROCESSING,
+        updated_at__lt=cutoff,
+    )
+    stale_ids = list(stale.values_list("pk", flat=True))
+    if not stale_ids:
+        return 0
+
+    ImportBatch.objects.filter(pk__in=stale_ids).update(
+        status=ImportBatch.Status.FAILED,
+        error_message=(
+            "Traitement interrompu de façon inattendue (worker arrêté avant la fin). "
+            "Relancez l'import."
+        ),
+    )
+
+    for batch_id in stale_ids:
+        AuditLog.objects.create(
+            action=AuditLog.Action.SYSTEM,
+            user=None,
+            content_type="ImportBatch",
+            object_id=batch_id,
+            description=(
+                f"Lot d'import {batch_id} marqué en échec : resté bloqué en PROCESSING "
+                f"au-delà de {2 * task_timeout}s, probable crash du worker Django-Q2."
+            ),
+        )
+
+    return len(stale_ids)
+
+
+def cleanup_orphaned_import_zips(max_age_hours: int = 48) -> dict:
+    """
+    Supprime les ZIP temporaires d'import historique restés sur le volume media
+    après un crash du worker Django-Q2 entre la sauvegarde et la suppression
+    normale (voir run_historical_import_task, apps.workflow.import_historical).
+
+    Ne touche que les fichiers de `imports/zip/` plus vieux que max_age_hours
+    dont le ImportBatch associé n'est plus PENDING/PROCESSING (un fichier lié à
+    un import encore en cours est toujours nécessaire, même après ce délai).
+    """
+    from django.core.files.storage import default_storage
+
+    from .models import ImportBatch
+
+    cutoff = timezone.now() - timezone.timedelta(hours=max_age_hours)
+    deleted = 0
+
+    try:
+        _, filenames = default_storage.listdir("imports/zip")
+    except FileNotFoundError:
+        return {"deleted": 0}
+
+    for filename in filenames:
+        if not filename.endswith(".zip"):
+            continue
+        batch_id = filename[: -len(".zip")]
+        path = f"imports/zip/{filename}"
+
+        modified_time = default_storage.get_modified_time(path)
+        if timezone.is_naive(modified_time):
+            modified_time = timezone.make_aware(modified_time)
+        if modified_time > cutoff:
+            continue
+
+        try:
+            batch = ImportBatch.objects.filter(pk=batch_id).first()
+        except (ValueError, ValidationError):
+            # Nom de fichier parasite (pas un UUID) — ni un ZIP légitime, ni
+            # rattachable à un batch : on l'ignore plutôt que de faire échouer
+            # tout le passage de nettoyage sur un seul fichier mal nommé.
+            continue
+        if batch is not None and batch.status in (
+            ImportBatch.Status.PENDING,
+            ImportBatch.Status.PROCESSING,
+        ):
+            continue
+
+        default_storage.delete(path)
+        deleted += 1
+
+    return {"deleted": deleted}
+
+
 def run_nightly_notifications() -> dict:
     """
     Point d'entrée unique du cron nocturne (Story 4.2 / D6).
@@ -1604,6 +1711,23 @@ def run_nightly_notifications() -> dict:
     except Exception as exc:  # noqa: BLE001
         logger.exception("Cron nocturne : échec de la capture MetricsSnapshot")
         results["snapshot"] = {"error": str(exc)}
+    try:
+        from apps.audit.services import run_nightly_seal_verification
+        results["seal_check"] = run_nightly_seal_verification()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Cron nocturne : échec de la vérification des sceaux HMAC")
+        results["seal_check"] = {"error": str(exc)}
+    try:
+        from apps.users.services import run_nightly_delegation_expiry_check
+        results["delegation_expiry"] = run_nightly_delegation_expiry_check()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Cron nocturne : échec de la vérification des délégations expirées")
+        results["delegation_expiry"] = {"error": str(exc)}
+    try:
+        results["orphaned_zip_cleanup"] = cleanup_orphaned_import_zips()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Cron nocturne : échec du nettoyage des ZIP d'import orphelins")
+        results["orphaned_zip_cleanup"] = {"error": str(exc)}
 
     # Alerter les Audit Admins si au moins une phase a échoué — sinon l'erreur
     # est invisible pendant 24 h (Django-Q2 considère la tâche réussie).
@@ -1622,7 +1746,7 @@ def _alert_cron_failure(failed_phases: list[str], results: dict) -> None:
     from apps.users.models import User
     from django.utils import timezone as _tz
 
-    phase_labels = {"overdue": "OVERDUE", "upcoming": "J-7/J-3", "snapshot": "Snapshot"}
+    phase_labels = {"overdue": "OVERDUE", "upcoming": "J-7/J-3", "snapshot": "Snapshot", "seal_check": "Vérification sceaux", "delegation_expiry": "Expiration délégations", "orphaned_zip_cleanup": "Nettoyage ZIP import"}
     summary = ", ".join(phase_labels.get(p, p) for p in failed_phases)
     ts = _tz.now().strftime("%Y-%m-%d %H:%M")
 

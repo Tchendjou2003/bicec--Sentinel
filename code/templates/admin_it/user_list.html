@@ -8,8 +8,8 @@
   {# ── En-tête + bouton ajout ── #}
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-bold font-heading" style="color:#2D1F1E;">Gestion des comptes</h1>
-      <p class="text-sm mt-1" style="color:#6F635B;">{{ total_users }} compte{{ total_users|pluralize:"s" }} · {{ total_shell }} en attente d'habilitation</p>
+      <h1 class="text-2xl font-bold font-heading text-text-primary">Gestion des comptes</h1>
+      <p class="text-sm mt-1 text-text-body">{{ total_users }} compte{{ total_users|pluralize:"s" }} · {{ total_shell }} en attente d'habilitation</p>
     </div>
     <a href="{% url 'auth:provisioning-list' %}" class="btn btn-primary">
       <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
@@ -21,20 +21,17 @@
   <div class="flex gap-2">
     <a href="{% url 'auth:admin-user-list' %}"
        class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-150
-              {% if not filtre_actif %}text-white{% else %}hover:bg-surface-warm{% endif %}"
-       style="{% if not filtre_actif %}background:#E87722;{% else %}color:#6F635B;{% endif %}">
+              {% if not filtre_actif %}bg-sentinel-orange text-white{% else %}text-text-body hover:bg-surface-warm{% endif %}">
       Tous
     </a>
     <a href="{% url 'auth:admin-user-list' %}?filtre=shell"
        class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-150
-              {% if filtre_actif == 'shell' %}text-white{% else %}hover:bg-surface-warm{% endif %}"
-       style="{% if filtre_actif == 'shell' %}background:#C08A2D;{% else %}color:#6F635B;{% endif %}">
+              {% if filtre_actif == 'shell' %}bg-status-dm-review text-white{% else %}text-text-body hover:bg-surface-warm{% endif %}">
       Coquilles vides ({{ total_shell }})
     </a>
     <a href="{% url 'auth:admin-user-list' %}?filtre=actif"
        class="rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-150
-              {% if filtre_actif == 'actif' %}text-white{% else %}hover:bg-surface-warm{% endif %}"
-       style="{% if filtre_actif == 'actif' %}background:#2D8B56;{% else %}color:#6F635B;{% endif %}">
+              {% if filtre_actif == 'actif' %}bg-status-approved text-white{% else %}text-text-body hover:bg-surface-warm{% endif %}">
       Habilités
     </a>
   </div>
@@ -48,6 +45,7 @@
           <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Email</th>
           <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Statut</th>
           <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Département</th>
+          <th class="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-text-faint">Actions</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-surface-warm">
@@ -55,37 +53,41 @@
         <tr class="hover:bg-sentinel-orange-light transition-colors duration-150">
           <td class="px-4 py-3.5">
             <div class="flex items-center gap-3">
-              <div class="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold uppercase"
-                   style="background:#F5EDE6;color:#6F635B;">
+              <div class="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold uppercase bg-sentinel-brown-tint text-text-body">
                 {{ u.first_name|first|default:"?" }}{{ u.last_name|first|default:"" }}
               </div>
               <div>
-                <p class="text-[13px] font-semibold" style="color:#2D1F1E;">{{ u.get_full_name|default:u.username }}</p>
-                <p class="text-[11.5px]" style="color:#968A80;">{{ u.username }}</p>
+                <p class="text-[13px] font-semibold text-text-primary">{{ u.get_full_name|default:u.username }}</p>
+                <p class="text-[11.5px] text-text-faint">{{ u.username }}</p>
               </div>
             </div>
           </td>
-          <td class="px-4 py-3.5 text-[13px]" style="color:#6F635B;">{{ u.email|default:"—" }}</td>
+          <td class="px-4 py-3.5 text-[13px] text-text-body">{{ u.email|default:"—" }}</td>
           <td class="px-4 py-3.5">
             {% if u.role %}
-              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
-                    style="background:#E7F2EC;color:#1E6B41;">
-                <span class="h-1.5 w-1.5 rounded-full" style="background:#2D8B56;"></span>
+              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold bg-success-tint text-success-strong">
+                <span class="h-1.5 w-1.5 rounded-full bg-status-approved"></span>
                 {{ u.get_role_display }}
               </span>
             {% else %}
-              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
-                    style="background:#FFF3EB;color:#A8500F;">
-                <span class="h-1.5 w-1.5 rounded-full" style="background:#E87722;"></span>
+              <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold bg-sentinel-orange-light text-sentinel-orange-darker">
+                <span class="h-1.5 w-1.5 rounded-full bg-sentinel-orange"></span>
                 Coquille vide
               </span>
             {% endif %}
           </td>
-          <td class="px-4 py-3.5 text-[13px]" style="color:#6F635B;">{{ u.department.name|default:"—" }}</td>
+          <td class="px-4 py-3.5 text-[13px] text-text-body">{{ u.department.name|default:"—" }}</td>
+          <td class="px-4 py-3.5 text-right">
+            <a href="{% url 'workflow:habilitation-edit' u.pk %}"
+               class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border border-border-strong bg-white hover:bg-surface-warm transition-colors text-text-body">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+              Modifier
+            </a>
+          </td>
         </tr>
         {% empty %}
         <tr>
-          <td colspan="4" class="px-4 py-12 text-center text-[13px]" style="color:#968A80;">
+          <td colspan="5" class="px-4 py-12 text-center text-[13px] text-text-faint">
             Aucun utilisateur trouvé.
           </td>
         </tr>

@@ -49,8 +49,17 @@ class Notification(models.Model):
         PROVISIONING_REQUESTED = "PROVISIONING_REQUESTED", _("Demande de compte à valider")
         PROVISIONING_APPROVED  = "PROVISIONING_APPROVED",  _("Compte approuvé")
         PROVISIONING_REJECTED  = "PROVISIONING_REJECTED",  _("Demande de compte rejetée")
+        # ── Intégrité des sceaux (Story 3.10 — NFR-SEC-03) ───────────────────
+        TAMPER_ALERT           = "TAMPER_ALERT",           _("Altération de dossier scellé")
+        # ── Imports massifs asynchrones (Django-Q2) ───────────────────────────
+        IMPORT_COMPLETED       = "IMPORT_COMPLETED",       _("Import terminé")
+        IMPORT_FAILED          = "IMPORT_FAILED",          _("Échec de l'import")
+        # ── Délégation horodatée is_audit_admin (FR36) ────────────────────
+        PRIVILEGE_ALERT        = "PRIVILEGE_ALERT",        _("Modification de privilège")
+        # ── Incidents système (Story 4.3 — échec du cron nocturne) ────────────
+        SYSTEM_ALERT           = "SYSTEM_ALERT",           _("Alerte système")
 
-    URGENT_TYPES = frozenset({"OVERDUE", "OVERDUE_J30", "OVERDUE_J60_ESCALATION"})
+    URGENT_TYPES = frozenset({"OVERDUE", "OVERDUE_J30", "OVERDUE_J60_ESCALATION", "SYSTEM_ALERT"})
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     recipient = models.ForeignKey(
@@ -86,6 +95,17 @@ class Notification(models.Model):
         help_text=_("True pour ruptures / escalades (affichage prioritaire)."),
     )
     is_read = models.BooleanField(_("Lu"), default=False, db_index=True)
+    email_sent_at = models.DateTimeField(
+        _("E-mail envoyé le"),
+        null=True,
+        blank=True,
+        help_text=_(
+            "Horodatage de l'envoi e-mail (Story 4.3). Null si aucun e-mail "
+            "n'est parti (type hors whitelist, flag désactivé, destinataire "
+            "sans adresse). Sert de verrou d'idempotence : une tâche rejouée "
+            "n'envoie jamais de second e-mail."
+        ),
+    )
     idempotency_key = models.CharField(
         _("Clé d'idempotence"), max_length=255,
         help_text=_(

@@ -15,9 +15,11 @@ Les requêtes complexes sont dans selectors.py, la logique d'écriture dans serv
 """
 import uuid
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 
 
@@ -149,6 +151,16 @@ class Department(models.Model):
             "l'intégrité des données historiques."
         ),
     )
+    is_system = models.BooleanField(
+        _("Entité système"),
+        default=False,
+        editable=False,
+        help_text=_(
+            "Entité technique seedée à l'installation (héberge les "
+            "administrateurs Sentinel). Renommable, mais ni supprimable "
+            "ni désactivable."
+        ),
+    )
     created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
     updated_at = models.DateTimeField(_("Modifié le"), auto_now=True)
 
@@ -165,6 +177,27 @@ class Department(models.Model):
         if self.parent:
             return f"{self.parent.name} → {self.name}"
         return self.name
+
+    def clean(self):
+        """
+        Garde au niveau modèle : une entité système ne peut pas être
+        désactivée (ni soft-deletée).
+
+        Placée ici plutôt que dans un seul service, cette garde couvre
+        TOUS les chemins d'écriture : édition via DepartmentForm /
+        update_department_with_audit (qui inclut le champ is_active),
+        service soft_delete_department_with_audit, et shell. Le renommage
+        (name) reste autorisé.
+        """
+        super().clean()
+        if self.is_system and not self.is_active:
+            raise ValidationError(
+                {"is_active": _(
+                    "L'entité système « Support Applicatif » ne peut pas être "
+                    "désactivée ou supprimée. Elle héberge les administrateurs "
+                    "Sentinel."
+                )}
+            )
 
     def get_children(self):
         """Retourne les départements enfants directs (actifs uniquement)."""
@@ -200,7 +233,7 @@ class User(AbstractUser):
         EXT = "EXT", _("Auditeur Externe")
         ADMIN = "ADMIN", _("Admin")
 
-    id = models.UUIDField(  
+    id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
         editable=False,
@@ -245,6 +278,16 @@ class User(AbstractUser):
             "aux comptes « coquilles vides » via l'interface dédiée (FR36)."
         ),
     )
+    job_title = models.CharField(
+        _("Fonction / Poste"),
+        max_length=100,
+        blank=True,
+        default="",
+        help_text=_(
+            "Titre officiel affiché (ex : Directeur de l'Audit Interne). "
+            "Purement informatif — aucun impact sur les rôles ni les permissions."
+        ),
+    )
 
     class Meta:
         verbose_name = _("Utilisateur")
@@ -269,16 +312,26 @@ class User(AbstractUser):
         """
         return bool(self.role)
 
-    @property
+    @cached_property
     def can_manage_users(self) -> bool:
         """
         Indique si l'utilisateur peut gérer les habilitations (ADR-10).
 
-        Seuls les Auditeurs Internes ayant le flag ``is_audit_admin``
-        activé (Directeur Audit ou délégué) peuvent attribuer des rôles
-        et des périmètres aux comptes « coquilles vides » (FR3, FR36).
+        Vrai si l'utilisateur est Auditeur Interne et détient le flag permanent
+        ``is_audit_admin``, ou une délégation horodatée active (FR36).
+        Mis en cache par objet pour éviter des requêtes SQL répétées dans un
+        même cycle de requête. En test, re-fetch via ``User.objects.get(pk=...)``
+        plutôt que ``refresh_from_db()`` pour vider le cache.
         """
-        return self.role == self.Role.AUDIT and self.is_audit_admin
+        if self.role != self.Role.AUDIT:
+            return False
+        if self.is_audit_admin:
+            return True
+        from django.utils import timezone
+        return self.received_delegations.filter(
+            revoked_at__isnull=True,
+            valid_until__gte=timezone.now().date(),
+        ).exists()
 
     @property
     def is_shell_account(self) -> bool:
@@ -325,6 +378,10 @@ class UserProvisioningRequest(models.Model):
         REJECTED  = "REJECTED",  _("Rejetée")
         CANCELLED = "CANCELLED", _("Annulée")
 
+    class RequestType(models.TextChoices):
+        CREATE = "CREATE", _("Création")
+        MODIFY = "MODIFY", _("Modification")
+
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
@@ -352,13 +409,17 @@ class UserProvisioningRequest(models.Model):
         _("E-mail"),
         help_text=_("Adresse e-mail professionnelle du futur compte."),
     )
-    # Mot de passe haché via make_password avant persistance (jamais clair)
+    # Mot de passe haché via make_password avant persistance (jamais clair).
+    # Vide pour les demandes MODIFY (le mot de passe n'est pas modifié via ce flux).
     hashed_initial_password = models.CharField(
         _("Mot de passe initial (haché)"),
         max_length=128,
+        blank=True,
+        default="",
         help_text=_(
             "Hash Django du mot de passe initial saisi par l'Admin IT. "
-            "Transféré tel quel au User lors de l'approbation."
+            "Transféré tel quel au User lors de l'approbation. "
+            "Vide pour request_type=MODIFY."
         ),
     )
     # ── Habilitation demandée ─────────────────────────────────────────
@@ -379,35 +440,32 @@ class UserProvisioningRequest(models.Model):
             "Département de rattachement. Optionnel pour AUDIT, ADMIN et EXT."
         ),
     )
-    # ── Mission externe (conditionnel si rôle == EXT) ─────────────────
-    mission_organization = models.CharField(
-        _("Organisation (auditeur externe)"),
+    requested_is_audit_admin = models.BooleanField(
+        _("Administrateur Audit demandé"),
+        default=False,
+        help_text=_(
+            "Positionne is_audit_admin=True sur le compte créé (profil "
+            "« Directeur de l'Audit »). Valide uniquement si le rôle est AUDIT."
+        ),
+    )
+    requested_job_title = models.CharField(
+        _("Fonction demandée"),
         max_length=100,
         blank=True,
         default="",
-        help_text=_(
-            "Organisation d'origine de l'auditeur externe (ex. COBAC, BEAC). "
-            "Requis si le rôle est EXT."
-        ),
+        help_text=_("Titre officiel à affecter au compte (purement informatif)."),
     )
-    mission_scope = models.TextField(
-        _("Périmètre de la mission"),
+    requested_profile = models.CharField(
+        _("Profil de création utilisé"),
+        max_length=30,
         blank=True,
         default="",
-        help_text=_("Description libre du périmètre d'intervention de la mission."),
+        help_text=_(
+            "Clé du profil (ACCOUNT_TEMPLATES) sélectionné par le Maker. "
+            "Trace l'intention métier dans l'audit trail."
+        ),
     )
-    mission_start_date = models.DateField(
-        _("Date de début de mission"),
-        null=True,
-        blank=True,
-        help_text=_("Requis si le rôle est EXT."),
-    )
-    mission_end_date = models.DateField(
-        _("Date de fin de mission"),
-        null=True,
-        blank=True,
-        help_text=_("Optionnel — peut être laissé vide si la durée est indéterminée."),
-    )
+    # (Les champs mission_* ont été supprimés suite au découplage de la Story 6.7)
     # ── État de la demande ────────────────────────────────────────────
     status = models.CharField(
         _("Statut"),
@@ -445,6 +503,24 @@ class UserProvisioningRequest(models.Model):
         blank=True,
     )
     created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    # ── Type de demande (CREATE = nouveau compte / MODIFY = modification profil) ──
+    request_type = models.CharField(
+        _("Type de demande"),
+        max_length=10,
+        choices=RequestType.choices,
+        default=RequestType.CREATE,
+        db_index=True,
+    )
+    # FK vers le User existant — rempli uniquement pour MODIFY
+    target_user = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="provisioning_modifications",
+        verbose_name=_("Utilisateur cible"),
+        help_text=_("Rempli uniquement pour les demandes de modification de profil."),
+    )
 
     class Meta:
         verbose_name = _("Demande de provisioning")
@@ -463,24 +539,36 @@ class UserProvisioningRequest(models.Model):
 
     def clean(self):
         super().clean()
-        # Unicité username contre TOUS les User (actifs ou non — contrainte DB globale)
-        if self.requested_username:
-            qs = User.objects.filter(username__iexact=self.requested_username)
-            if qs.exists():
-                raise ValidationError(
-                    {"requested_username": _(
-                        "Un compte avec cet identifiant existe déjà."
-                    )}
-                )
-        # Unicité email contre tous les User (règle métier)
-        if self.requested_email:
-            qs = User.objects.filter(email__iexact=self.requested_email)
-            if qs.exists():
-                raise ValidationError(
-                    {"requested_email": _(
-                        "Un compte avec cet e-mail existe déjà."
-                    )}
-                )
+        is_modify = self.request_type == self.RequestType.MODIFY
+        # Pour MODIFY, username/email appartiennent au target_user existant — pas de
+        # vérification d'unicité (ils n'ont pas changé).
+        if not is_modify:
+            # Unicité username contre TOUS les User (actifs ou non — contrainte DB globale)
+            if self.requested_username:
+                qs = User.objects.filter(username__iexact=self.requested_username)
+                if qs.exists():
+                    raise ValidationError(
+                        {"requested_username": _(
+                            "Un compte avec cet identifiant existe déjà."
+                        )}
+                    )
+            # Unicité email contre tous les User (règle métier)
+            if self.requested_email:
+                qs = User.objects.filter(email__iexact=self.requested_email)
+                if qs.exists():
+                    raise ValidationError(
+                        {"requested_email": _(
+                            "Un compte avec cet e-mail existe déjà."
+                        )}
+                    )
+        # Le flag is_audit_admin n'a de sens que pour un Auditeur Interne (AUDIT)
+        if self.requested_is_audit_admin and self.requested_role != User.Role.AUDIT:
+            raise ValidationError(
+                {"requested_is_audit_admin": _(
+                    "Le flag « Administrateur Audit » ne peut être attribué "
+                    "qu'à un Auditeur Interne (rôle AUDIT)."
+                )}
+            )
         # Cohérence rôle/département : EXT, AUDIT et ADMIN peuvent avoir dept=None
         roles_no_dept_required = {User.Role.AUDIT, User.Role.ADMIN, User.Role.EXT}
         if (
@@ -493,30 +581,7 @@ class UserProvisioningRequest(models.Model):
                     "Le département est obligatoire pour ce rôle."
                 )}
             )
-        # Champs mission obligatoires si EXT
-        if self.requested_role == User.Role.EXT:
-            if not self.mission_organization:
-                raise ValidationError(
-                    {"mission_organization": _(
-                        "L'organisation est obligatoire pour un auditeur externe."
-                    )}
-                )
-            if not self.mission_start_date:
-                raise ValidationError(
-                    {"mission_start_date": _(
-                        "La date de début de mission est obligatoire pour un auditeur externe."
-                    )}
-                )
-            if (
-                self.mission_start_date
-                and self.mission_end_date
-                and self.mission_start_date > self.mission_end_date
-            ):
-                raise ValidationError(
-                    {"mission_end_date": _(
-                        "La date de fin ne peut pas être antérieure à la date de début."
-                    )}
-                )
+
 
 
 # =============================================================================
@@ -524,42 +589,75 @@ class UserProvisioningRequest(models.Model):
 # =============================================================================
 
 
+
 class ExternalMission(models.Model):
     """
-    Mission d'audit externe rattachée à un auditeur (COBAC, BEAC, CAC…).
+    Mission d'audit externe (COBAC, BEAC, CAC…).
 
-    Définit l'organisation d'origine, le périmètre d'intervention et
-    les dates de la mission. Permet de tracer quel auditeur externe
-    intervient, quand, et sur quel scope.
-
-    Note : La relation M2M avec les recommandations (``external_mission_recommendations``)
-    sera implémentée dans l'Epic 2 lorsque l'application ``workflow`` sera créée.
-
-    Ref. Architecture : §7.2 ERD — table ``users_external_mission``
-    Ref. PRD : FR2 (Opening Scene COBAC)
+    Définit l'organisation d'origine, le type, le statut et
+    les dates de la mission. Permet de tracer le périmètre et les auditeurs.
     """
+
+    class Status(models.TextChoices):
+        PREPARATION = "PREPARATION", _("En préparation")
+        ACTIVE = "ACTIVE", _("Active")
+        CLOSED = "CLOSED", _("Clôturée")
 
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
         editable=False,
     )
-    auditor = models.ForeignKey(
+    name = models.CharField(
+        _("Nom de la mission"),
+        max_length=200,
+        default="Mission",
+        help_text=_("Nom humain de la campagne (ex: Contrôle COBAC 2026)."),
+    )
+    organisation = models.ForeignKey(
+        "workflow.RecommendationSource",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        limit_choices_to={"is_external": True, "is_active": True},
+        related_name="external_missions",
+        verbose_name=_("Organisation"),
+    )
+    status = models.CharField(
+        _("Statut"),
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PREPARATION,
+    )
+    auditors = models.ManyToManyField(
+        User,
+        limit_choices_to={"role": User.Role.EXT},
+        related_name="external_missions",
+        verbose_name=_("Auditeurs externes"),
+        blank=True,
+    )
+    recommendations = models.ManyToManyField(
+        "workflow.Recommendation",
+        related_name="external_missions",
+        verbose_name=_("Recommandations"),
+        blank=True,
+    )
+    created_by = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
-        limit_choices_to={"is_external": True, "role": User.Role.EXT},
-        related_name="external_missions",
-        verbose_name=_("Auditeur externe"),
-        help_text=_(
-            "Utilisateur externe (is_external=True) rattaché à cette mission."
-        ),
+        related_name="created_external_missions",
+        verbose_name=_("Créée par"),
+        help_text=_("Membre de l'Audit Interne ayant créé la mission."),
+        null=True,
     )
-    organization = models.CharField(
-        _("Organisation"),
-        max_length=100,
-        help_text=_(
-            "Institution d'origine de l'auditeur (ex: COBAC, BEAC, CAC)."
-        ),
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_external_missions",
+        verbose_name=_("Approuvée par"),
+        help_text=_("Membre ayant validé l'ouverture de la mission."),
     )
     scope_description = models.TextField(
         _("Périmètre de la mission"),
@@ -583,14 +681,6 @@ class ExternalMission(models.Model):
             "encore définie."
         ),
     )
-    is_active = models.BooleanField(
-        _("Active"),
-        default=True,
-        help_text=_(
-            "Indique si la mission est en cours. Désactiver en fin "
-            "de mission plutôt que supprimer."
-        ),
-    )
     created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
     updated_at = models.DateTimeField(_("Modifié le"), auto_now=True)
 
@@ -599,14 +689,12 @@ class ExternalMission(models.Model):
         verbose_name_plural = _("Missions externes")
         ordering = ["-start_date"]
         indexes = [
-            models.Index(fields=["auditor"], name="idx_extmission_auditor"),
-            models.Index(fields=["organization"], name="idx_extmission_org"),
-            models.Index(fields=["is_active"], name="idx_extmission_active"),
+            models.Index(fields=["status"], name="idx_extmission_status"),
+            models.Index(fields=["organisation"], name="idx_extmission_organisation"),
         ]
 
     def __str__(self):
-        auditor_name = self.auditor.username if hasattr(self, "auditor") and self.auditor else "N/A"
-        return f"{self.organization} — {auditor_name}"
+        return f"{self.name} ({self.get_status_display()})"
 
     def clean(self):
         super().clean()
@@ -618,3 +706,66 @@ class ExternalMission(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+# =============================================================================
+# Délégation horodatée du flag is_audit_admin (Story FR36 — timed delegation)
+# =============================================================================
+
+
+class AuditAdminDelegation(models.Model):
+    """
+    Trace une délégation temporaire du flag is_audit_admin (FR36 / ADR-10).
+
+    Le Directeur Audit (permanent admin) peut déléguer ses droits à un
+    Auditeur Interne pour une période définie. La délégation expire
+    automatiquement à ``valid_until``. Elle peut aussi être révoquée
+    manuellement avant expiration via ``revoke_audit_admin_delegation()``.
+    """
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    delegated_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="received_delegations",
+        verbose_name=_("Bénéficiaire"),
+    )
+    delegated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="granted_delegations",
+        verbose_name=_("Délégant"),
+    )
+    valid_until = models.DateField(_("Valide jusqu'au"))
+    created_at = models.DateTimeField(auto_now_add=True)
+    revoked_at = models.DateTimeField(
+        _("Révoquée le"),
+        null=True,
+        blank=True,
+    )
+    revoked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="revoked_delegations",
+        verbose_name=_("Révoquée par"),
+    )
+
+    class Meta:
+        app_label = "users"
+        ordering = ["-created_at"]
+        verbose_name = _("Délégation admin audit")
+        verbose_name_plural = _("Délégations admin audit")
+
+    def __str__(self) -> str:
+        return f"Délégation → {self.delegated_to} (jusqu'au {self.valid_until})"
+
+    @property
+    def is_active(self) -> bool:
+        from django.utils import timezone
+        return self.revoked_at is None and self.valid_until >= timezone.now().date()

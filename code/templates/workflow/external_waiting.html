@@ -1,0 +1,46 @@
+{% extends "layouts/external_shell.html" %}
+{% load static %}
+
+{% block title %}Portail Externe — Sentinel{% endblock %}
+
+{% block content %}
+<div class="min-h-[80vh] flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-md w-full space-y-8 text-center">
+
+    <div class="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-sentinel-teal-tint">
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-sentinel-teal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="m9 12 2 2 4-4"/>
+      </svg>
+    </div>
+
+    <div>
+      <h2 class="mt-6 text-2xl font-bold text-gray-900 tracking-tight">
+        Aucune mission d'audit active
+      </h2>
+      <p class="mt-4 text-base text-gray-500">
+        Votre compte est bien configuré, mais aucune mission d'audit n'est actuellement ouverte ou associée à votre profil pour le moment.
+      </p>
+    </div>
+
+    <div class="mt-8 bg-gray-50 rounded-xl p-6 border border-gray-100 text-sm text-gray-600 text-left">
+      <h3 class="font-medium text-gray-900 mb-2">Que se passe-t-il ensuite ?</h3>
+      <ul class="list-disc pl-5 space-y-2">
+        <li>L'équipe d'Audit Interne va créer une mission pour votre intervention.</li>
+        <li>Une fois votre compte rattaché à la mission, vous aurez accès ici même à l'ensemble des recommandations de votre périmètre.</li>
+        <li>Vous pourrez télécharger toutes les preuves justificatives associées en un clic.</li>
+      </ul>
+    </div>
+
+    <div class="mt-8">
+      <form method="post" action="{% url 'auth:logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary w-full sm:w-auto">
+          Se déconnecter
+        </button>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

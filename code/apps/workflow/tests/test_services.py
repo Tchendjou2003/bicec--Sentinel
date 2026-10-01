@@ -19,6 +19,7 @@ from apps.users.models import Department, OrgUnitType, User
 from apps.workflow.models import Recommendation, RecommendationSource
 from apps.workflow.services import (
     assign_recommendation_to_dm,
+    cleanup_orphaned_import_zips,
     create_recommendation,
     flag_overdue_recommendations,
     soft_delete_recommendation,
@@ -325,14 +326,14 @@ class AssignRecommendationToDMTest(ServiceTestMixin, TestCase):
             deliverables_data=[],
             performed_by=self.audit_user,
         )
-        
+
         assigned_rec = assign_recommendation_to_dm(
             recommendation=rec,
             dm=self.dm_user,
             performed_by=self.audit_user,
             ip_address="127.0.0.1",
         )
-        
+
         self.assertEqual(assigned_rec.status, Recommendation.Status.ASSIGNED)
         self.assertEqual(assigned_rec.assigned_dm, self.dm_user)
 
@@ -344,31 +345,31 @@ class AssignRecommendationToDMTest(ServiceTestMixin, TestCase):
             deliverables_data=[],
             performed_by=self.audit_user,
         )
-        
+
         assign_recommendation_to_dm(
             recommendation=rec,
             dm=self.dm_user,
             performed_by=self.audit_user,
             ip_address="127.0.0.1",
         )
-        
+
         log = AuditLog.objects.filter(
             content_type="Recommendation",
             object_id=rec.pk,
             action=AuditLog.Action.TRANSITION,
         ).first()
-        
+
         self.assertIsNotNone(log)
         self.assertIn("status", log.changes)
         self.assertEqual(log.changes["status"], ["DRAFT", "ASSIGNED"])
         self.assertIn("assigned_dm", log.changes)
-        
+
         self.assertEqual(log.changes["assigned_dm"], [None, str(self.dm_user.pk)])
 
     def test_assign_non_draft_raises_error(self):
         """Assigner une recommandation qui n'est pas DRAFT lève une exception."""
         from django_fsm import TransitionNotAllowed
-        
+
         data = self._base_data()
         rec = create_recommendation(
             data=data,
@@ -389,14 +390,14 @@ class AssignRecommendationToDMTest(ServiceTestMixin, TestCase):
     def test_assign_wrong_department_raises_error(self):
         """Assigner à un DM d'un autre département lève une exception (via FSM)."""
         from django.core.exceptions import ValidationError
-        
+
         data = self._base_data()
         rec = create_recommendation(
             data=data,
             deliverables_data=[],
             performed_by=self.audit_user,
         )
-        
+
         # DM d'un autre département
         from apps.users.models import Department, OrgUnitType, User
         type_dir, _ = OrgUnitType.objects.get_or_create(code="DIRECTION", defaults={"name": "Direction", "level": 1})
@@ -896,3 +897,28 @@ class FlagOverdueRecommendationsServiceTest(ServiceTestMixin, TestCase):
         )
         result = flag_overdue_recommendations()
         self.assertEqual(result, {"flagged": 2, "cleared": 1})
+
+
+class CleanupOrphanedImportZipsTest(TestCase):
+    """Un fichier parasite (nom non-UUID) dans imports/zip/ ne doit pas faire
+    échouer tout le passage de nettoyage sur les autres fichiers."""
+
+    def test_fichier_non_uuid_est_ignore_sans_planter(self):
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+
+        path = default_storage.save("imports/zip/pas-un-uuid.zip", ContentFile(b"contenu"))
+        try:
+            old_time = timezone.now() - timedelta(hours=72)
+            import os
+            full_path = default_storage.path(path)
+            os.utime(full_path, (old_time.timestamp(), old_time.timestamp()))
+
+            result = cleanup_orphaned_import_zips(max_age_hours=48)
+            # Ne doit pas lever, et ne doit pas supprimer un fichier qu'on ne
+            # peut pas rattacher à un ImportBatch.
+            self.assertEqual(result, {"deleted": 0})
+            self.assertTrue(default_storage.exists(path))
+        finally:
+            if default_storage.exists(path):
+                default_storage.delete(path)

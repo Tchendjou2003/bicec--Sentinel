@@ -14,12 +14,14 @@ Spécifications couvertes :
 import csv
 import json
 import uuid
+from functools import cached_property
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView
-from django.core.exceptions import PermissionDenied
-from django.http import HttpResponse, StreamingHttpResponse
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.paginator import Paginator
+from django.http import Http404, HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -27,20 +29,28 @@ from django.views import View
 from django.views.generic import ListView, TemplateView
 
 from . import selectors, services
+from .account_templates import ACCOUNT_TEMPLATES, get_templates_grouped
 from .mixins import (
     AdminRequiredMixin,
     AuditAdminRequiredMixin,
     ProvisioningApproverRequiredMixin,
     ProvisioningListAccessMixin,
 )
-from .models import Department, OrgUnitType, User, UserProvisioningRequest
-from .forms import DepartmentForm, OrgUnitTypeForm, UserLoginForm, UserProvisioningRequestForm
+from .models import AuditAdminDelegation, Department, OrgUnitType, User, UserProvisioningRequest
+from .forms import (
+    ChangeOwnPasswordForm,
+    DepartmentForm,
+    OrgUnitTypeForm,
+    ResetPasswordForm,
+    UserLoginForm,
+    UserProvisioningRequestForm,
+)
 
 
 class SentinelLoginView(LoginView):
     """
     Vue de connexion personnalisée.
-    
+
     Gère l'authentification standard de Django et applique une
     redirection conditionnelle après connexion (FR37).
     """
@@ -50,7 +60,7 @@ class SentinelLoginView(LoginView):
     def get_success_url(self) -> str:
         """
         Détermine l'URL de redirection après une connexion réussie.
-        
+
         Logique métier (ADR-10) :
         - Un utilisateur sans rôle est une coquille vide -> redirigé vers la page d'attente.
         - Un EXT est redirigé vers le tableau de bord externe isolé (Story 1.3 / AC2).
@@ -60,41 +70,29 @@ class SentinelLoginView(LoginView):
         """
         user = self.request.user
         assert isinstance(user, User)
-        
+
         if user.is_shell_account:
             return reverse("auth:pending")
         if user.role == User.Role.EXT:
             return reverse("auth:external-dashboard")
-        
+
         if user.role == User.Role.ADMIN or user.is_staff:
             return reverse("auth:admin-dashboard")
-            
-        # En attendant les tableaux de bord spécifiques de l'Epic 6,
-        # tous les acteurs du workflow collab (Audit, DM, ETP, DG) sont redirigés
-        # directement vers le suivi des recommandations (Story 3.1).
-        if user.role in [User.Role.AUDIT, User.Role.DM, User.Role.ETP, User.Role.DG]:
+
+        if user.role == User.Role.AUDIT:
+            return reverse("dashboards:home")
+
+        if user.role in [User.Role.DM, User.Role.ETP, User.Role.DG]:
             return reverse("workflow:recommendation-list")
-            
+
         return super().get_success_url()
 
-    def form_valid(self, form):
-        """
-        Gère la checkbox « Se souvenir de moi ».
-
-        Si décochée, la session expire à la fermeture du navigateur
-        (cookie de session). Si cochée, la durée par défaut
-        SESSION_COOKIE_AGE (30 min) s’applique.
-        """
-        remember = self.request.POST.get("remember_me")
-        if not remember:
-            self.request.session.set_expiry(0)
-        return super().form_valid(form)
 
 
 class PendingActivationView(LoginRequiredMixin, TemplateView):
     """
     Page d'attente pour les comptes « coquilles vides » (FR37).
-    
+
     Affiche un message indiquant que le compte a été créé par l'IT
     mais nécessite une habilitation par la Direction de l'Audit Interne.
     """
@@ -102,39 +100,55 @@ class PendingActivationView(LoginRequiredMixin, TemplateView):
 
     def dispatch(self, request, *args, **kwargs):
         """
-        Vérification de sécurité additionnelle : 
+        Vérification de sécurité additionnelle :
         Si un utilisateur actif (avec rôle) tente d'accéder à cette page,
         il est redirigé vers l'accueil pour éviter qu'il ne soit bloqué.
         """
         if request.user.is_authenticated and not request.user.is_shell_account:
             # L'utilisateur a déjà un rôle, il n'a rien à faire ici
             return redirect(reverse("home"))
-            
+
         return super().dispatch(request, *args, **kwargs)
 
 
-class ExternalDashboardView(LoginRequiredMixin, TemplateView):
+class ExternalDashboardView(LoginRequiredMixin, View):
     """
-    Tableau de bord externe pour les auditeurs COBAC/BEAC/CAC (Story 1.3 / AC2).
-    
+    Portail externe pour les auditeurs COBAC/BEAC/CAC (Story 1.3 / AC2).
+
     Espace isolé réservé aux utilisateurs ayant le rôle EXT.
-    Tout utilisateur interne se voit refuser l'accès (403 Forbidden).
+    Tout utilisateur interne se voit refuser l’accès (403 Forbidden).
     """
-    template_name = "external/dashboard.html"
 
     def dispatch(self, request, *args, **kwargs):
-        """
-        Vérification de sécurité : seuls les EXT avec is_external=True
-        peuvent accéder à l’espace externe. Les utilisateurs internes
-        ou les comptes EXT incohérents reçoivent un 403.
-        """
         if request.user.is_authenticated and (
             request.user.role != User.Role.EXT or not request.user.is_external
         ):
-            raise PermissionDenied(
-                "Accès réservé aux auditeurs externes."
-            )
+            raise PermissionDenied("Accès réservé aux auditeurs externes.")
         return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        from apps.workflow.selectors import get_active_missions_for_user, get_recommendations_for_user
+
+        active_missions = get_active_missions_for_user(user=request.user)
+        if not active_missions.exists():
+            return render(request, "workflow/external_waiting.html")
+
+        q = request.GET.get("q", "").strip()
+        recos_qs = get_recommendations_for_user(
+            user=request.user,
+            filters={"q": q} if q else None,
+        )
+        paginator = Paginator(recos_qs, 20)
+        page_obj = paginator.get_page(request.GET.get("page", 1))
+
+        return render(request, "workflow/external/external_portal.html", {
+            "active_missions": active_missions,
+            "recommendations": page_obj,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "current_search": q,
+            "active_route": "dashboard",
+        })
 
 
 # =============================================================================
@@ -236,7 +250,7 @@ class HabilitationToggleAdminView(AuditAdminRequiredMixin, View):
             )
             action = "accordée" if new_value else "révoquée"
             msg = f"Délégation admin {action} pour {target_user.username}."
-            
+
             if request.headers.get("HX-Request") == "true":
                 response = render(request, "habilitation/partials/toggle_admin.html", {"u": target_user})
                 response["HX-Trigger"] = json.dumps({
@@ -252,7 +266,7 @@ class HabilitationToggleAdminView(AuditAdminRequiredMixin, View):
                     "notify": {"msg": str(e), "type": "error"}
                 })
                 return response
-            
+
             messages.error(request, str(e))
 
         # Rediriger vers la vue dédiée Audit (Story 6.2.0 / AC5)
@@ -285,6 +299,21 @@ class AdminDashboardView(AdminRequiredMixin, TemplateView):
         context["total_users"] = selectors.count_total_users()
         context["total_shell"] = selectors.count_shell_accounts()
         context["total_departments"] = selectors.count_departments()
+
+        # Onboarding guidé (Story 7.2) : 3 étapes basées sur l'état réel.
+        has_org = selectors.count_business_departments() > 0
+        has_audit = User.objects.filter(
+            role=User.Role.AUDIT, is_active=True
+        ).exists()
+        has_business = User.objects.filter(
+            role__in=[User.Role.DM, User.Role.ETP, User.Role.DG], is_active=True
+        ).exists()
+        context["onboarding"] = {
+            "has_org": has_org,
+            "has_audit": has_audit,
+            "has_business": has_business,
+            "complete": has_org and has_audit and has_business,
+        }
         return context
 
 
@@ -297,7 +326,9 @@ class AdminMonitoringDashboardView(AdminRequiredMixin, TemplateView):
         context["active_route"] = "monitoring"
         context["topbar_title"] = "Monitoring"
         context["topbar_subtitle"] = "Surveillance opérationnelle"
-        context["lockouts_count"] = len(selectors.get_active_lockouts())
+        lockouts = selectors.get_active_lockouts()
+        context["lockouts_count"] = len(lockouts)
+        context["recent_lockouts"] = lockouts[:3]
         context["sessions_count"] = len(selectors.get_active_sessions())
         context["inactive_count"] = selectors.get_inactive_users(30).count()
         context["pending_count"] = selectors.get_pending_provisioning_count()
@@ -421,6 +452,7 @@ class AdminUnlockAccountView(AdminRequiredMixin, View):
     """Déblocage d'un compte verrouillé (Story 7.1 / AC1)."""
 
     def post(self, request, pk, *args, **kwargs):
+        from axes.models import AccessAttempt
         ip = request.META.get("REMOTE_ADDR")
         try:
             services.unlock_account(
@@ -428,8 +460,16 @@ class AdminUnlockAccountView(AdminRequiredMixin, View):
                 performed_by=request.user,
                 ip_address=ip,
             )
-        except Exception:
+        except AccessAttempt.DoesNotExist:
             return HttpResponse(status=404)
+        except Exception:
+            # Échec réel (ex. rollback transaction) : ne pas masquer en 404,
+            # remonter une erreur explicite à l'admin.
+            response = HttpResponse(status=500)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": "Le déblocage a échoué. Réessayez.", "type": "error"}
+            })
+            return response
         lockouts = selectors.get_active_lockouts()
         response = render(request, "admin_it/partials/lockouts_panel.html", {"lockouts": lockouts})
         response["HX-Trigger"] = json.dumps({
@@ -466,7 +506,7 @@ class OrganigrammeListView(ProvisioningApproverRequiredMixin, TemplateView):
 
         if request.headers.get("HX-Request") == "true":
             return render(request, "admin_it/partials/organigramme_drilldown.html", context)
-            
+
         return self.render_to_response(context)
 
     def get_context_data(self, **kwargs):
@@ -557,7 +597,7 @@ class DepartmentEditView(ProvisioningApproverRequiredMixin, View):
         form = DepartmentForm(request.POST, instance=dept)
         if form.is_valid():
             dept = services.update_department_with_audit(
-                form=form, 
+                form=form,
                 performed_by=request.user,
                 ip_address=request.META.get("REMOTE_ADDR"),
             )
@@ -592,12 +632,12 @@ class DepartmentDeleteView(ProvisioningApproverRequiredMixin, View):
     def post(self, request, pk):
         dept = get_object_or_404(Department, pk=pk)
         parent_id = dept.parent_id if dept.parent else None
-        
+
         msg = f"La structure « {dept.name} » a été supprimée."
         msg_type = "success"
         try:
             services.soft_delete_department_with_audit(
-                department=dept, 
+                department=dept,
                 performed_by=request.user,
                 ip_address=request.META.get("REMOTE_ADDR"),
             )
@@ -606,7 +646,7 @@ class DepartmentDeleteView(ProvisioningApproverRequiredMixin, View):
             msg = str(e)
             msg_type = "error"
             messages.error(request, msg)
-            
+
         if request.headers.get("HX-Request") == "true":
             departments = selectors.get_departments_for_level(parent_id)
             breadcrumb = selectors.get_department_breadcrumb(parent_id) if parent_id else []
@@ -673,24 +713,28 @@ class ProvisioningRequestListView(ProvisioningListAccessMixin, ListView):
     """
     File des demandes de provisioning (Story 6.2.0).
 
-    Accessible à tous les Admin IT (makers voient leurs propres demandes ;
-    membres du groupe « Administrateurs Sentinel » voient tout).
-    Un Admin IT hors groupe voit uniquement ses propres soumissions — il
-    peut les annuler mais ne peut pas approuver/rejeter.
+    Gestion unifiée (commit 02522c0) : tous les Admin IT voient la file
+    complète des demandes. La sécurité sur les actions (approbation/rejet)
+    est assurée côté template via le contexte ``is_approver`` : les boutons
+    d'action sont masqués pour les makers hors groupe.
     """
 
     template_name = "admin_it/provisioning_list.html"
     context_object_name = "requests"
     paginate_by = 25
 
+    @cached_property
+    def _is_approver(self) -> bool:
+        """Mémoïsé sur la durée de la requête (get_queryset + get_context_data)."""
+        return services.user_is_provisioning_approver(self.request.user)
+
     def get_queryset(self):
         qs = UserProvisioningRequest.objects.select_related(
             "requested_by", "reviewed_by", "requested_department"
         )
-        # Les checkers (membres du groupe) voient toutes les demandes.
-        # Les makers (Admin IT hors groupe) ne voient que les leurs.
-        if not services.user_is_provisioning_approver(self.request.user):
-            qs = qs.filter(requested_by=self.request.user)
+        # Tous les Admin IT voient la file complète — la sécurité sur les
+        # actions est portée par le template (is_approver=False masque les
+        # boutons d'approbation/rejet pour les makers hors groupe).
 
         status_filter = self.request.GET.get("status", "")
         if status_filter:
@@ -713,7 +757,7 @@ class ProvisioningRequestListView(ProvisioningListAccessMixin, ListView):
         context["topbar_subtitle"] = "Demandes de comptes — file Maker/Checker"
         context["status_choices"] = UserProvisioningRequest.Status.choices
         context["status_filter"] = self.request.GET.get("status", "")
-        context["is_approver"] = services.user_is_provisioning_approver(self.request.user)
+        context["is_approver"] = self._is_approver
         context["pending_count"] = UserProvisioningRequest.objects.filter(
             status=UserProvisioningRequest.Status.PENDING
         ).count()
@@ -729,14 +773,37 @@ class ProvisioningRequestCreateView(AdminRequiredMixin, View):
     POST : crée la UserProvisioningRequest (PENDING) — aucun User créé.
     """
 
+    def _get_modify_target(self, request_data):
+        """Résout l'utilisateur cible depuis request_data (GET params ou POST data).
+
+        Si un identifiant cible est fourni mais ne correspond à aucun utilisateur
+        (UUID inexistant ou malformé), on lève Http404 plutôt que de retomber
+        silencieusement en mode CREATE — un MODIFY ne doit jamais devenir un CREATE.
+        """
+        user_pk = request_data.get("user") or request_data.get("target_user")
+        if not user_pk:
+            return None, False
+        try:
+            uuid.UUID(str(user_pk))
+        except (ValueError, TypeError):
+            raise Http404("Identifiant cible invalide.")
+        target = get_object_or_404(User, pk=user_pk)
+        return target, True
+
     def get(self, request):
-        form = UserProvisioningRequestForm()
+        target_user, is_modify = self._get_modify_target(request.GET)
+        form = UserProvisioningRequestForm(is_modify=is_modify, target_user=target_user)
         return render(request, "admin_it/partials/provisioning_create_modal.html", {
             "form": form,
+            "account_templates": get_templates_grouped(),
+            "account_templates_flat": ACCOUNT_TEMPLATES,
+            "is_modify": is_modify,
+            "target_user": target_user,
         })
 
     def post(self, request):
-        form = UserProvisioningRequestForm(request.POST)
+        target_user, is_modify = self._get_modify_target(request.POST)
+        form = UserProvisioningRequestForm(request.POST, is_modify=is_modify, target_user=target_user)
         if form.is_valid():
             try:
                 req = services.create_provisioning_request(
@@ -744,20 +811,21 @@ class ProvisioningRequestCreateView(AdminRequiredMixin, View):
                     cleaned_data=form.cleaned_data,
                     ip_address=request.META.get("REMOTE_ADDR"),
                 )
+                action = "modification" if is_modify else "création"
                 response = HttpResponse(status=204)
                 response["HX-Trigger"] = json.dumps({
                     "notify": {
-                        "msg": f"Demande soumise pour « {req.requested_username} ». "
-                               f"En attente de validation.",
+                        "msg": f"Demande de {action} soumise pour « {req.requested_username} »."
+                               f" En attente de validation.",
                         "type": "success",
                     },
-                    "provisioningCreated": True,
+                    "provisioning-created": True,
                 })
                 return response
             except Exception as e:
                 messages.error(request, str(e))
 
-        # Construire un message d'erreur synthétique pour le toast
+        # Message d'erreur synthétique pour le toast
         error_fields = []
         field_labels = {
             "requested_username": "Identifiant",
@@ -765,24 +833,28 @@ class ProvisioningRequestCreateView(AdminRequiredMixin, View):
             "password": "Mot de passe",
             "requested_role": "Rôle",
             "requested_department": "Département",
-            "mission_organization": "Organisation",
-            "mission_start_date": "Date de début",
         }
-        for field_name, errors in form.errors.items():
+        for field_name in form.errors:
             if field_name == "__all__":
                 continue
-            label = field_labels.get(field_name, field_name)
-            error_fields.append(label)
+            error_fields.append(field_labels.get(field_name, field_name))
 
-        if error_fields:
-            error_msg = f"Champs à corriger : {', '.join(error_fields)}."
-        else:
-            error_msg = "Veuillez corriger les erreurs du formulaire."
+        error_msg = (
+            f"Champs à corriger : {', '.join(error_fields)}."
+            if error_fields
+            else "Veuillez corriger les erreurs du formulaire."
+        )
 
         response = render(
             request,
             "admin_it/partials/provisioning_create_modal.html",
-            {"form": form},
+            {
+                "form": form,
+                "account_templates": get_templates_grouped(),
+                "account_templates_flat": ACCOUNT_TEMPLATES,
+                "is_modify": is_modify,
+                "target_user": target_user,
+            },
             status=422,
         )
         response["HX-Trigger"] = json.dumps({
@@ -805,13 +877,16 @@ class ProvisioningRequestApproveView(ProvisioningApproverRequiredMixin, View):
                 checker=request.user,
                 ip_address=request.META.get("REMOTE_ADDR"),
             )
+            is_modify = req.request_type == UserProvisioningRequest.RequestType.MODIFY
+            msg = (
+                f"Profil de « {user.username} » modifié avec succès."
+                if is_modify
+                else f"Compte « {user.username} » créé avec succès."
+            )
             response = HttpResponse(status=204)
             response["HX-Trigger"] = json.dumps({
-                "notify": {
-                    "msg": f"Compte « {user.username} » créé avec succès.",
-                    "type": "success",
-                },
-                "provisioningUpdated": True,
+                "notify": {"msg": msg, "type": "success"},
+                "provisioning-updated": True,
             })
             return response
         except Exception as e:
@@ -852,7 +927,7 @@ class ProvisioningRequestRejectView(ProvisioningApproverRequiredMixin, View):
                     "msg": f"Demande « {req.requested_username} » rejetée.",
                     "type": "warning",
                 },
-                "provisioningUpdated": True,
+                "provisioning-updated": True,
             })
             return response
         except Exception as e:
@@ -884,7 +959,7 @@ class ProvisioningRequestCancelView(AdminRequiredMixin, View):
                     "msg": f"Demande « {req.requested_username} » annulée.",
                     "type": "info",
                 },
-                "provisioningUpdated": True,
+                "provisioning-updated": True,
             })
             return response
         except Exception as e:
@@ -918,7 +993,94 @@ class AuditAdminMembersView(AuditAdminRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["topbar_title"] = "Administrateurs Audit"
         context["topbar_subtitle"] = "Délégation du flag is_audit_admin"
+        context.update(_build_delegation_context())
         return context
+
+
+def _build_delegation_context() -> dict:
+    """Builds context shared by AuditAdminMembersView and delegation HTMX partials."""
+    from datetime import date, timedelta
+    today = date.today()
+    return {
+        "delegations": AuditAdminDelegation.objects.filter(
+            revoked_at__isnull=True,
+            valid_until__gte=today,
+        ).select_related("delegated_to", "delegated_by"),
+        "eligible_auditors": User.objects.filter(
+            role=User.Role.AUDIT,
+            is_active=True,
+            is_audit_admin=False,
+        ).order_by("last_name", "first_name"),
+        "tomorrow": (today + timedelta(days=1)).isoformat(),
+    }
+
+
+class DelegateAuditAdminView(AuditAdminRequiredMixin, View):
+    """Creates a timed is_audit_admin delegation via HTMX modal form (FR36)."""
+
+    def post(self, request):
+        from datetime import date as date_type
+        delegated_to_id = request.POST.get("delegated_to")
+        valid_until_raw = request.POST.get("valid_until")
+        error_msg = None
+        try:
+            delegated_to = get_object_or_404(User, pk=delegated_to_id, role=User.Role.AUDIT)
+            valid_until = date_type.fromisoformat(valid_until_raw)
+            services.delegate_audit_admin_timed(
+                delegated_to=delegated_to,
+                valid_until=valid_until,
+                performed_by=request.user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+            msg = f"Délégation accordée à {delegated_to.get_full_name()} jusqu'au {valid_until}."
+        except (PermissionDenied, ValueError) as exc:
+            msg = None
+            error_msg = str(exc)
+
+        if request.headers.get("HX-Request") == "true":
+            context = _build_delegation_context()
+            context["delegation_error"] = error_msg
+            response = render(
+                request,
+                "habilitation/partials/delegation_section.html",
+                context,
+            )
+            if msg:
+                response["HX-Trigger"] = json.dumps({"notify": {"msg": msg, "type": "success"}})
+            return response
+
+        if msg:
+            messages.success(request, msg)
+        else:
+            messages.error(request, error_msg)
+        return redirect("auth:audit-admin-members")
+
+
+class RevokeAuditAdminDelegationView(AuditAdminRequiredMixin, View):
+    """Revokes an active timed audit_admin delegation early (FR36)."""
+
+    def post(self, request, pk):
+        delegation = get_object_or_404(AuditAdminDelegation, pk=pk)
+        try:
+            services.revoke_audit_admin_delegation(
+                delegation=delegation,
+                revoked_by=request.user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+            msg = f"Délégation révoquée pour {delegation.delegated_to.get_full_name()}."
+            if request.headers.get("HX-Request") == "true":
+                context = _build_delegation_context()
+                response = render(
+                    request,
+                    "habilitation/partials/delegation_section.html",
+                    context,
+                )
+                response["HX-Trigger"] = json.dumps({"notify": {"msg": msg, "type": "success"}})
+                return response
+            messages.success(request, msg)
+        except (PermissionDenied, ValueError) as exc:
+            messages.error(request, str(exc))
+        return redirect("auth:audit-admin-members")
 
 
 # =============================================================================
@@ -931,7 +1093,7 @@ def _render_org_unit_type_form(request, form, instance=None):
     status = 422 if form.errors else 200
     return render(
         request,
-        "admin_it/org_unit_types/_form_modal.html",
+        "admin_it/org_unit_types/partials/_form_modal.html",
         {"form": form, "org_unit_type": instance},
         status=status,
     )
@@ -1012,3 +1174,378 @@ class OrgUnitTypeToggleView(ProvisioningApproverRequiredMixin, View):
         response = HttpResponse(status=204)
         response["HX-Refresh"] = "true"
         return response
+
+
+# =============================================================================
+# Gestion unifiée des utilisateurs (Story 8.x)
+# =============================================================================
+
+
+def _add_validation_errors_to_form(form, exc: ValidationError) -> None:
+    """Reporte une ValidationError sur le formulaire en respectant le mapping de champs.
+
+    Une ValidationError de forme dict (``{"old_password": "..."}``) est dispatchée
+    sur le bon champ ; sinon les messages sont ajoutés comme erreurs non-field.
+    Évite d'afficher le repr brut du dict Python à l'utilisateur.
+    """
+    if hasattr(exc, "error_dict"):
+        for field, errors in exc.message_dict.items():
+            target = field if field in form.fields else None
+            for msg in errors:
+                form.add_error(target, msg)
+    else:
+        for msg in exc.messages:
+            form.add_error(None, msg)
+
+
+class UserManagementView(AdminRequiredMixin, View):
+    """Page unifiée Gestion des Utilisateurs — 2 onglets (users + provisioning)."""
+
+    PAGINATE_BY = 25
+
+    def get(self, request):
+        search = request.GET.get("q", "")
+        role_filter = request.GET.get("role", "")
+        status_filter = request.GET.get("status", "")
+        active_tab = request.GET.get("tab", "users")
+
+        # Calculé une seule fois et réutilisé (évite 2 requêtes groups par requête).
+        is_approver = services.user_is_provisioning_approver(request.user)
+
+        is_htmx = request.headers.get("HX-Request") == "true"
+        if is_htmx and active_tab == "provisioning":
+            qs = UserProvisioningRequest.objects.select_related(
+                "requested_by", "reviewed_by", "requested_department"
+            )
+            # Checkers (groupe Administrateurs Sentinel) voient tout.
+            # Makers ne voient que leurs propres demandes.
+            if not is_approver:
+                qs = qs.filter(requested_by=request.user)
+            return render(request, "admin_it/partials/provisioning_table_partial.html", {
+                "requests": qs,
+                "is_approver": is_approver,
+            })
+
+        users_qs = selectors.get_all_users_for_management(
+            search=search, role_filter=role_filter, status_filter=status_filter
+        )
+        paginator = Paginator(users_qs, self.PAGINATE_BY)
+        page_obj = paginator.get_page(request.GET.get("page"))
+
+        context = {
+            "active_route": "utilisateurs",
+            "topbar_title": "Gestion des Utilisateurs",
+            "topbar_subtitle": "Comptes & demandes de provisioning",
+            "users": page_obj,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "is_paginated": page_obj.has_other_pages(),
+            "active_count": selectors.count_active_users(),
+            "inactive_count": selectors.count_inactive_users(),
+            "pending_count": selectors.get_pending_provisioning_count(),
+            "role_choices": User.Role.choices,
+            "search": search,
+            "role_filter": role_filter,
+            "status_filter": status_filter,
+            "active_tab": active_tab,
+            "is_approver": is_approver,
+            "account_templates": get_templates_grouped(),
+            "account_templates_flat": ACCOUNT_TEMPLATES,
+        }
+        return render(request, "admin_it/user_management.html", context)
+
+
+class UserResetPasswordView(AdminRequiredMixin, View):
+    """Réinitialisation du mot de passe d'un utilisateur par l'admin."""
+
+    def get(self, request, pk):
+        target = get_object_or_404(User, pk=pk)
+        return render(request, "admin_it/partials/reset_password_modal.html", {
+            "target_user": target,
+            "form": ResetPasswordForm(),
+        })
+
+    def post(self, request, pk):
+        target = get_object_or_404(User, pk=pk)
+        form = ResetPasswordForm(request.POST)
+        if form.is_valid():
+            try:
+                services.reset_user_password(
+                    target_user=target,
+                    new_password=form.cleaned_data["new_password"],
+                    performed_by=request.user,
+                    ip_address=request.META.get("REMOTE_ADDR"),
+                )
+                response = HttpResponse(status=204)
+                response["HX-Trigger"] = json.dumps({
+                    "notify": {
+                        "msg": f"Mot de passe de « {target.username} » réinitialisé.",
+                        "type": "success",
+                    },
+                    "user-management-refresh": True,
+                })
+                return response
+            except ValidationError as e:
+                _add_validation_errors_to_form(form, e)
+            except Exception:
+                form.add_error(None, "Une erreur interne est survenue. Réessayez.")
+
+        return render(request, "admin_it/partials/reset_password_modal.html", {
+            "target_user": target,
+            "form": form,
+        }, status=422)
+
+
+class UserDeactivateView(AdminRequiredMixin, View):
+    """Désactivation d'un compte utilisateur (invalide les sessions actives)."""
+
+    def get(self, request, pk):
+        target = get_object_or_404(User, pk=pk)
+        return render(request, "admin_it/partials/deactivate_modal.html", {
+            "target_user": target,
+        })
+
+    def post(self, request, pk):
+        target = get_object_or_404(User, pk=pk)
+        try:
+            services.deactivate_user(
+                target_user=target,
+                performed_by=request.user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+            response = HttpResponse(status=204)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {
+                    "msg": f"Compte « {target.username} » désactivé.",
+                    "type": "warning",
+                },
+                "user-management-refresh": True,
+            })
+            return response
+        except PermissionDenied as e:
+            # Message métier sûr à exposer (ex. « pas votre propre compte »).
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(e), "type": "error"}
+            })
+            return response
+        except Exception:
+            response = HttpResponse(status=500)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": "La désactivation a échoué. Réessayez.", "type": "error"}
+            })
+            return response
+
+
+class UserReactivateView(AdminRequiredMixin, View):
+    """Réactivation d'un compte utilisateur désactivé."""
+
+    def post(self, request, pk):
+        target = get_object_or_404(User, pk=pk)
+        try:
+            services.reactivate_user(
+                target_user=target,
+                performed_by=request.user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+            response = HttpResponse(status=204)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {
+                    "msg": f"Compte « {target.username} » réactivé.",
+                    "type": "success",
+                },
+                "user-management-refresh": True,
+            })
+            return response
+        except PermissionDenied as e:
+            response = HttpResponse(status=422)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": str(e), "type": "error"}
+            })
+            return response
+        except Exception:
+            response = HttpResponse(status=500)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": "La réactivation a échoué. Réessayez.", "type": "error"}
+            })
+            return response
+
+
+class UserUnlockInlineView(AdminRequiredMixin, View):
+    """Déblocage Axes direct depuis la page de gestion des utilisateurs."""
+
+    def post(self, request, pk):
+        from axes.models import AccessAttempt
+        try:
+            services.unlock_account(
+                access_attempt_pk=pk,
+                performed_by=request.user,
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+        except AccessAttempt.DoesNotExist:
+            return HttpResponse(status=404)
+        except Exception:
+            response = HttpResponse(status=500)
+            response["HX-Trigger"] = json.dumps({
+                "notify": {"msg": "Le déblocage a échoué. Réessayez.", "type": "error"}
+            })
+            return response
+        response = HttpResponse(status=204)
+        response["HX-Trigger"] = json.dumps({
+            "notify": {"msg": "Compte débloqué.", "type": "success"},
+            "user-management-refresh": True,
+        })
+        return response
+
+
+class AdminLockoutsView(AdminRequiredMixin, TemplateView):
+    """Liste complète des comptes verrouillés (Monitoring — Story 8.x)."""
+    template_name = "admin_it/monitoring/lockouts.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["active_route"] = "monitoring"
+        context["topbar_title"] = "Comptes verrouillés"
+        context["topbar_subtitle"] = "Accès bloqués par django-axes"
+        context["lockouts"] = selectors.get_active_lockouts()
+        return context
+
+
+class AdminAuditTrailView(AdminRequiredMixin, View):
+    """Journal d'audit global — toutes les entrées AuditLog, filtrables (Story 5.1)."""
+
+    template_name = "admin_it/audit_trail.html"
+    PAGINATE_BY = 50
+
+    def get(self, request):
+        import urllib.parse
+        from datetime import date as date_type
+
+        from django.db.models import Case, CharField, Value, When
+
+        from apps.audit.models import AuditLog
+        from apps.audit.selectors import (
+            CONTENT_TYPE_LABEL,
+            MODULE_CHOICES,
+            MODULE_LABELS,
+            get_audit_logs,
+        )
+
+        # ── Parsing des filtres GET ──
+        action_filter = request.GET.get("action") or None
+        module_filter = request.GET.get("module") or None
+        user_filter   = request.GET.get("user")   or None
+        date_from_str = request.GET.get("date_from") or ""
+        date_to_str   = request.GET.get("date_to")   or ""
+
+        date_from = None
+        date_to   = None
+        try:
+            if date_from_str:
+                date_from = date_type.fromisoformat(date_from_str)
+        except ValueError:
+            date_from_str = ""
+        try:
+            if date_to_str:
+                date_to = date_type.fromisoformat(date_to_str)
+        except ValueError:
+            date_to_str = ""
+
+        # ── QuerySet filtré ──
+        qs = get_audit_logs(
+            action=action_filter,
+            content_type=module_filter,
+            user_id=user_filter,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        # Annotation module_label : libellé FR pour chaque ligne (évite lookup dict en template)
+        whens = [
+            When(content_type__in=cts, then=Value(MODULE_LABELS[group]))
+            for group, cts in MODULE_CHOICES.items()
+        ]
+        qs = qs.annotate(
+            module_label=Case(*whens, default=Value("Autre"), output_field=CharField())
+        )
+
+        # ── Pagination ──
+        paginator = Paginator(qs, self.PAGINATE_BY)
+        page_obj  = paginator.get_page(request.GET.get("page"))
+
+        # ── Acteurs récents pour le <select> (50 max) ──
+        recent_actor_ids = list(
+            AuditLog.objects.filter(user__isnull=False)
+            .order_by("-created_at")
+            .values_list("user_id", flat=True)
+            .distinct()[:50]
+        )
+        recent_actors = (
+            User.objects.filter(pk__in=recent_actor_ids)
+            .order_by("last_name", "first_name")
+        )
+
+        # Querystring des filtres actifs (pour les liens de pagination)
+        filter_params = {k: v for k, v in request.GET.items() if k != "page" and v}
+        filter_querystring = urllib.parse.urlencode(filter_params)
+
+        filters = {
+            "action":     action_filter or "",
+            "module":     module_filter or "",
+            "user":       user_filter   or "",
+            "date_from":  date_from_str,
+            "date_to":    date_to_str,
+        }
+
+        return render(request, self.template_name, {
+            "page_obj":          page_obj,
+            "paginator":         paginator,
+            "is_paginated":      paginator.num_pages > 1,
+            "action_choices":    AuditLog.Action.choices,
+            "module_choices":    MODULE_LABELS,
+            "users":             recent_actors,
+            "filters":           filters,
+            "filter_querystring": filter_querystring,
+            "active_route":      "audit-trail",
+            "topbar_title":      "Journal d'audit",
+            "topbar_subtitle":   "Traçabilité complète des actions système",
+        })
+
+
+class UserProfileView(LoginRequiredMixin, View):
+    """Page Mon Profil — infos en lecture seule + changement de mot de passe auto-service."""
+
+    _TEMPLATE = "profile/profile.html"
+
+    def get(self, request):
+        return render(request, self._TEMPLATE, {
+            "form": ChangeOwnPasswordForm(),
+            "topbar_title": "Mon profil",
+            "topbar_subtitle": "Informations et sécurité",
+        })
+
+    def post(self, request):
+        form = ChangeOwnPasswordForm(request.POST)
+        success = False
+        if form.is_valid():
+            try:
+                services.change_own_password(
+                    user=request.user,
+                    old_password=form.cleaned_data["old_password"],
+                    new_password=form.cleaned_data["new_password"],
+                    request=request,
+                    ip_address=request.META.get("REMOTE_ADDR"),
+                )
+                success = True
+                form = ChangeOwnPasswordForm()
+            except ValidationError as e:
+                _add_validation_errors_to_form(form, e)
+            except Exception:
+                form.add_error(None, "Une erreur interne est survenue. Réessayez.")
+
+        return render(request, self._TEMPLATE, {
+            "form": form,
+            "topbar_title": "Mon profil",
+            "topbar_subtitle": "Informations et sécurité",
+            "success": success,
+        })

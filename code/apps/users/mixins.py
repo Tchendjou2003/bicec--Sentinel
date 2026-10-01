@@ -131,7 +131,7 @@ class WorkflowAccessMixin(LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
         from .models import User
         if request.user.is_authenticated and not (
-            request.user.role in [User.Role.AUDIT, User.Role.DM, User.Role.ETP, User.Role.DG]
+            request.user.role in [User.Role.AUDIT, User.Role.DM, User.Role.ETP, User.Role.DG, User.Role.EXT]
             or request.user.is_superuser
         ):
             raise PermissionDenied("Accès réservé aux acteurs du workflow.")

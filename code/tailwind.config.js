@@ -34,8 +34,8 @@ module.exports = {
         "graphite-fg-strong": "#F3EDE7",
         "graphite-section": "#8A7F78",
         // Surfaces & hairlines complémentaires
-        "surface-sunken": "#F3EFEA",
-        "surface-faint": "#F8F8F5",
+        "surface-sunken": "#ECEEF0",
+        "surface-faint": "#F5F6F7",
         "border-strong": "#D8CBBE",
         // Texte atténué chaud (labels/corps) — centralise les hex jadis en dur
         "text-faint": "#968A80",
@@ -63,9 +63,15 @@ module.exports = {
         "warning-tint": "#FBF1DF",
         "destructive-tint": "#FBEAE7",
         "info-tint": "#E8F0F8",
+        "warning-strong": "#7A5C1A",
+        "warning-border": "#E8C97A",
         "danger": "#C0392B",
         "danger-strong": "#991B1B",
         "danger-tint": "#FBEAE7",
+        "danger-border": "#EAC5BF",
+        "danger-icon-bg": "#FDDDD8",
+        "success-border": "#B2D8C0",
+        "success-icon-bg": "#C8E6D4",
         // ═══ fin tokens DS ═══
 
         // Semantic Statuses (héritées — conservées pour compat ascendante)
@@ -77,7 +83,7 @@ module.exports = {
         "status-closed": "#10B981",
 
         // Surface & Neutrals
-        "surface-base": "#FAF7F4",
+        "surface-base": "#F3F4F6",
         "surface-card": "#FFFFFF",
         "surface-warm": "#F5EDE6",
         "border-subtle": "#E8DFD6",

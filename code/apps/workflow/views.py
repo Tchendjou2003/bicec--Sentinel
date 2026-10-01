@@ -12,13 +12,17 @@ Spécifications couvertes :
     - AC8  : Page Centre de Contrôle
     - AC9  : Modification via stepper prérempli
 """
+import io
 import json
 
 from django.core.exceptions import PermissionDenied, ValidationError as DjangoValidationError
+from django.core.files.storage import default_storage
+from django.db import IntegrityError, transaction
 from django.http import FileResponse, HttpResponse, HttpResponseForbidden
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.views import View
 from django.views.generic import DetailView, ListView
+from django_q.tasks import async_task
 
 from apps.users.mixins import AuditAdminRequiredMixin, AuditRequiredMixin, WorkflowAccessMixin
 from apps.users.models import User
@@ -37,20 +41,57 @@ from .forms import (
     ExtensionRequestForm,
     RecommendationForm,
 )
-from .models import EvidenceFile, EvidenceSubmission, ExtensionRequest, Recommendation, RecommendationSource
+from .import_excel import ImportReport, parse_workbook, validate_rows, build_import_template, get_existing_references
+from .import_historical import (
+    HistoricalImportReport,
+    build_historical_import_template,
+    parse_historical_workbook,
+    parse_zip_members,
+    validate_historical_rows,
+)
+from .models import EvidenceFile, EvidenceSubmission, ExtensionRequest, ImportBatch, Recommendation, RecommendationSource
 
 
 def _get_client_ip(request) -> str | None:
-    """Extrait l'adresse IP du client depuis les headers."""
-    x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-    if x_forwarded:
-        return x_forwarded.split(",")[0].strip()
+    """Extrait l'adresse IP du client.
+
+    Préfère HTTP_X_REAL_IP (positionné par Nginx via $remote_addr — non
+    falsifiable côté client) plutôt que HTTP_X_FORWARDED_FOR dont le
+    premier segment peut être injecté par le client avant le proxy.
+    """
+    x_real_ip = request.META.get("HTTP_X_REAL_IP")
+    if x_real_ip:
+        return x_real_ip.strip()
     return request.META.get("REMOTE_ADDR")
+
+
+def _has_active_import_batch(user) -> bool:
+    """Un seul import (Excel ou historique) actif à la fois par utilisateur.
+
+    Évite le double clic accidentel et la multiplication de tâches lourdes par
+    la même personne, sans imposer de plafond global arbitraire.
+
+    Réconcilie d'abord les lots restés bloqués en PROCESSING (crash du worker
+    Django-Q2) : sans ça, un batch orphelin bloquerait cet utilisateur pour
+    toujours, aucune tâche ne le reprenant jamais.
+    """
+    services.reconcile_stale_processing_batches()
+    return ImportBatch.objects.filter(
+        created_by=user,
+        status__in=[ImportBatch.Status.PENDING, ImportBatch.Status.PROCESSING],
+    ).exists()
+
+
+_ALREADY_ACTIVE_IMPORT_MESSAGE = (
+    "Un import est déjà en cours pour votre compte. "
+    "Attendez sa fin avant d'en lancer un nouveau."
+)
 
 
 def _ensure_not_closed(recommendation) -> None:
     """
-    Garde universel — bloque toute mutation sur une recommandation clôturée (FR20).
+    Garde universel — bloque toute mutation sur une recommandation clôturée (FR20)
+    ou issue d'un import historique (Story 6.8 — lecture seule à vie).
 
     Doit être appelé au début de la méthode ``post`` de toutes les vues mutantes.
     Lève ``ValueError`` qui sera interceptée par le pattern de gestion d'erreur
@@ -58,8 +99,11 @@ def _ensure_not_closed(recommendation) -> None:
 
     Ref. Story 3.8 — AC7.
     """
-    if recommendation.status == Recommendation.Status.CLOSED_RESOLVED:
-        raise ValueError("Dossier clôturé, modification impossible.")
+    if (
+        recommendation.status == Recommendation.Status.CLOSED_RESOLVED
+        or recommendation.import_tag == "IMPORTED"
+    ):
+        raise ValueError("Dossier clôturé ou historique importé, modification impossible.")
 
 
 # =============================================================================
@@ -80,6 +124,19 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
     context_object_name = "recommendations"
     paginate_by = 20
 
+    def dispatch(self, request, *args, **kwargs):
+        from apps.users.models import User
+        from django.shortcuts import redirect
+
+        if request.user.is_authenticated and request.user.role == User.Role.EXT:
+            # Calculé une seule fois, réutilisé dans get_context_data.
+            self._active_missions = selectors.get_active_missions_for_user(
+                user=request.user
+            ).order_by("-start_date")
+            if not self._active_missions.exists():
+                return redirect("workflow:external-waiting")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_queryset(self):
         filters = {
             "source": self.request.GET.get("source"),
@@ -87,11 +144,24 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
             "priority": self.request.GET.get("priority"),
             "q": self.request.GET.get("q"),
             "import_status": self.request.GET.get("import_status", "recent"),
+            "batch": self.request.GET.get("batch"),
         }
         return selectors.get_recommendations_for_user(user=self.request.user, filters=filters)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        from apps.users.models import User
+        if self.request.user.role == User.Role.EXT:
+            active_missions = getattr(self, "_active_missions", None)
+            if active_missions is None:
+                active_missions = selectors.get_active_missions_for_user(
+                    user=self.request.user
+                ).order_by("-start_date")
+            context["active_missions"] = active_missions
+            context["topbar_title"] = "Portail d'Audit Externe"
+            context["topbar_subtitle"] = "Consultation des recommandations et téléchargement des preuves"
+            return context
+
         context["active_route"] = "recommandations"
         context["topbar_title"] = "Recommandations"
         context["topbar_subtitle"] = "Suivi des recommandations d'audit"
@@ -105,9 +175,24 @@ class RecommendationListView(WorkflowAccessMixin, ListView):
         context["current_priority"] = self.request.GET.get("priority", "")
         context["current_search"] = self.request.GET.get("q", "")
         context["current_import_status"] = self.request.GET.get("import_status", "recent")
+        # Filtre lot d'import (Story 6.5)
+        batch_id = self.request.GET.get("batch")
+        context["current_batch"] = batch_id
+        if batch_id:
+            from .models import ImportBatch
+            try:
+                context["import_batch"] = ImportBatch.objects.get(pk=batch_id)
+            except (ImportBatch.DoesNotExist, Exception):
+                context["import_batch"] = None
         return context
 
     def get_template_names(self):
+        from apps.users.models import User
+        if self.request.user.role == User.Role.EXT:
+            if self.request.headers.get("HX-Request"):
+                return ["workflow/external/partials/recommendation_table_ext.html"]
+            return ["workflow/external/external_portal.html"]
+
         if self.request.headers.get("HX-Request"):
             return ["workflow/partials/recommendation_table.html"]
         return [self.template_name]
@@ -262,6 +347,12 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
 
     template_name = "workflow/recommendation_detail.html"
     context_object_name = "recommendation"
+
+    def get_template_names(self):
+        from apps.users.models import User
+        if self.request.user.role == User.Role.EXT:
+            return ["workflow/external/external_recommendation_detail.html"]
+        return [self.template_name]
 
     def get_object(self, queryset=None):
         return selectors.get_recommendation_detail_for_user(
@@ -430,7 +521,18 @@ class RecommendationDetailView(WorkflowAccessMixin, DetailView):
         context["hmac_seal"] = hmac_seal
         if hmac_seal is not None:
             from apps.audit.services import verify_recommendation_seal
-            context["seal_valid"] = verify_recommendation_seal(rec)
+            seal_valid = verify_recommendation_seal(rec)
+            context["seal_valid"] = seal_valid
+            if not seal_valid:
+                # La détection (AuditLog + notifications urgentes) est enqueuée
+                # plutôt qu'exécutée ici : un GET ne doit pas porter d'écriture
+                # bloquante comme simple effet de bord du rendu de la page.
+                async_task(
+                    "apps.audit.services.run_tamper_detection_task",
+                    recommendation_id=str(rec.pk),
+                    detected_by_id=self.request.user.pk,
+                    ip_address=self.request.META.get("REMOTE_ADDR"),
+                )
         else:
             context["seal_valid"] = None
 
@@ -2297,3 +2399,393 @@ class RecommendationSourceToggleView(AuditAdminRequiredMixin, View):
         response["HX-Refresh"] = "true"
         return response
 
+
+# =============================================================================
+# Import Excel massif de recommandations (Story 6.5 — FR7)
+# =============================================================================
+
+
+class ImportTemplateDownloadView(AuditRequiredMixin, View):
+    """
+    Téléchargement du modèle Excel généré dynamiquement (AC1).
+
+    Le fichier est généré à chaque clic depuis la base (sources et directions
+    actives au moment du téléchargement). Jamais un fichier figé.
+    """
+
+    def get(self, request):
+        wb = build_import_template()
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        response = HttpResponse(
+            buf.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = (
+            'attachment; filename="modele-import-recommandations.xlsx"'
+        )
+        return response
+
+
+class RecommendationImportView(AuditRequiredMixin, View):
+    """
+    Page d'import Excel — upload et prévisualisation (AC2, AC3, AC4, AC7).
+
+    GET  → Page pleine largeur avec dropzone et stepper.
+    POST → Endpoint HTMX preview : parse + validate → partial import_preview.html.
+           Rien n'est créé. Le fichier reste sélectionné côté client (form stateless).
+    """
+
+    def get(self, request):
+        return render(request, "workflow/recommendation_import.html", {
+            "active_route": "recommandations",
+            "topbar_title": "Import Excel",
+            "topbar_subtitle": "Import massif de recommandations",
+        })
+
+    def post(self, request):
+        uploaded_file = request.FILES.get("import_file")
+        if not uploaded_file:
+            return render(request, "workflow/partials/import_preview.html", {
+                "format_error": "Aucun fichier sélectionné.",
+                "report": None,
+            })
+
+        try:
+            rows = parse_workbook(uploaded_file)
+        except DjangoValidationError as exc:
+            return render(request, "workflow/partials/import_preview.html", {
+                "format_error": exc.message if hasattr(exc, "message") else str(exc),
+                "report": None,
+            })
+
+        existing_refs = get_existing_references(rows)
+        report = validate_rows(rows, existing_refs=existing_refs)
+
+        return render(request, "workflow/partials/import_preview.html", {
+            "report": report,
+            "format_error": None,
+            "file_name": uploaded_file.name,
+        })
+
+
+class RecommendationImportConfirmView(AuditRequiredMixin, View):
+    """
+    Confirmation de l'import — enqueue le traitement asynchrone (Django-Q2).
+
+    POST → Re-reçoit le même fichier (form multipart stateless, Piège 4).
+    Re-parse + re-valide en synchrone (rapide, protège tôt) puis délègue la
+    création réelle (boucle + AuditLog par ligne) à une tâche Django-Q2 pour
+    éviter de bloquer le worker Gunicorn sur un lot volumineux.
+    Succès → écran « import en cours » avec polling de statut.
+    Erreur → message dédié (fichier invalide, import déjà en cours).
+    """
+
+    def post(self, request):
+        uploaded_file = request.FILES.get("import_file")
+        if not uploaded_file:
+            return render(request, "workflow/partials/import_preview.html", {
+                "format_error": "Aucun fichier reçu à la confirmation.",
+                "report": None,
+            })
+
+        if _has_active_import_batch(request.user):
+            return render(request, "workflow/partials/import_preview.html", {
+                "confirm_error": _ALREADY_ACTIVE_IMPORT_MESSAGE,
+                "report": None,
+                "format_error": None,
+            })
+
+        try:
+            rows = parse_workbook(uploaded_file)
+        except DjangoValidationError as exc:
+            return render(request, "workflow/partials/import_preview.html", {
+                "format_error": exc.message if hasattr(exc, "message") else str(exc),
+                "report": None,
+            })
+
+        existing_refs = get_existing_references(rows)
+        report = validate_rows(rows, existing_refs=existing_refs)
+        if report.errors_by_row:
+            return render(request, "workflow/partials/import_preview.html", {
+                "confirm_error": (
+                    "La validation a échoué — corrigez le fichier et réessayez."
+                ),
+                "report": report,
+                "format_error": None,
+            })
+
+        uploaded_file.seek(0)
+        try:
+            # Le garde _has_active_import_batch ci-dessus est un check-then-act
+            # non atomique (double clic, requête dupliquée) : la contrainte
+            # d'unicité DB (uniq_active_import_batch_per_user) est le vrai
+            # garde-fou, celui-ci n'est qu'un filtre rapide pour l'UX normale.
+            # Le savepoint (atomic imbriqué) est nécessaire : sans lui,
+            # l'IntegrityError laisserait la transaction englobante inutilisable.
+            with transaction.atomic():
+                batch = ImportBatch.objects.create(
+                    source_file=uploaded_file,
+                    file_name=uploaded_file.name,
+                    created_by=request.user,
+                    recommendation_count=len(report.valid_rows),
+                    total_rows=len(report.valid_rows),
+                    kind=ImportBatch.Kind.EXCEL,
+                    status=ImportBatch.Status.PENDING,
+                )
+        except IntegrityError:
+            return render(request, "workflow/partials/import_preview.html", {
+                "confirm_error": _ALREADY_ACTIVE_IMPORT_MESSAGE,
+                "report": None,
+                "format_error": None,
+            })
+        async_task(
+            "apps.workflow.import_excel.run_recommendations_import_task",
+            batch_id=str(batch.pk),
+            performed_by_id=request.user.pk,
+            ip_address=_get_client_ip(request),
+        )
+
+        return render(request, "workflow/partials/import_pending.html", {
+            "batch": batch,
+        })
+
+
+# ── Import Historique (Story 6.8 — FR-HIST-01) ───────────────────────────────
+
+_HISTORICAL_PROVENANCE_CHOICES = [
+    ("Archives papier numérisées", "Archives papier numérisées"),
+    ("Ancien Excel de suivi", "Ancien Excel de suivi"),
+    ("Ancien logiciel GRC", "Ancien logiciel GRC"),
+    ("Autres", "Autres"),
+]
+
+
+class HistoricalImportTemplateDownloadView(AuditRequiredMixin, View):
+    """Téléchargement du modèle Excel historique généré dynamiquement (Story 6.8)."""
+
+    def get(self, request):
+        wb = build_historical_import_template()
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        response = HttpResponse(
+            buf.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = (
+            'attachment; filename="modele-import-historique.xlsx"'
+        )
+        return response
+
+
+class HistoricalImportView(AuditRequiredMixin, View):
+    """
+    Import historique — upload et prévisualisation (Story 6.8).
+
+    GET  → Page wizard 4 étapes.
+    POST → Endpoint HTMX preview : parse Excel + ZIP optionnel, validation pure.
+           Rien n'est créé — le partial retourne le rapport.
+    """
+
+    def get(self, request):
+        return render(request, "workflow/historical_import.html", {
+            "active_route": "import-historique",
+            "topbar_title": "Import Historique",
+            "topbar_subtitle": "Import de recommandations clôturées depuis les archives",
+            "provenance_choices": _HISTORICAL_PROVENANCE_CHOICES,
+        })
+
+    def post(self, request):
+        uploaded_file = request.FILES.get("import_file")
+        zip_file = request.FILES.get("zip_file")
+
+        if not uploaded_file:
+            return render(request, "workflow/partials/historical_import_preview.html", {
+                "format_error": "Aucun fichier Excel sélectionné.",
+                "report": None,
+            })
+
+        try:
+            rows = parse_historical_workbook(uploaded_file)
+        except DjangoValidationError as exc:
+            return render(request, "workflow/partials/historical_import_preview.html", {
+                "format_error": exc.message if hasattr(exc, "message") else str(exc),
+                "report": None,
+            })
+
+        zip_entries = None
+        zip_error = ""
+        if zip_file:
+            try:
+                zip_entries = parse_zip_members(zip_file)
+            except DjangoValidationError as exc:
+                zip_error = exc.message if hasattr(exc, "message") else str(exc)
+
+        report = validate_historical_rows(rows, zip_entries)
+        report.zip_format_error = zip_error
+
+        return render(request, "workflow/partials/historical_import_preview.html", {
+            "report": report,
+            "format_error": None,
+            "file_name": uploaded_file.name,
+            "zip_name": zip_file.name if zip_file else "",
+        })
+
+
+class HistoricalImportConfirmView(AuditRequiredMixin, View):
+    """
+    Confirmation de l'import historique — enqueue le traitement asynchrone (Django-Q2).
+
+    POST → Re-reçoit les mêmes fichiers (pattern stateless — même que 6.5).
+    Re-parse + re-valide en synchrone (rapide, protège tôt) puis délègue la
+    création réelle (boucle + preuves ZIP + sceau HMAC par ligne) à une tâche
+    Django-Q2 — un lot de 500 lignes + ZIP volumineux pourrait sinon dépasser
+    le timeout Gunicorn et saturer la mémoire du conteneur web.
+    Succès → partial import_pending.html (polling de statut).
+    """
+
+    def post(self, request):
+        uploaded_file = request.FILES.get("import_file")
+        zip_file = request.FILES.get("zip_file")
+        provenance = request.POST.get("provenance", "").strip()
+
+        if not uploaded_file:
+            return render(request, "workflow/partials/historical_import_preview.html", {
+                "format_error": "Aucun fichier reçu à la confirmation.",
+                "report": None,
+            })
+
+        if _has_active_import_batch(request.user):
+            return render(request, "workflow/partials/historical_import_preview.html", {
+                "confirm_error": _ALREADY_ACTIVE_IMPORT_MESSAGE,
+                "report": None,
+                "format_error": None,
+            })
+
+        try:
+            rows = parse_historical_workbook(uploaded_file)
+        except DjangoValidationError as exc:
+            return render(request, "workflow/partials/historical_import_preview.html", {
+                "format_error": exc.message if hasattr(exc, "message") else str(exc),
+                "report": None,
+            })
+
+        zip_entries = None
+        if zip_file:
+            try:
+                zip_entries = parse_zip_members(zip_file)
+            except DjangoValidationError as exc:
+                error_msg = exc.message if hasattr(exc, "message") else str(exc)
+                return render(request, "workflow/partials/historical_import_preview.html", {
+                    "format_error": error_msg,
+                    "report": None,
+                })
+
+        report = validate_historical_rows(rows, zip_entries)
+        if report.errors_by_row:
+            return render(request, "workflow/partials/historical_import_preview.html", {
+                "confirm_error": (
+                    "La validation a échoué — corrigez le fichier et réessayez."
+                ),
+                "report": report,
+                "format_error": None,
+            })
+
+        uploaded_file.seek(0)
+        try:
+            # Le garde _has_active_import_batch ci-dessus est un check-then-act
+            # non atomique (double clic, requête dupliquée) : la contrainte
+            # d'unicité DB (uniq_active_import_batch_per_user) est le vrai
+            # garde-fou, celui-ci n'est qu'un filtre rapide pour l'UX normale.
+            # Le savepoint (atomic imbriqué) est nécessaire : sans lui,
+            # l'IntegrityError laisserait la transaction englobante inutilisable.
+            with transaction.atomic():
+                batch = ImportBatch.objects.create(
+                    source_file=uploaded_file,
+                    file_name=uploaded_file.name,
+                    created_by=request.user,
+                    recommendation_count=len(report.valid_rows),
+                    total_rows=len(report.valid_rows),
+                    kind=ImportBatch.Kind.HISTORICAL,
+                    status=ImportBatch.Status.PENDING,
+                )
+        except IntegrityError:
+            return render(request, "workflow/partials/historical_import_preview.html", {
+                "confirm_error": _ALREADY_ACTIVE_IMPORT_MESSAGE,
+                "report": None,
+                "format_error": None,
+            })
+
+        # Le ZIP brut (non re-décompressé ici) est sauvegardé sur le volume media
+        # partagé — les zip_entries en mémoire ne sont pas sérialisables pour la
+        # tâche async ; celle-ci relit et re-décompresse depuis ce chemin.
+        zip_storage_path = None
+        if zip_file:
+            zip_file.seek(0)
+            zip_storage_path = default_storage.save(f"imports/zip/{batch.pk}.zip", zip_file)
+
+        async_task(
+            "apps.workflow.import_historical.run_historical_import_task",
+            batch_id=str(batch.pk),
+            performed_by_id=request.user.pk,
+            provenance=provenance,
+            zip_storage_path=zip_storage_path,
+            ip_address=_get_client_ip(request),
+        )
+
+        return render(request, "workflow/partials/import_pending.html", {
+            "batch": batch,
+            "is_historical": True,
+        })
+
+
+class ImportBatchStatusView(AuditRequiredMixin, View):
+    """
+    Endpoint HTMX de polling — renvoie le partial correspondant au statut
+    courant du lot d'import (PENDING/PROCESSING → suivi ; DONE → succès ;
+    FAILED/CANCELLED → erreur). Restreint à l'auteur du lot (pas de fuite
+    d'information inter-auditeurs).
+    """
+
+    def get(self, request, pk):
+        batch = get_object_or_404(ImportBatch, pk=pk, created_by=request.user)
+        if batch.status in (ImportBatch.Status.PENDING, ImportBatch.Status.PROCESSING):
+            try:
+                poll_count = int(request.GET.get("poll", 0))
+            except ValueError:
+                poll_count = 0
+            return render(request, "workflow/partials/import_pending.html", {
+                "batch": batch,
+                "is_historical": batch.kind == ImportBatch.Kind.HISTORICAL,
+                "poll_count": poll_count,
+            })
+        if batch.status in (ImportBatch.Status.FAILED, ImportBatch.Status.CANCELLED):
+            return render(request, "workflow/partials/import_error.html", {"batch": batch})
+        return render(request, "workflow/partials/import_success.html", {
+            "batch": batch,
+            "is_historical": batch.kind == ImportBatch.Kind.HISTORICAL,
+        })
+
+
+class ImportBatchCancelView(AuditRequiredMixin, View):
+    """
+    Annule un lot d'import tant qu'il n'a pas commencé à être traité.
+
+    Si la tâche Django-Q2 démarre après l'annulation, elle constate que le
+    statut n'est plus PENDING (voir run_*_import_task) et sort sans rien créer.
+    """
+
+    def post(self, request, pk):
+        batch = get_object_or_404(ImportBatch, pk=pk, created_by=request.user)
+        updated = ImportBatch.objects.filter(
+            pk=batch.pk, status=ImportBatch.Status.PENDING
+        ).update(status=ImportBatch.Status.CANCELLED)
+        if not updated:
+            return HttpResponse(
+                "Cet import a déjà démarré ou est terminé — annulation impossible.",
+                status=409,
+            )
+        batch.refresh_from_db()
+        return render(request, "workflow/partials/import_error.html", {"batch": batch})

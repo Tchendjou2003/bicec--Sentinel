@@ -1,0 +1,46 @@
+{# Modale de confirmation de désactivation (Story 8.x) #}
+<div
+  class="fixed inset-0 z-[200] flex items-center justify-center"
+  x-data
+  @keydown.escape.window="$el.remove()"
+>
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="$el.closest('.fixed').remove()"></div>
+
+  <div class="relative z-10 w-full max-w-sm mx-4 bg-surface-card rounded-xl shadow-premium-lg border border-border-subtle animate-slide-up"
+       role="dialog" aria-modal="true">
+
+    <div class="px-6 pt-6 pb-4 text-center">
+      <div class="flex h-12 w-12 items-center justify-center rounded-full bg-danger-tint text-danger mx-auto mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </div>
+      <h2 class="text-base font-semibold text-text-primary font-heading">Désactiver ce compte ?</h2>
+      <p class="text-sm text-text-muted mt-1">
+        Le compte <span class="font-medium text-text-primary">{{ target_user.get_full_name|default:target_user.username }}</span>
+        (<code class="text-xs bg-surface-warm px-1 rounded">{{ target_user.username }}</code>)
+        sera immédiatement désactivé et toutes ses sessions actives seront invalidées.
+      </p>
+    </div>
+
+    <div class="flex items-center gap-3 px-6 pb-6">
+      <button
+        type="button"
+        @click="$el.closest('.fixed').remove()"
+        class="btn btn-secondary flex-1"
+      >
+        Annuler
+      </button>
+      <button
+        type="button"
+        hx-post="{% url 'auth:user-deactivate' target_user.pk %}"
+        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+        hx-target="#action-modal-container"
+        hx-swap="innerHTML"
+        hx-disabled-elt="this"
+        @click="$el.closest('.fixed').remove()"
+        class="btn btn-danger flex-1"
+      >
+        Désactiver
+      </button>
+    </div>
+  </div>
+</div>

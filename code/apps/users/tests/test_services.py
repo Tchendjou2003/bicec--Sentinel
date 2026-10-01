@@ -1,20 +1,30 @@
 """
 Users App — Tests Services (Convention HackSoft)
 
-Vérifie la couche service d'habilitation : assign_role et toggle_audit_admin.
-Chaque test valide un comportement métier unique (ADR-10, FR3, FR36).
+Vérifie la couche service d'habilitation : assign_role, toggle_audit_admin,
+et la délégation horodatée du flag is_audit_admin (FR36).
 
 Note Story 6.2.0 : assign_role utilise désormais user_is_provisioning_approver
 (appartenance au groupe « Administrateurs Sentinel ») comme garde d'autorisation.
 Les tests sont adaptés en conséquence.
 """
+from datetime import date, timedelta
+
 from django.contrib.auth.models import Group
 from django.core.exceptions import PermissionDenied
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.audit.models import AuditLog
-from apps.users.models import Department, OrgUnitType, User
-from apps.users.services import assign_role, toggle_audit_admin
+from apps.notifications.models import Notification
+from apps.users.models import AuditAdminDelegation, Department, OrgUnitType, User
+from apps.users.services import (
+    assign_role,
+    delegate_audit_admin_timed,
+    revoke_audit_admin_delegation,
+    run_nightly_delegation_expiry_check,
+    toggle_audit_admin,
+)
 
 
 def _get_or_create_approvers_group():
@@ -190,3 +200,213 @@ class ToggleAuditAdminServiceTest(TestCase):
                 grant=True,
                 performed_by=self.audit_admin,
             )
+
+
+class TimedDelegationTest(TestCase):
+    """Tests de la délégation horodatée du flag is_audit_admin (FR36)."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="dir_audit_timed", password="testpass123",
+            role=User.Role.AUDIT, is_audit_admin=True,
+        )
+        self.auditor = User.objects.create_user(
+            username="auditeur_delegue", password="testpass123",
+            role=User.Role.AUDIT, is_audit_admin=False,
+        )
+        self.tomorrow = date.today() + timedelta(days=1)
+
+    # ── Création de délégation ────────────────────────────────────────────────
+
+    def test_delegate_creates_delegation_record(self):
+        """La délégation est persistée en base."""
+        delegate_audit_admin_timed(
+            delegated_to=self.auditor,
+            valid_until=self.tomorrow,
+            performed_by=self.admin,
+        )
+        self.assertEqual(AuditAdminDelegation.objects.filter(delegated_to=self.auditor).count(), 1)
+
+    def test_delegate_logs_privilege_grant(self):
+        """Un AuditLog PRIVILEGE_GRANT est créé."""
+        delegate_audit_admin_timed(
+            delegated_to=self.auditor,
+            valid_until=self.tomorrow,
+            performed_by=self.admin,
+        )
+        log = AuditLog.objects.filter(
+            action=AuditLog.Action.PRIVILEGE_GRANT,
+            object_id=self.auditor.pk,
+        ).first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.user, self.admin)
+
+    def test_delegate_notifies_delegatee(self):
+        """Le bénéficiaire reçoit une notification PRIVILEGE_ALERT."""
+        delegate_audit_admin_timed(
+            delegated_to=self.auditor,
+            valid_until=self.tomorrow,
+            performed_by=self.admin,
+        )
+        notif = Notification.objects.filter(
+            recipient=self.auditor,
+            notification_type=Notification.Type.PRIVILEGE_ALERT,
+        ).first()
+        self.assertIsNotNone(notif)
+
+    def test_delegate_grants_can_manage_users(self):
+        """Après délégation, can_manage_users retourne True pour le bénéficiaire."""
+        delegate_audit_admin_timed(
+            delegated_to=self.auditor,
+            valid_until=self.tomorrow,
+            performed_by=self.admin,
+        )
+        fresh = User.objects.get(pk=self.auditor.pk)
+        self.assertTrue(fresh.can_manage_users)
+
+    # ── Guards de validation ──────────────────────────────────────────────────
+
+    def test_delegate_self_raises(self):
+        """Un admin ne peut pas se déléguer le flag à lui-même."""
+        with self.assertRaises(ValueError):
+            delegate_audit_admin_timed(
+                delegated_to=self.admin,
+                valid_until=self.tomorrow,
+                performed_by=self.admin,
+            )
+
+    def test_delegate_non_audit_raises(self):
+        """La délégation est refusée pour un utilisateur non-AUDIT."""
+        dm = User.objects.create_user(
+            username="dm_delegate", password="testpass123",
+            role=User.Role.DM,
+        )
+        with self.assertRaises(ValueError):
+            delegate_audit_admin_timed(
+                delegated_to=dm,
+                valid_until=self.tomorrow,
+                performed_by=self.admin,
+            )
+
+    def test_delegate_past_date_raises(self):
+        """Une date de fin dans le passé est refusée."""
+        yesterday = date.today() - timedelta(days=1)
+        with self.assertRaises(ValueError):
+            delegate_audit_admin_timed(
+                delegated_to=self.auditor,
+                valid_until=yesterday,
+                performed_by=self.admin,
+            )
+
+    def test_delegate_duplicate_active_raises(self):
+        """Créer une seconde délégation active pour le même auditeur est refusé."""
+        delegate_audit_admin_timed(
+            delegated_to=self.auditor,
+            valid_until=self.tomorrow,
+            performed_by=self.admin,
+        )
+        with self.assertRaises(ValueError):
+            delegate_audit_admin_timed(
+                delegated_to=self.auditor,
+                valid_until=self.tomorrow + timedelta(days=5),
+                performed_by=self.admin,
+            )
+
+    def test_delegate_par_un_delegue_est_refuse(self):
+        """Un admin délégué (non permanent) ne peut pas créer de sous-délégation :
+        il ne pourrait pas la révoquer lui-même (revoke exige is_audit_admin),
+        et rien ne bornerait sa durée à sa propre échéance."""
+        delegate_audit_admin_timed(
+            delegated_to=self.auditor,
+            valid_until=self.tomorrow,
+            performed_by=self.admin,
+        )
+        fresh_auditor = User.objects.get(pk=self.auditor.pk)
+        self.assertTrue(fresh_auditor.can_manage_users)
+        self.assertFalse(fresh_auditor.is_audit_admin)
+
+        other_auditor = User.objects.create_user(
+            username="autre_auditeur", password="testpass123",
+            role=User.Role.AUDIT, is_audit_admin=False,
+        )
+        with self.assertRaises(PermissionDenied):
+            delegate_audit_admin_timed(
+                delegated_to=other_auditor,
+                valid_until=self.tomorrow,
+                performed_by=fresh_auditor,
+            )
+
+    # ── Révocation manuelle ───────────────────────────────────────────────────
+
+    def test_revoke_logs_privilege_revoke(self):
+        """La révocation crée un AuditLog PRIVILEGE_REVOKE."""
+        delegation = delegate_audit_admin_timed(
+            delegated_to=self.auditor,
+            valid_until=self.tomorrow,
+            performed_by=self.admin,
+        )
+        revoke_audit_admin_delegation(delegation=delegation, revoked_by=self.admin)
+        log = AuditLog.objects.filter(
+            action=AuditLog.Action.PRIVILEGE_REVOKE,
+            object_id=self.auditor.pk,
+            changes__revoked_early=True,
+        ).first()
+        self.assertIsNotNone(log)
+
+    def test_revoke_removes_can_manage_users(self):
+        """Après révocation, can_manage_users retourne False."""
+        delegation = delegate_audit_admin_timed(
+            delegated_to=self.auditor,
+            valid_until=self.tomorrow,
+            performed_by=self.admin,
+        )
+        revoke_audit_admin_delegation(delegation=delegation, revoked_by=self.admin)
+        fresh = User.objects.get(pk=self.auditor.pk)
+        self.assertFalse(fresh.can_manage_users)
+
+    def test_revoke_already_revoked_raises(self):
+        """Révoquer une délégation déjà révoquée lève ValueError."""
+        delegation = delegate_audit_admin_timed(
+            delegated_to=self.auditor,
+            valid_until=self.tomorrow,
+            performed_by=self.admin,
+        )
+        revoke_audit_admin_delegation(delegation=delegation, revoked_by=self.admin)
+        with self.assertRaises(ValueError):
+            revoke_audit_admin_delegation(delegation=delegation, revoked_by=self.admin)
+
+    # ── Expiration automatique ────────────────────────────────────────────────
+
+    def test_expired_delegation_no_can_manage_users(self):
+        """Une délégation expirée (valid_until < today) ne donne plus can_manage_users."""
+        yesterday = date.today() - timedelta(days=1)
+        AuditAdminDelegation.objects.create(
+            delegated_to=self.auditor,
+            delegated_by=self.admin,
+            valid_until=yesterday,
+        )
+        fresh = User.objects.get(pk=self.auditor.pk)
+        self.assertFalse(fresh.can_manage_users)
+
+    def test_nightly_expiry_logs_and_notifies(self):
+        """Le CRON trace l'expiration et notifie le bénéficiaire."""
+        yesterday = date.today() - timedelta(days=1)
+        AuditAdminDelegation.objects.create(
+            delegated_to=self.auditor,
+            delegated_by=self.admin,
+            valid_until=yesterday,
+        )
+        result = run_nightly_delegation_expiry_check()
+        self.assertEqual(result["expired"], 1)
+        log = AuditLog.objects.filter(
+            action=AuditLog.Action.PRIVILEGE_REVOKE,
+            object_id=self.auditor.pk,
+            changes__expired=True,
+        ).first()
+        self.assertIsNotNone(log)
+        self.assertIsNone(log.user)
+        notif = Notification.objects.filter(
+            recipient=self.auditor,
+            notification_type=Notification.Type.PRIVILEGE_ALERT,
+        ).first()
+        self.assertIsNotNone(notif)

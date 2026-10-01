@@ -178,7 +178,7 @@
       <table class="min-w-full divide-y divide-gray-100 text-sm">
         <thead class="bg-gray-50/60">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Direction</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Direction / Région</th>
             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actives</th>
             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">En retard</th>
             <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Critiques</th>
@@ -190,7 +190,7 @@
           {% for d in dept_breakdown %}
           <tr class="transition-colors hover:bg-gray-50/50
             {% if d.risk_level == 'CRITIQUE' %}bg-red-50/30{% elif d.risk_level == 'MODERE' %}bg-orange-50/20{% endif %}">
-            <td class="px-6 py-3.5 font-medium text-gray-900">{% include "components/org_unit_badge.html" with department=d.department %}</td>
+            <td class="px-6 py-3.5 font-medium text-gray-900">{% if d.is_direct %}<span class="inline-flex items-center gap-1.5 italic text-text-faint" title="Recommandations rattachées directement au sommet, sans direction métier">{{ d.label }}</span>{% else %}{% include "components/org_unit_badge.html" with department=d.department %}{% endif %}</td>
             <td class="px-4 py-3.5 text-right tabular-nums text-gray-700">{{ d.actives }}</td>
             <td class="px-4 py-3.5 text-right tabular-nums">
               {% if d.overdue > 0 %}<span class="font-semibold text-red-600">{{ d.overdue }}</span>
@@ -232,7 +232,290 @@
   </div>
 </div>
 
-{# ── Section 5 : Performance Audit (auto-évaluation) ── #}
+{# ── Section 5 : Efficacité du dispositif ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white shadow-premium-sm">
+    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-2 w-2 rounded-full bg-info"></span>
+        <h3 class="text-sm font-bold text-gray-800">Efficacité du dispositif</h3>
+      </div>
+      {% if efficiency.total_closed > 0 %}
+      <span class="text-xs text-gray-400">Base : {{ efficiency.total_closed }} recos clôturées</span>
+      {% endif %}
+    </div>
+
+    {# Cartes KPI efficacité #}
+    <div class="grid grid-cols-2 gap-4 p-6 sm:grid-cols-3 xl:grid-cols-5">
+      {% with v=efficiency.on_time_strict|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="On-time strict" value=v accent="success" %}
+      {% endwith %}
+      {% with v=efficiency.on_time_tolerant|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="On-time tolérant" value=v accent="info" %}
+      {% endwith %}
+      {% with v=efficiency.ecart_on_time|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="Écart pression" value=v accent="warning" %}
+      {% endwith %}
+      {% with v=efficiency.taux_reprise_dm|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="Reprise DM %" value=v accent="warning" %}
+      {% endwith %}
+      {% with v=efficiency.taux_reprise_audit|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="Reprise Audit %" value=v accent="destructive" %}
+      {% endwith %}
+    </div>
+
+    {# Délais médians par criticité #}
+    {% if efficiency.lead_time %}
+    <div class="border-t border-gray-100 px-6 py-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Délai médian de remédiation (jours)</p>
+      <div class="flex flex-wrap gap-3">
+        {% for priority, days in efficiency.lead_time.items %}
+        <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold
+          {% if priority == 'CRITIQUE' %}bg-red-100 text-red-700
+          {% elif priority == 'HAUTE' %}bg-orange-100 text-orange-700
+          {% elif priority == 'MOYENNE' %}bg-yellow-100 text-yellow-700
+          {% else %}bg-gray-100 text-gray-600{% endif %}">
+          {{ priority|capfirst }} — {{ days|floatformat:0 }} j
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# Courbe de flux mensuel #}
+    <div class="border-t border-gray-100 px-6 pb-6 pt-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Flux mensuel — 12 derniers mois</p>
+      <div style="height: 260px;">
+        {% include "dashboards/partials/line_chart.html" with chart_id="audit-throughput" chart_data_json=throughput_json %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Section 6 : Risques émergents (KRI) ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white shadow-premium-sm">
+    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-2 w-2 rounded-full bg-destructive"></span>
+        <h3 class="text-sm font-bold text-gray-800">Risques émergents</h3>
+      </div>
+      <span class="text-xs text-gray-400">Base : {{ risk_kris.total_actives }} recos actives</span>
+    </div>
+
+    {# Cartes KRI #}
+    <div class="grid grid-cols-2 gap-4 p-6 sm:grid-cols-3 xl:grid-cols-6">
+      {% include "components/kpi_card.html" with title="Retard 0-30j" value=risk_kris.aging_buckets.overdue_0_30 accent="warning" %}
+      {% include "components/kpi_card.html" with title="Retard 30-90j" value=risk_kris.aging_buckets.overdue_30_90 accent="warning" %}
+      {% include "components/kpi_card.html" with title="Retard +90j" value=risk_kris.aging_buckets.overdue_90_plus accent="destructive" %}
+      {% include "components/kpi_card.html" with title="Stock régl. pondéré" value=risk_kris.regulatory_stock accent="destructive" %}
+      {% include "components/kpi_card.html" with title="Vieillissement régl." value=risk_kris.regulatory_aging accent="destructive" %}
+      {% with v=risk_kris.taux_glissement|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="Glissement %" value=v accent="warning" %}
+      {% endwith %}
+    </div>
+
+    {% if risk_kris.with_approved_ext > 0 %}
+    <div class="border-t border-gray-100 px-6 py-3">
+      <p class="text-xs text-gray-500">
+        {{ risk_kris.with_approved_ext }} reco{{ risk_kris.with_approved_ext|pluralize }} ont subi au moins un report approuvé —
+        dérive moyenne <span class="font-semibold tabular-nums">{{ risk_kris.derive_moyenne }} j</span>.
+      </p>
+    </div>
+    {% endif %}
+
+    {# Courbe d'évolution KRI — 6 derniers mois #}
+    <div class="border-t border-gray-100 px-6 pb-2 pt-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Tendance KRI — 6 derniers mois</p>
+      <div style="height: 220px;">
+        {% include "dashboards/partials/risk_trend_chart.html" with chart_id="audit-risk-trend" chart_data_json=risk_trend_json %}
+      </div>
+    </div>
+
+    {# À risque de bascule #}
+    <div class="border-t border-gray-100 px-6 py-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">À risque de bascule — échéance ≤30j, progression &lt;50%</p>
+      {% if at_risk_recos %}
+      <div class="overflow-x-auto rounded-lg border border-orange-100">
+        <table class="min-w-full divide-y divide-gray-100 text-sm">
+          <thead class="bg-orange-50/40">
+            <tr>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Référence</th>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Direction</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Échéance</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Avancement</th>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Criticité</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 bg-white">
+            {% for r in at_risk_recos %}
+            <tr class="hover:bg-orange-50/20 transition-colors">
+              <td class="px-4 py-2.5">
+                <a href="{% url 'workflow:recommendation-detail' r.pk %}" class="font-medium text-gray-900 hover:text-sentinel-orange hover:underline transition-colors">{{ r.reference }}</a>
+              </td>
+              <td class="px-4 py-2.5 text-xs text-gray-600">{{ r.department.name|default:"—" }}</td>
+              <td class="px-4 py-2.5 text-right tabular-nums font-medium text-orange-600">{{ r.due_date|date:"d/m/Y" }}</td>
+              <td class="px-4 py-2.5 text-right tabular-nums text-gray-600 text-xs">
+                {% if r.deliverables_total > 0 %}{{ r.deliverables_done }}/{{ r.deliverables_total }}{% else %}—{% endif %}
+              </td>
+              <td class="px-4 py-2.5">{% include "components/priority_badge.html" with priority=r.priority label=r.get_priority_display %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-xs text-gray-400 py-4 text-center">Aucune recommandation à risque de bascule.</p>
+      {% endif %}
+    </div>
+
+    {# Enlisement #}
+    <div class="border-t border-gray-100 px-6 pb-6 pt-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Enlisement — ≥2 reports OU critique sans activité 30j</p>
+      {% if stuck_recos %}
+      <div class="overflow-x-auto rounded-lg border border-red-100">
+        <table class="min-w-full divide-y divide-gray-100 text-sm">
+          <thead class="bg-red-50/40">
+            <tr>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Référence</th>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Direction</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Échéance</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Reports</th>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Criticité</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 bg-white">
+            {% for r in stuck_recos %}
+            <tr class="hover:bg-red-50/20 transition-colors">
+              <td class="px-4 py-2.5">
+                <a href="{% url 'workflow:recommendation-detail' r.pk %}" class="font-medium text-gray-900 hover:text-sentinel-orange hover:underline transition-colors">{{ r.reference }}</a>
+              </td>
+              <td class="px-4 py-2.5 text-xs text-gray-600">{{ r.department.name|default:"—" }}</td>
+              <td class="px-4 py-2.5 text-right tabular-nums font-medium {% if r.is_overdue %}text-red-600{% else %}text-gray-700{% endif %}">{{ r.due_date|date:"d/m/Y" }}</td>
+              <td class="px-4 py-2.5 text-right tabular-nums text-gray-600">{{ r.approved_extensions }}</td>
+              <td class="px-4 py-2.5">{% include "components/priority_badge.html" with priority=r.priority label=r.get_priority_display %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-xs text-gray-400 py-4 text-center">Aucune recommandation enlisée.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ── Section 7 : Reddition gouvernance ── #}
+<div class="mb-8">
+  <div class="rounded-xl border border-gray-100 bg-white shadow-premium-sm">
+    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <h3 class="text-sm font-bold text-gray-800">Reddition — Gouvernance du dispositif</h3>
+      <a href="{% url 'dashboards:export-reddition' %}"
+         class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:border-sentinel-orange hover:text-sentinel-orange transition-colors">
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        Exporter Excel
+      </a>
+    </div>
+
+    {# Couverture de scellement + indicateurs d'efficacité #}
+    <div class="grid grid-cols-2 gap-4 p-6 sm:grid-cols-4">
+      {% with v=governance.seal_coverage.pct|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="Couverture scellement %" value=v accent="success" %}
+      {% endwith %}
+      {% include "components/kpi_card.html" with title="Dossiers scellés" value=governance.seal_coverage.sealed accent="info" %}
+      {% include "components/kpi_card.html" with title="Total clôturées" value=governance.seal_coverage.total_closed accent="primary" %}
+      {% with v=governance.efficiency.taux_first_pass_audit|stringformat:".1f" %}
+        {% include "components/kpi_card.html" with title="Taux first-pass Audit %" value=v accent="primary" %}
+      {% endwith %}
+    </div>
+
+    {# Tendances trimestrielles (depuis MetricsSnapshot) #}
+    {% if governance.trend.current or governance.trend.previous %}
+    <div class="border-t border-gray-100 px-6 py-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Comparatif trimestriel</p>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-100 text-sm">
+          <thead>
+            <tr>
+              <th class="py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">Indicateur</th>
+              <th class="py-2 text-right text-xs font-semibold uppercase tracking-wider text-gray-400">Trimestre courant</th>
+              <th class="py-2 text-right text-xs font-semibold uppercase tracking-wider text-gray-400">Trimestre précédent</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr>
+              <td class="py-2 text-gray-600">Actives (moy.)</td>
+              <td class="py-2 text-right tabular-nums font-medium text-gray-800">{{ governance.trend.current.total_actives|default:"—" }}</td>
+              <td class="py-2 text-right tabular-nums text-gray-500">{{ governance.trend.previous.total_actives|default:"—" }}</td>
+            </tr>
+            <tr>
+              <td class="py-2 text-gray-600">Taux de retard</td>
+              <td class="py-2 text-right tabular-nums font-medium text-gray-800">{% if governance.trend.current %}{{ governance.trend.current.taux_retard }} %{% else %}—{% endif %}</td>
+              <td class="py-2 text-right tabular-nums text-gray-500">{% if governance.trend.previous %}{{ governance.trend.previous.taux_retard }} %{% else %}—{% endif %}</td>
+            </tr>
+            <tr>
+              <td class="py-2 text-gray-600">Retard +90j</td>
+              <td class="py-2 text-right tabular-nums font-medium text-red-600">{{ governance.trend.current.overdue_90_plus|default:"—" }}</td>
+              <td class="py-2 text-right tabular-nums text-gray-500">{{ governance.trend.previous.overdue_90_plus|default:"—" }}</td>
+            </tr>
+            <tr>
+              <td class="py-2 text-gray-600">Stock régl. pondéré</td>
+              <td class="py-2 text-right tabular-nums font-medium text-gray-800">{{ governance.trend.current.regulatory_stock|default:"—" }}</td>
+              <td class="py-2 text-right tabular-nums text-gray-500">{{ governance.trend.previous.regulatory_stock|default:"—" }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="border-t border-gray-100 px-6 py-4">
+      <p class="text-xs text-gray-400">Tendances trimestrielles disponibles après la 1ère capture quotidienne. Lancez <code class="text-xs">capture_metrics_snapshot</code> ou laissez le cron nocturne s'exécuter.</p>
+    </div>
+    {% endif %}
+
+    {# Top 10 risques composites #}
+    <div class="border-t border-gray-100 px-6 pb-6 pt-4">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Top 10 — Score de risque composite (criticité × retard + reports)</p>
+      {% if governance.top_risk %}
+      <div class="overflow-x-auto rounded-lg border border-gray-100">
+        <table class="min-w-full divide-y divide-gray-100 text-sm">
+          <thead class="bg-gray-50/60">
+            <tr>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Référence</th>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Direction</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Échéance</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Reports</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Score</th>
+              <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Criticité</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 bg-white">
+            {% for r in governance.top_risk %}
+            <tr class="hover:bg-gray-50/60 transition-colors">
+              <td class="px-4 py-2.5">
+                <a href="{% url 'workflow:recommendation-detail' r.pk %}" class="font-medium text-gray-900 hover:text-sentinel-orange hover:underline">{{ r.reference }}</a>
+              </td>
+              <td class="px-4 py-2.5 text-xs text-gray-600">{{ r.department.name|default:"—" }}</td>
+              <td class="px-4 py-2.5 text-right tabular-nums {% if r.is_overdue %}text-red-600 font-medium{% else %}text-gray-700{% endif %}">{{ r.due_date|date:"d/m/Y" }}</td>
+              <td class="px-4 py-2.5 text-right tabular-nums text-gray-600">{{ r.approved_extensions }}</td>
+              <td class="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-800">{{ r.composite_score }}</td>
+              <td class="px-4 py-2.5">{% include "components/priority_badge.html" with priority=r.priority label=r.get_priority_display %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-xs text-gray-400 py-4 text-center">Aucune recommandation active.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ── Section 8 : Performance Audit (auto-évaluation) ── #}
 <div class="mb-8">
   <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500">Performance de l'équipe Audit</h3>
   <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">

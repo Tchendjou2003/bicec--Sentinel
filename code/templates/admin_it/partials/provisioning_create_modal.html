@@ -1,194 +1,268 @@
 {% comment %}
-  Slide-over de création d'une demande de provisioning (Story 6.2.0 / AC1 + AC7).
+Slide-over de création d'une demande de provisioning (Story 6.2.0 / AC1 + AC7).
 
-  Pattern calqué sur stepper_slideover.html + recommendation_list.html :
-  - Overlay bg-gray-900/40 backdrop-blur-sm
-  - Panel qui glisse de la droite, pleine hauteur
-  - Header fixe + body scrollable + footer sticky
-  - Fermeture via Échap, clic overlay, ou bouton ×
+Pattern calqué sur stepper_slideover.html + recommendation_list.html :
+- Overlay bg-black/40 backdrop-blur-sm
+- Panel qui glisse de la droite, pleine hauteur
+- Header fixe + body scrollable + footer sticky
+- Fermeture via Échap, clic overlay, ou bouton ×
 
-  Design sobre institutionnel — sentinel-orange uniquement sur le CTA principal.
+Design sobre institutionnel — sentinel-orange uniquement sur le CTA principal.
 {% endcomment %}
 
-<div
-  x-data="{ role: '' }"
-  class="flex flex-col h-full"
-  role="dialog"
-  aria-modal="true"
-  aria-labelledby="provisioning-panel-title"
-  @keydown.escape.window="window.dispatchEvent(new CustomEvent('close-create-provisioning'))"
->
+<div x-data="{
+    profile: '{{ form.requested_profile.value|default:''|escapejs }}',
+    role: '{{ form.requested_role.value|default:''|escapejs }}',
+    isAuditAdmin: {% if form.requested_is_audit_admin.value %}true{% else %}false{% endif %},
+    jobTitle: '{{ form.requested_job_title.value|default:''|escapejs }}',
+    deptLocked: false,
+    NO_DEPT_ROLES: ['AUDIT', 'ADMIN', 'EXT'],
+    templates: JSON.parse(document.getElementById('account-templates-data').textContent),
+    get deptDisabled() { return this.deptLocked || this.NO_DEPT_ROLES.includes(this.role); },
+    selectProfile(key) {
+      const t = this.templates.find(x => x.key === key);
+      if (!t) { this.profile = ''; return; }
+      this.profile = t.key;
+      this.role = t.role;
+      this.isAuditAdmin = !!t.is_audit_admin;
+      this.jobTitle = t.suggested_job_title || '';
+      this.syncDept(t.auto_department);
+    },
+    syncDept(auto) {
+      this.deptLocked = (auto === 'SYSTEM');
+      this._applyDeptField();
+    },
+    onRoleChange(r) {
+      this.role = r;
+      this._applyDeptField();
+    },
+    _applyDeptField() {
+      const el = document.getElementById('id_requested_department');
+      if (!el || !el.tomselect) return;
+      if (this.deptDisabled) { el.tomselect.clear(); el.tomselect.disable(); }
+      else { el.tomselect.enable(); }
+    }
+  }"
+  x-init="$nextTick(() => { if (role) _applyDeptField(); })"
+  class="flex flex-col h-full" role="dialog" aria-modal="true" aria-labelledby="provisioning-panel-title"
+  @keydown.escape.window="window.dispatchEvent(new CustomEvent('close-create-provisioning'))">
+  {{ account_templates_flat|json_script:"account-templates-data" }}
 
   {# ── Header ── #}
   <div
-    class="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white shrink-0"
-    style="border-top-left-radius: 1.5rem;"
-  >
+    class="flex items-center justify-between px-6 py-5 border-b border-border-subtle bg-white shrink-0"
+    style="border-top-left-radius: 1.5rem;">
     <div class="flex items-center gap-3">
-      <div class="flex h-10 w-10 items-center justify-center rounded-full bg-sentinel-orange/10 shrink-0">
-        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange">
-          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-          <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+      <div
+        class="flex h-10 w-10 items-center justify-center rounded-full {% if is_modify %}bg-status-assigned-tint{% else %}bg-sentinel-orange/10{% endif %} shrink-0">
+        {% if is_modify %}
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" class="text-status-assigned">
+          <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
         </svg>
+        {% else %}
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" class="text-sentinel-orange">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <line x1="19" y1="8" x2="19" y2="14" />
+          <line x1="22" y1="11" x2="16" y2="11" />
+        </svg>
+        {% endif %}
       </div>
       <div>
-        <h2 id="provisioning-panel-title" class="text-lg font-bold text-gray-900 tracking-tight">
-          Nouvelle demande de compte
+        <h2 id="provisioning-panel-title" class="text-lg font-bold text-text-primary tracking-tight">
+          {% if is_modify %}Demande de modification de profil{% else %}Nouvelle demande de compte{% endif %}
         </h2>
-        <p class="text-sm text-gray-500 mt-0.5">Aucun compte créé avant la validation du checker.</p>
+        <p class="text-sm text-text-body mt-0.5">
+          {% if is_modify %}
+          Modification soumise pour validation par un checker.
+          {% else %}
+          Aucun compte créé avant la validation du checker.
+          {% endif %}
+        </p>
       </div>
     </div>
-    <button
-      type="button"
-      @click="window.dispatchEvent(new CustomEvent('close-create-provisioning'))"
-      class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-      aria-label="Fermer"
-    >
-      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    <button type="button" @click="window.dispatchEvent(new CustomEvent('close-create-provisioning'))"
+      class="rounded-lg p-2 text-text-faint hover:bg-surface-sunken hover:text-text-body transition-colors"
+      aria-label="Fermer">
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
     </button>
   </div>
 
   {# ── Formulaire — flex-col pour que le footer reste sticky ── #}
-  <form
-    hx-post="{% url 'auth:provisioning-create' %}"
-    hx-target="this"
-    hx-swap="outerHTML"
-    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-    hx-disabled-elt="find button[type='submit']"
-    class="flex flex-col flex-1 overflow-hidden"
-  >
+  <form hx-post="{% url 'auth:provisioning-create' %}" hx-target="this" hx-swap="outerHTML"
+    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' hx-disabled-elt="find button[type='submit']"
+    class="flex flex-col flex-1 overflow-hidden">
     {% csrf_token %}
+    {{ form.request_type }}
+    {{ form.target_user }}
+    <input type="hidden" name="requested_profile" :value="profile">
 
     {# Corps scrollable #}
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex-1 overflow-y-auto bg-white">
 
-      {# ── Identité ── #}
+      {# ── Identité en lecture seule (mode MODIFY) ── #}
+      {% if is_modify and target_user %}
+      <div class="px-6 py-4 border-b border-border-subtle bg-status-assigned-tint/50">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-status-assigned mb-2">Compte ciblé (lecture
+          seule)</p>
+        <div class="flex items-center gap-3">
+          {% include "components/_avatar.html" with user=target_user %}
+          <div>
+            <p class="text-[13px] font-semibold text-text-primary">{{
+              target_user.get_full_name|default:target_user.username }}</p>
+            <p class="text-[11.5px] text-text-body">{{ target_user.username }} · {{ target_user.email }}</p>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+
+
+      {# ── Identité (masquée en mode MODIFY) ── #}
+      {% if not is_modify %}
       <div class="px-6 py-5 space-y-4">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Identité</p>
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-text-faint">Identité</p>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_first_name">Prénom</label>
+            <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_first_name">Prénom</label>
             {{ form.requested_first_name }}
-            {% if form.requested_first_name.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_first_name.errors.0 }}</p>{% endif %}
+            {% if form.requested_first_name.errors %}<p class="mt-1 text-xs text-danger">{{
+              form.requested_first_name.errors.0 }}</p>{% endif %}
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_last_name">Nom</label>
+            <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_last_name">Nom</label>
             {{ form.requested_last_name }}
-            {% if form.requested_last_name.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_last_name.errors.0 }}</p>{% endif %}
+            {% if form.requested_last_name.errors %}<p class="mt-1 text-xs text-danger">{{
+              form.requested_last_name.errors.0 }}</p>{% endif %}
           </div>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_username">
-            Identifiant de connexion <span class="text-red-500">*</span>
+          <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_username">
+            Identifiant de connexion <span class="text-danger">*</span>
           </label>
           {{ form.requested_username }}
-          {% if form.requested_username.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_username.errors.0 }}</p>{% endif %}
+          {% if form.requested_username.errors %}<p class="mt-1 text-xs text-danger">{{ form.requested_username.errors.0
+            }}</p>{% endif %}
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_email">
-            E-mail professionnel <span class="text-red-500">*</span>
+          <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_email">
+            E-mail professionnel <span class="text-danger">*</span>
           </label>
           {{ form.requested_email }}
-          {% if form.requested_email.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_email.errors.0 }}</p>{% endif %}
+          {% if form.requested_email.errors %}<p class="mt-1 text-xs text-danger">{{ form.requested_email.errors.0 }}
+          </p>{% endif %}
         </div>
 
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_password">
-            Mot de passe initial <span class="text-red-500">*</span>
+        <div x-data="{ showPassword: false }">
+          <label class="block text-sm font-medium text-text-body mb-1.5" for="id_password">
+            Mot de passe initial <span class="text-danger">*</span>
           </label>
-          {{ form.password }}
-          <p class="mt-1 text-xs text-gray-400">{{ form.password.help_text }}</p>
-          {% if form.password.errors %}<p class="mt-1 text-xs text-red-500">{{ form.password.errors.0 }}</p>{% endif %}
+          <div class="relative" x-init="document.getElementById('id_password')?.classList.add('pr-10')">
+            {{ form.password }}
+            <button type="button"
+              @click="showPassword = !showPassword; document.getElementById('id_password').type = showPassword ? 'text' : 'password'"
+              class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-faint hover:text-text-primary transition-colors focus:outline-none"
+              aria-label="Afficher/Masquer le mot de passe">
+              <svg x-show="!showPassword" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              <svg x-show="showPassword" x-cloak aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18"
+                height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                <line x1="2" x2="22" y1="2" y2="22" />
+              </svg>
+            </button>
+          </div>
+          <p class="mt-1 text-xs text-text-faint">{{ form.password.help_text }}</p>
+          {% if form.password.errors %}<p class="mt-1 text-xs text-danger">{{ form.password.errors.0 }}</p>{% endif %}
         </div>
       </div>
+      {% endif %}{# /not is_modify #}
 
-      <div class="mx-6 border-t border-gray-100"></div>
+      <div class="mx-6 border-t border-border-subtle"></div>
 
       {# ── Habilitation ── #}
       <div class="px-6 py-5 space-y-4">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Habilitation</p>
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-text-faint">Habilitation</p>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_role">
-            Rôle <span class="text-red-500">*</span>
+          <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_role">
+            Rôle <span class="text-danger">*</span>
           </label>
-          <select
-            name="requested_role"
-            id="id_requested_role"
-            x-model="role"
-            class="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200"
-          >
-            <option value="">— Sélectionner un rôle —</option>
-            {% for value, label in form.requested_role.field.choices %}
-              {% if value %}<option value="{{ value }}"{% if form.requested_role.value == value %} selected{% endif %}>{{ label }}</option>{% endif %}
-            {% endfor %}
-          </select>
-          {% if form.requested_role.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_role.errors.0 }}</p>{% endif %}
+          {{ form.requested_role }}
+          {% if form.requested_role.errors %}<p class="mt-1 text-xs text-danger">{{ form.requested_role.errors.0 }}</p>
+          {% endif %}
+        </div>
+
+        {# Case « Administrateur Audit » — visible uniquement pour le rôle AUDIT #}
+        <div x-show="role === 'AUDIT'" x-cloak>
+          <label class="flex items-start gap-2.5 cursor-pointer">
+            <input type="checkbox" name="requested_is_audit_admin" x-model="isAuditAdmin"
+              class="h-5 w-5 rounded border-border-strong text-sentinel-orange focus:ring-sentinel-orange/50 mt-0.5">
+            <span>
+              <span class="block text-sm font-medium text-text-body">Administrateur Audit (Directeur de l'Audit /
+                délégué)</span>
+              <span class="block text-xs text-text-faint">Permet de gérer les habilitations de l'équipe audit.</span>
+            </span>
+          </label>
+          {% if form.requested_is_audit_admin.errors %}<p class="mt-1 text-xs text-danger">{{
+            form.requested_is_audit_admin.errors.0 }}</p>{% endif %}
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_requested_department">
+          <label class="block text-sm font-medium text-text-body mb-1.5" for="id_requested_job_title">
+            Fonction / Poste
+            <span class="text-xs font-normal text-text-faint">(informatif)</span>
+          </label>
+          <input type="text" name="requested_job_title" id="id_requested_job_title" x-model="jobTitle" maxlength="100"
+            placeholder="Ex : Directeur de l'Audit Interne"
+            class="w-full rounded-xl border border-border-subtle bg-white px-4 py-3 text-sm text-text-primary placeholder-text-faint focus:border-sentinel-orange focus:ring-2 focus:ring-sentinel-orange/20 transition-all duration-200">
+          {% if form.requested_job_title.errors %}<p class="mt-1 text-xs text-danger">{{
+            form.requested_job_title.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+          <label :class="deptDisabled ? 'text-text-faint' : 'text-text-body'"
+            class="block text-sm font-medium mb-1.5 transition-colors" for="id_requested_department">
             Département
-            <span class="text-xs font-normal text-gray-400">(requis sauf AUDIT, ADMIN, EXT)</span>
+            <span class="text-xs font-normal" :class="deptDisabled ? 'text-text-faint' : 'text-text-faint'">(requis sauf AUDIT, ADMIN, EXT)</span>
           </label>
-          {{ form.requested_department }}
-          {% if form.requested_department.errors %}<p class="mt-1 text-xs text-red-500">{{ form.requested_department.errors.0 }}</p>{% endif %}
-        </div>
-      </div>
-
-      {# ── Mission externe — visible uniquement si rôle EXT ── #}
-      <div
-        x-show="role === 'EXT'"
-        x-cloak
-        x-transition:enter="transition ease-out duration-200"
-        x-transition:enter-start="opacity-0 -translate-y-1"
-        x-transition:enter-end="opacity-100 translate-y-0"
-      >
-        <div class="mx-6 border-t border-gray-100"></div>
-        <div class="px-6 py-5 space-y-4 bg-amber-50/40">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-amber-700">
-            Mission externe
-            <span class="normal-case font-normal text-amber-600">(obligatoire pour EXT)</span>
+          <div :class="deptDisabled ? 'opacity-40 pointer-events-none select-none' : ''">
+            {{ form.requested_department }}
+          </div>
+          <p x-show="deptLocked" x-cloak class="mt-1 text-xs text-text-body">
+            Rattaché automatiquement à l'entité système « Support Applicatif ».
           </p>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_mission_organization">
-              Organisation d'origine <span class="text-red-500">*</span>
-            </label>
-            {{ form.mission_organization }}
-            <p class="mt-1 text-xs text-gray-400">{{ form.mission_organization.help_text }}</p>
-            {% if form.mission_organization.errors %}<p class="mt-1 text-xs text-red-500">{{ form.mission_organization.errors.0 }}</p>{% endif %}
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_mission_start_date">
-                Date de début <span class="text-red-500">*</span>
-              </label>
-              {{ form.mission_start_date }}
-              {% if form.mission_start_date.errors %}<p class="mt-1 text-xs text-red-500">{{ form.mission_start_date.errors.0 }}</p>{% endif %}
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1.5" for="id_mission_end_date">
-                Date de fin
-              </label>
-              {{ form.mission_end_date }}
-              {% if form.mission_end_date.errors %}<p class="mt-1 text-xs text-red-500">{{ form.mission_end_date.errors.0 }}</p>{% endif %}
-            </div>
-          </div>
+          <p x-show="!deptLocked && NO_DEPT_ROLES.includes(role)" x-cloak class="mt-1 text-xs text-text-faint">
+            Ce rôle n'est rattaché à aucun département.
+          </p>
+          {% if form.requested_department.errors %}<p class="mt-1 text-xs text-danger">{{
+            form.requested_department.errors.0 }}</p>{% endif %}
         </div>
       </div>
+
+
 
       {# ── Erreurs globales ── #}
       {% if form.non_field_errors %}
-      <div class="mx-6 mt-2 mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+      <div class="mx-6 mt-2 mb-4 rounded-xl bg-danger-tint border border-danger-border px-4 py-3">
         {% for error in form.non_field_errors %}
-        <p class="text-xs text-red-600">{{ error }}</p>
+        <p class="text-xs text-danger">{{ error }}</p>
         {% endfor %}
       </div>
       {% endif %}
@@ -196,22 +270,18 @@
     </div>{# /corps scrollable #}
 
     {# ── Footer sticky — toujours visible ── #}
-    <div class="sticky bottom-0 border-t border-gray-100 bg-white px-6 py-4 flex items-center justify-between shrink-0">
-      <button
-        type="button"
-        @click="window.dispatchEvent(new CustomEvent('close-create-provisioning'))"
-        class="btn btn-secondary"
-      >
+    <div
+      class="sticky bottom-0 border-t border-border-subtle bg-white px-6 py-4 flex items-center justify-between shrink-0">
+      <button type="button" @click="window.dispatchEvent(new CustomEvent('close-create-provisioning'))"
+        class="btn btn-secondary">
         Annuler
       </button>
-      <button
-        type="submit"
-        class="btn btn-primary"
-      >
-        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      <button type="submit" class="btn btn-primary">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
-        Soumettre la demande
+        {% if is_modify %}Soumettre la modification{% else %}Soumettre la demande{% endif %}
       </button>
     </div>
 

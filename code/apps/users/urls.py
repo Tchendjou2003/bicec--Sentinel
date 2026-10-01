@@ -44,6 +44,11 @@ urlpatterns = [
         name="admin-monitoring",
     ),
     path(
+        "admin/audit-trail/",
+        views.AdminAuditTrailView.as_view(),
+        name="admin-audit-trail",
+    ),
+    path(
         "admin/monitoring/sessions/",
         views.AdminActiveSessionsView.as_view(),
         name="admin-sessions",
@@ -91,6 +96,16 @@ urlpatterns = [
         name="audit-admin-members",
     ),
     path(
+        "audit/delegation/create/",
+        views.DelegateAuditAdminView.as_view(),
+        name="audit-admin-delegate",
+    ),
+    path(
+        "audit/delegation/<uuid:pk>/revoke/",
+        views.RevokeAuditAdminDelegationView.as_view(),
+        name="audit-admin-delegation-revoke",
+    ),
+    path(
         "admin/organigramme/",
         views.OrganigrammeListView.as_view(),
         name="organigramme-list",
@@ -115,10 +130,42 @@ urlpatterns = [
         views.DepartmentDeleteView.as_view(),
         name="department-delete",
     ),
+    # ── Gestion unifiée des utilisateurs (Story 8.x) ──
     path(
         "admin/utilisateurs/",
-        views.ITUserListView.as_view(),
-        name="admin-user-list",
+        views.UserManagementView.as_view(),
+        name="user-management",
+    ),
+    path(
+        "admin/utilisateurs/<uuid:pk>/reset-password/",
+        views.UserResetPasswordView.as_view(),
+        name="user-reset-password",
+    ),
+    path(
+        "admin/utilisateurs/<uuid:pk>/deactivate/",
+        views.UserDeactivateView.as_view(),
+        name="user-deactivate",
+    ),
+    path(
+        "admin/utilisateurs/<uuid:pk>/reactivate/",
+        views.UserReactivateView.as_view(),
+        name="user-reactivate",
+    ),
+    path(
+        "admin/monitoring/lockouts/<int:pk>/unlock-inline/",
+        views.UserUnlockInlineView.as_view(),
+        name="user-unlock-inline",
+    ),
+    path(
+        "admin/monitoring/lockouts/",
+        views.AdminLockoutsView.as_view(),
+        name="admin-lockouts",
+    ),
+    # ── Mon profil (tous rôles) ──
+    path(
+        "profil/",
+        views.UserProfileView.as_view(),
+        name="user-profile",
     ),
     # ── Types d'unités organisationnelles (Story 3.7.b / Phase B) ──
     path(
@@ -142,4 +189,3 @@ urlpatterns = [
         name="org-unit-type-toggle",
     ),
 ]
-

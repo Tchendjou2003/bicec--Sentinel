@@ -72,10 +72,6 @@ def _base_data(role=User.Role.DM, dept=None):
         "password": "Secure#1234",
         "requested_role": role,
         "requested_department": dept,
-        "mission_organization": "",
-        "mission_scope": "",
-        "mission_start_date": None,
-        "mission_end_date": None,
     }
 
 
@@ -321,7 +317,7 @@ class CancelProvisioningRequestServiceTest(TestCase):
 
 
 class EXTProvisioningServiceTest(TestCase):
-    """Tests du provisioning EXT (auditeur externe avec ExternalMission)."""
+    """Tests du provisioning EXT (découplé des missions)."""
 
     def setUp(self):
         self.group = _make_approvers_group()
@@ -337,38 +333,11 @@ class EXTProvisioningServiceTest(TestCase):
             "password": "Cobac#12345",
             "requested_role": User.Role.EXT,
             "requested_department": None,
-            "mission_organization": "COBAC",
-            "mission_scope": "Audit des procédures de crédit",
-            "mission_start_date": "2026-07-01",
-            "mission_end_date": "2026-09-30",
         }
 
-    def test_ext_requires_mission_fields(self):
-        """Un compte EXT sans mission_organization lève ValidationError."""
-        from django.core.exceptions import ValidationError
+    def test_ext_provisioning_creates_user_only(self):
+        """L'approbation EXT crée le User (is_external=True) SANS ExternalMission."""
         data = self._ext_data()
-        data["mission_organization"] = ""
-        with self.assertRaises(ValidationError):
-            services.create_provisioning_request(
-                maker=self.maker, cleaned_data=data, ip_address="127.0.0.1"
-            )
-
-    def test_ext_requires_start_date(self):
-        """Un compte EXT sans mission_start_date lève ValidationError."""
-        from django.core.exceptions import ValidationError
-        data = self._ext_data()
-        data["mission_start_date"] = None
-        with self.assertRaises(ValidationError):
-            services.create_provisioning_request(
-                maker=self.maker, cleaned_data=data, ip_address="127.0.0.1"
-            )
-
-    def test_ext_provisioning_creates_user_and_mission(self):
-        """L'approbation EXT crée le User (is_external=True) ET une ExternalMission atomiquement."""
-        import datetime
-        data = self._ext_data()
-        data["mission_start_date"] = datetime.date(2026, 7, 1)
-        data["mission_end_date"] = datetime.date(2026, 9, 30)
 
         req = services.create_provisioning_request(
             maker=self.maker, cleaned_data=data, ip_address="127.0.0.1"
@@ -380,15 +349,12 @@ class EXTProvisioningServiceTest(TestCase):
         self.assertTrue(user.is_external)
         self.assertEqual(user.role, User.Role.EXT)
 
-        mission = ExternalMission.objects.get(auditor=user)
-        self.assertEqual(mission.organization, "COBAC")
+        # Le compte est créé nu, sans mission
+        self.assertFalse(ExternalMission.objects.filter(auditors=user).exists())
 
-    def test_ext_three_auditlogs_on_approve(self):
-        """L'approbation EXT émet 3 AuditLogs : User CREATE, Request UPDATE, Mission CREATE."""
-        import datetime
+    def test_ext_two_auditlogs_on_approve(self):
+        """L'approbation EXT émet 2 AuditLogs : User CREATE, Request UPDATE (pas de mission)."""
         data = self._ext_data()
-        data["mission_start_date"] = datetime.date(2026, 7, 1)
-        data["mission_end_date"] = datetime.date(2026, 9, 30)
 
         req = services.create_provisioning_request(
             maker=self.maker, cleaned_data=data, ip_address="127.0.0.1"
@@ -403,21 +369,9 @@ class EXTProvisioningServiceTest(TestCase):
         self.assertTrue(AuditLog.objects.filter(
             content_type="UserProvisioningRequest", action=AuditLog.Action.UPDATE
         ).exists())
-        self.assertTrue(AuditLog.objects.filter(
+        self.assertFalse(AuditLog.objects.filter(
             content_type="ExternalMission", action=AuditLog.Action.CREATE
         ).exists())
-
-    def test_ext_mission_dates_coherence(self):
-        """start_date > end_date lève une ValidationError."""
-        from django.core.exceptions import ValidationError
-        import datetime
-        data = self._ext_data()
-        data["mission_start_date"] = datetime.date(2026, 9, 30)
-        data["mission_end_date"] = datetime.date(2026, 7, 1)
-        with self.assertRaises(ValidationError):
-            services.create_provisioning_request(
-                maker=self.maker, cleaned_data=data, ip_address="127.0.0.1"
-            )
 
 
 # ─── View / access tests ───────────────────────────────────────────────────────
@@ -463,8 +417,12 @@ class ProvisioningViewAccessTest(TestCase):
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, 200)
 
-    def test_maker_sees_only_own_requests(self):
-        """Un maker hors groupe ne voit que ses propres demandes, pas celles des autres."""
+    def test_maker_sees_all_requests(self):
+        """
+        Gestion unifiée (commit 02522c0) : un maker hors groupe voit TOUTES les
+        demandes, pas seulement les siennes — la sécurité tient au masquage des
+        boutons d'approbation (is_approver=False), pas au filtrage de la liste.
+        """
         # Créer une demande du maker
         data = _base_data(role=User.Role.DM, dept=self.dept)
         services.create_provisioning_request(
@@ -479,9 +437,12 @@ class ProvisioningViewAccessTest(TestCase):
         self.client.force_login(self.maker)
         response = self.client.get(self.list_url)
         requests_in_context = list(response.context["requests"])
-        # Le maker ne voit que sa propre demande
-        for req in requests_in_context:
-            self.assertEqual(req.requested_by, self.maker)
+        # Le maker voit les deux demandes (la sienne + celle de l'autre maker).
+        requesters = {req.requested_by for req in requests_in_context}
+        self.assertIn(self.maker, requesters)
+        self.assertIn(other_maker, requesters)
+        # Mais il n'est pas approbateur : les boutons d'action sont masqués côté template.
+        self.assertFalse(response.context["is_approver"])
 
     def test_create_accessible_by_admin_it(self):
         """Un Admin IT peut soumettre une demande (modale GET)."""

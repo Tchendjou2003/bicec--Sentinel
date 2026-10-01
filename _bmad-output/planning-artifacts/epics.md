@@ -96,7 +96,7 @@ This document provides the complete epic and story breakdown for bicec--Sentinel
 - FR5: Epic 2 - Création manuelle unitaire
 - FR6: Epic 2 - Soft-delete en état DRAFT
 - FR6b: Epic 2 - État transitoire DRAFT pré-assignation
-- FR7: Différé en V2 (Bulk create)
+- FR7: Epic 6 - Import massif opérationnel en DRAFT (Story 6.5)
 - FR8: Epic 6 - Droits d'import pour l'Audit uniquement
 - FR9: Epic 6 - File import transactionnel atomique + date originale Excel
 - FR10: Epic 2 - Auto-assignation pour triage
@@ -594,28 +594,51 @@ So that **l'intérimaire puisse agir au nom de l'absent avec une traçabilité t
 **Then** le système permet l'action
 **And** l'Audit Log enregistre explicitement que l'action a été effectuée par l'ETP agissant pour le DM (FR4).
 
-#### Story 6.5: Importation Atomique Historique (Substitut de Masse MVP)
+#### Story 6.5: Import Massif de Recommandations en Mode Draft
 
-As an **Audit Interne (Seulement)**,
-I want **uploader le template Excel officiel contenant l'historique massif (2000 lignes)**,
-So that **tout l'historique soit intégré de manière fiable dans la base de données.**
+As an **Audit Interne (uniquement)**,
+I want **importer plusieurs recommandations opérationnelles depuis un modèle Excel Sentinel, avec prévisualisation et validation préalables**,
+So that **je crée en une seule opération des dizaines de recommandations fiables, prêtes à être enrichies puis assignées via le workflow normal.**
 
 **Acceptance Criteria:**
 
-**Given** l'upload d'un Excel par l'Audit,
-**When** déclenché,
-**Then** l'import exécute une transaction atomique stricte (tout ou rien).
+**Given** un auditeur télécharge le modèle Excel officiel (généré dynamiquement avec les sources et directions actives + onglet Instructions),
+**When** il charge le fichier rempli,
+**Then** Sentinel analyse le fichier et affiche un rapport de validation (lignes détectées / valides / invalides + motifs détaillés) AVANT toute création, sans rien créer (FR7).
+
+**Given** le rapport contient au moins une ligne invalide (source inconnue/inactive, direction inexistante/inactive, criticité invalide, date illisible ou dans le passé, champ obligatoire manquant, référence dupliquée intra-fichier ou déjà existante en base),
+**When** l'auditeur tente de confirmer,
+**Then** la confirmation est bloquée : import atomique tout-ou-rien, **aucune** recommandation n'est créée (imports partiels interdits).
+
+**Given** toutes les lignes sont valides,
+**When** l'auditeur confirme l'import,
+**Then** toutes les recommandations sont créées en une seule transaction atomique au statut **DRAFT** uniquement — sans assignation, sans notification, sans transition FSM — avec `original_due_date = due_date` et `import_tag` laissé vide (workflow normal).
+**And** une entrée AuditLog de batch est générée (utilisateur, date, nom du fichier, nombre créé) et le fichier source est archivé pour la traçabilité réglementaire.
+**And** un message de succès s'affiche (« N recommandations créées en brouillon ») avec un lien « Voir les recommandations importées ».
+
+**Given** un fichier dépassant le plafond de 50 lignes,
+**When** il est analysé,
+**Then** il est rejeté avec un message clair.
+
+**Note métier :** distincte de la Story 6.8 (import historique légataire). Couvre les recommandations qui doivent encore suivre le workflow normal. Architecture découplée (adaptateur de format → cœur validation/création) pour préparer la V2 (extraction IA depuis PDF).
+
+
+#### ~Story 6.6: Triage et Auto-Assignation~ (ANNULÉE)
+
+> **Note :** Cette story a été annulée car elle est redondante. L'état `DRAFT` (Brouillon) natif joue déjà le rôle d'espace de travail isolé et exclusif à l'Audit Interne. Les brouillons ne déclenchent aucune alerte et ne sont pas visibles des métiers tant qu'ils ne sont pas officiellement assignés. Il n'est donc pas nécessaire d'ajouter un mécanisme complexe d'auto-assignation au niveau des auditeurs pour faire du triage.
+
+#### Story 6.8: Import Historique Massif (Substitut de Masse — Données Légataires)
+
+As an **Audit Interne (uniquement)**,
+I want **uploader le template Excel officiel contenant l'historique massif (jusqu'à 2000 lignes) de recommandations déjà en cours de traitement**,
+So that **tout l'historique légataire soit intégré de manière fiable, en conservant l'antériorité réelle pour le calcul du vieillissement.**
+
+**Acceptance Criteria:**
+
+**Given** l'upload d'un Excel historique par l'Audit,
+**When** l'import est déclenché,
+**Then** il exécute une transaction atomique stricte (tout ou rien) (FR9).
 **And** les recos importées avec succès ont le statut `ASSIGNED`, le tag `IMPORTED`, et conservent leur date de création Excel originale (FR8, FR9).
+**And** l'import demeure exclusif à l'Audit Interne via template normalisé (FR8).
 
-
-#### Story 6.6: Triage et Auto-Assignation
-
-As an **Audit Interne**,
-I want **m'auto-assigner des recommandations à trier (notamment les imports historiques)**,
-So that **mon équipe puisse finaliser la complétion des données avant l'envoi légal aux métiers.**
-
-**Acceptance Criteria:**
-
-**Given** une reco importée ou en brouillon,
-**When** l'audit se l'auto-assigne,
-**Then** elle n'est visible que par le pool Audit et ne déclenche aucune alerte (FR10).
+**Note métier :** distincte de la Story 6.5 (import opérationnel en DRAFT). L'historique n'est pas un « Big Bang » unique mais progressif. Le tag `IMPORTED` lève la règle de date passée (antériorité légitime). Référencée par 3.1 (Backlog IMPORTED) et 6.6 (triage des imports historiques).

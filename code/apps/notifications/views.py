@@ -17,6 +17,7 @@ from django.views import View
 from django.views.generic import ListView
 
 from .models import Notification
+from . import services as notif_services
 
 # Nombre de notifications affichées dans le dropdown
 DROPDOWN_LIMIT = 10
@@ -52,7 +53,7 @@ class NotificationDropdownView(LoginRequiredMixin, View):
 class NotificationListView(LoginRequiredMixin, ListView):
     """
     GET /notifications/ → Page dédiée affichant l'historique complet.
-    
+
     Pagination élégante et vue exhaustive des notifications.
     """
     model = Notification
@@ -62,11 +63,11 @@ class NotificationListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = Notification.objects.filter(recipient=self.request.user).select_related("recommendation")
-        
+
         q = self.request.GET.get("q", "").strip()
         if q:
             qs = qs.filter(Q(title__icontains=q) | Q(body__icontains=q))
-            
+
         return qs.order_by("-created_at")
 
     def get_context_data(self, **kwargs):
@@ -96,12 +97,11 @@ class NotificationMarkReadView(LoginRequiredMixin, View):
 
     def post(self, request, pk):
         try:
-            notif = Notification.objects.get(pk=pk, recipient=request.user)
+            notif = notif_services.mark_notification_read(
+                notification_id=pk, user=request.user
+            )
         except Notification.DoesNotExist:
             raise Http404
-
-        notif.is_read = True
-        notif.save(update_fields=["is_read"])
 
         if request.POST.get("inline"):
             # Swap in-place : la carte re-rendue à l'état « Lu », pas de redirection.
@@ -135,9 +135,7 @@ class NotificationMarkAllReadView(LoginRequiredMixin, View):
     """
 
     def post(self, request):
-        Notification.objects.filter(
-            recipient=request.user, is_read=False
-        ).update(is_read=True)
+        notif_services.mark_all_notifications_read(user=request.user)
 
         if request.headers.get("HX-Target") == "notif-panel-container":
             # Origine dropdown : re-rendre le dropdown (maintenant tout lu).
@@ -164,14 +162,15 @@ class NotificationMarkAllReadView(LoginRequiredMixin, View):
 class NotificationDeleteView(LoginRequiredMixin, View):
     """
     POST /notifications/{pk}/delete/ → Supprime la notification de l'historique.
-    
+
     Retourne un 200 vide pour que HTMX retire l'élément du DOM fluide.
     """
 
     def post(self, request, pk):
         try:
-            notif = Notification.objects.get(pk=pk, recipient=request.user)
-            notif.delete()
+            notif_services.delete_notification(
+                notification_id=pk, user=request.user
+            )
         except Notification.DoesNotExist:
             raise Http404
 
@@ -179,4 +178,3 @@ class NotificationDeleteView(LoginRequiredMixin, View):
         response = HttpResponse("")
         response["HX-Trigger"] = json.dumps({"badge-refresh": True})
         return response
-

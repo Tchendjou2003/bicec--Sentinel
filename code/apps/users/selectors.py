@@ -66,6 +66,17 @@ def count_departments() -> int:
     return Department.objects.filter(is_active=True).count()
 
 
+def count_business_departments() -> int:
+    """
+    Retourne le nombre de départements métier actifs (exclut l'entité système).
+
+    Utilisé par l'onboarding (Story 7.2) : tant qu'aucun département métier
+    n'existe, l'organigramme est considéré « vide » et le bandeau de
+    progression est affiché.
+    """
+    return Department.objects.filter(is_active=True, is_system=False).count()
+
+
 def get_departments_tree() -> QuerySet[Department]:
     """Racines actives avec enfants récursifs prefetchés (4 niveaux)."""
     return (
@@ -94,7 +105,7 @@ def get_departments_for_level(parent_id: UUID | str | None = None) -> QuerySet[D
             return Department.objects.none()
     else:
         qs = qs.filter(parent__isnull=True)
-    
+
     # Annotation du nombre d'enfants actifs (optimisation)
     qs = qs.annotate(
         child_count=Count("children", filter=Q(children__is_active=True))
@@ -111,7 +122,7 @@ def get_department_breadcrumb(department_id: UUID | str) -> list[Department]:
         dept = Department.objects.get(pk=department_id, is_active=True)
     except (Department.DoesNotExist, ValueError, ValidationError):
         return []
-        
+
     breadcrumb = []
     current = dept
     depth = 0
@@ -129,7 +140,7 @@ def search_departments(query: str, limit: int = 10) -> QuerySet[Department]:
     """
     if not query or len(query.strip()) < 2:
         return Department.objects.none()
-        
+
     qs = Department.objects.filter(
         Q(name__icontains=query) | Q(code__icontains=query),
         is_active=True
@@ -244,3 +255,67 @@ def get_pending_provisioning_count() -> int:
     return UserProvisioningRequest.objects.filter(
         status=UserProvisioningRequest.Status.PENDING
     ).count()
+
+
+# ── Gestion unifiée des utilisateurs (Story 8.x) ─────────────────────────────
+
+def get_all_users_for_management(
+    *,
+    search: str = "",
+    role_filter: str = "",
+    status_filter: str = "",
+) -> QuerySet[User]:
+    """
+    QuerySet enrichi pour la page de gestion unifiée des utilisateurs.
+    Exclut les superusers. Supporte recherche, filtre rôle, filtre statut.
+    """
+    qs = User.objects.filter(is_superuser=False).select_related("department")
+    if search:
+        qs = qs.filter(
+            Q(username__icontains=search)
+            | Q(first_name__icontains=search)
+            | Q(last_name__icontains=search)
+            | Q(email__icontains=search)
+        )
+    if role_filter:
+        qs = qs.filter(role=role_filter)
+    if status_filter == "active":
+        qs = qs.filter(is_active=True)
+    elif status_filter == "inactive":
+        qs = qs.filter(is_active=False)
+    return qs.order_by("last_name", "first_name", "username")
+
+
+def count_active_users() -> int:
+    """Retourne le nombre d'utilisateurs actifs non-superuser."""
+    return User.objects.filter(is_superuser=False, is_active=True).count()
+
+
+def count_inactive_users() -> int:
+    """Retourne le nombre d'utilisateurs désactivés non-superuser."""
+    return User.objects.filter(is_superuser=False, is_active=False).count()
+
+
+def get_sessions_for_user(user: User) -> list[str]:
+    """
+    Retourne les clés de sessions actives appartenant à un utilisateur donné.
+    Utilisé par deactivate_user pour invalider toutes les sessions.
+
+    ⚠️ Coût O(N) assumé : le backend de sessions par défaut stocke ``_auth_user_id``
+    dans un blob sérialisé non indexé, donc impossible de filtrer côté DB. On scanne
+    et décode toutes les sessions actives. Acceptable au volume cible (banque, quelques
+    centaines de sessions). Si le volume explose : migrer vers django-user-sessions
+    (FK user_id indexée) pour un filtre DB direct.
+    """
+    now = timezone.now()
+    user_id_str = str(user.pk)
+    sessions = Session.objects.filter(expire_date__gt=now)
+    keys = []
+    for session in sessions:
+        try:
+            data = session.get_decoded()
+        except Exception:
+            continue
+        if data.get("_auth_user_id") == user_id_str:
+            keys.append(session.session_key)
+    return keys

@@ -1,6 +1,6 @@
 # Story 3.4: Rejet Interne par le DM (Boucle d'amélioration)
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

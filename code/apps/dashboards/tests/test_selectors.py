@@ -9,6 +9,7 @@ Vérifie :
     - Exclusion des recos CLOSED_RESOLVED du tableau urgence
     - Limite de 50 lignes dans get_dm_urgency_rows
 """
+
 from datetime import timedelta
 
 from django.test import TestCase
@@ -33,20 +34,35 @@ class DashboardSelectorsTestMixin:
             code="DIRECTION",
             defaults={"name": "Direction", "level": 1},
         )
-        cls.dept_a = Department.objects.create(name="Direction A", code="DA", type=cls.type_dir)
-        cls.dept_b = Department.objects.create(name="Direction B", code="DB", type=cls.type_dir)
+        cls.dept_a = Department.objects.create(
+            name="Direction A", code="DA", type=cls.type_dir
+        )
+        cls.dept_b = Department.objects.create(
+            name="Direction B", code="DB", type=cls.type_dir
+        )
 
         cls.audit_user = User.objects.create_user(
-            username="audit_dash", password="TestPass123!", role=User.Role.AUDIT,
+            username="audit_dash",
+            password="TestPass123!",
+            role=User.Role.AUDIT,
         )
         cls.dm_a = User.objects.create_user(
-            username="dm_dash_a", password="TestPass123!", role=User.Role.DM, department=cls.dept_a,
+            username="dm_dash_a",
+            password="TestPass123!",
+            role=User.Role.DM,
+            department=cls.dept_a,
         )
         cls.dm_b = User.objects.create_user(
-            username="dm_dash_b", password="TestPass123!", role=User.Role.DM, department=cls.dept_b,
+            username="dm_dash_b",
+            password="TestPass123!",
+            role=User.Role.DM,
+            department=cls.dept_b,
         )
         cls.etp_a = User.objects.create_user(
-            username="etp_dash_a", password="TestPass123!", role=User.Role.ETP, department=cls.dept_a,
+            username="etp_dash_a",
+            password="TestPass123!",
+            role=User.Role.ETP,
+            department=cls.dept_a,
         )
 
         cls.source, _ = RecommendationSource.objects.get_or_create(
@@ -57,7 +73,10 @@ class DashboardSelectorsTestMixin:
     def _create_reco(self, dept, priority=None, days_until_due=30, is_overdue=False):
         """Crée une reco en état ASSIGNED dans le département donné."""
         import uuid
-        from apps.workflow.services import create_recommendation, assign_recommendation_to_dm
+        from apps.workflow.services import (
+            create_recommendation,
+            assign_recommendation_to_dm,
+        )
 
         priority = priority or Recommendation.Priority.MOYENNE
         due = timezone.now().date() + timedelta(days=days_until_due)
@@ -83,7 +102,9 @@ class DashboardSelectorsTestMixin:
         # Assigner au DM du département pour le rendre visible (statut != DRAFT)
         dm = User.objects.filter(role=User.Role.DM, department=dept).first()
         if dm:
-            assign_recommendation_to_dm(recommendation=reco, dm=dm, performed_by=self.audit_user)
+            assign_recommendation_to_dm(
+                recommendation=reco, dm=dm, performed_by=self.audit_user
+            )
 
         if is_overdue:
             Recommendation.objects.filter(pk=reco.pk).update(is_overdue=True)
@@ -189,6 +210,7 @@ class GetDmUrgencyRowsTest(DashboardSelectorsTestMixin, TestCase):
     def test_urgency_rows_overdue_days_delta_positive(self):
         """Une reco overdue → days_delta est positif (nombre de jours de retard)."""
         from django.utils import timezone
+
         # Créer avec due_date future (validation l'exige), puis passer en overdue
         # et remettre original_due_date dans le passé pour simuler le retard
         reco = self._create_reco(self.dept_a, days_until_due=1)
@@ -231,7 +253,10 @@ class GetEtpKpisTest(DashboardSelectorsTestMixin, TestCase):
 
         # Déléguer la reco à etp_a (ASSIGNED → IN_PROGRESS avec assigned_etp)
         from apps.workflow.services import delegate_recommendation_to_etp
-        delegate_recommendation_to_etp(recommendation=reco, etp=self.etp_a, performed_by=self.dm_a)
+
+        delegate_recommendation_to_etp(
+            recommendation=reco, etp=self.etp_a, performed_by=self.dm_a
+        )
 
         kpis = get_etp_kpis(user=self.etp_a)
         self.assertEqual(kpis["total_actives"], 1)

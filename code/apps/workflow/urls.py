@@ -15,6 +15,7 @@ from django.urls import path
 
 from apps.users import views as user_views
 from . import views
+from . import views_missions
 
 app_name = "workflow"
 
@@ -162,6 +163,85 @@ urlpatterns = [
         "sources-admin/<uuid:pk>/toggle/",
         views.RecommendationSourceToggleView.as_view(),
         name="source-toggle",
+    ),
+    # ── Import Excel massif de recommandations (Story 6.5 — FR7) ──
+    path(
+        "recommandations/import/",
+        views.RecommendationImportView.as_view(),
+        name="recommendation-import",
+    ),
+    path(
+        "recommandations/import/template/",
+        views.ImportTemplateDownloadView.as_view(),
+        name="recommendation-import-template",
+    ),
+    path(
+        "recommandations/import/confirm/",
+        views.RecommendationImportConfirmView.as_view(),
+        name="recommendation-import-confirm",
+    ),
+    # ── Import Historique clôturé (Story 6.8 — FR-HIST-01) ──
+    path(
+        "recommandations/import-historique/",
+        views.HistoricalImportView.as_view(),
+        name="historical-import",
+    ),
+    path(
+        "recommandations/import-historique/template/",
+        views.HistoricalImportTemplateDownloadView.as_view(),
+        name="historical-import-template",
+    ),
+    path(
+        "recommandations/import-historique/confirm/",
+        views.HistoricalImportConfirmView.as_view(),
+        name="historical-import-confirm",
+    ),
+    # ── Suivi asynchrone des imports (Django-Q2) ──
+    path(
+        "recommandations/import/status/<uuid:pk>/",
+        views.ImportBatchStatusView.as_view(),
+        name="import-batch-status",
+    ),
+    path(
+        "recommandations/import/<uuid:pk>/annuler/",
+        views.ImportBatchCancelView.as_view(),
+        name="import-batch-cancel",
+    ),
+    # ── Missions Externes (Audit) ──
+    path(
+        "missions/",
+        views_missions.ExternalMissionListView.as_view(),
+        name="mission-list",
+    ),
+    path(
+        "missions/create/",
+        views_missions.ExternalMissionCreateView.as_view(),
+        name="mission-create",
+    ),
+    path(
+        "missions/<uuid:pk>/update/",
+        views_missions.ExternalMissionUpdateView.as_view(),
+        name="mission-update",
+    ),
+    path(
+        "missions/<uuid:pk>/toggle-status/",
+        views_missions.ExternalMissionToggleStatusView.as_view(),
+        name="mission-toggle-status",
+    ),
+    path(
+        "externe/waiting/",
+        views_missions.ExternalWaitingView.as_view(),
+        name="external-waiting",
+    ),
+    path(
+        "externe/export-zip/",
+        views_missions.ExternalPortalZipExportView.as_view(),
+        name="external-portal-export",
+    ),
+    path(
+        "recommandations/<uuid:pk>/export-zip/",
+        views_missions.RecommendationZipExportView.as_view(),
+        name="recommendation-export",
     ),
     # ── Habilitation Audit (Story 1.5 + 1.7) ──
     path(

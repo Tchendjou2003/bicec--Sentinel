@@ -14,7 +14,9 @@ graceful_timeout = 30
 max_requests = 1000        # Redémarre les workers après 1000 req (évite memory leaks)
 max_requests_jitter = 50   # Décalage aléatoire pour éviter un redémarrage simultané
 preload_app = True         # Charge l'app en mémoire avant le fork (économise de la RAM)
-forwarded_allow_ips = "*"  # Confiance au proxy Nginx devant Gunicorn
+# Restreindre au seul proxy Nginx (même réseau Docker = 127.0.0.1 côté Gunicorn).
+# Au déploiement, surcharger via FORWARDED_ALLOW_IPS=<sous-réseau Docker> dans .env.
+forwarded_allow_ips = os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1")
 
 # Logging
 accesslog = "-"

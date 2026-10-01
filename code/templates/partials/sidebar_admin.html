@@ -8,8 +8,8 @@
     <ul class="space-y-1">
       {% url 'auth:admin-dashboard' as u_dash %}
       {% include "partials/_sidebar_item.html" with href=u_dash icon="layout-dashboard" label="Tableau de bord" route="dashboard" %}
-      {% url 'auth:provisioning-list' as u_prov %}
-      {% include "partials/_sidebar_item.html" with href=u_prov icon="users" label="Utilisateurs" route="provisioning" %}
+      {% url 'auth:user-management' as u_prov %}
+      {% include "partials/_sidebar_item.html" with href=u_prov icon="users" label="Utilisateurs" route="utilisateurs" %}
       {% if user_is_provisioning_approver %}
       {% url 'auth:organigramme-list' as u_org %}
       {% include "partials/_sidebar_item.html" with href=u_org icon="network" label="Organigramme" route="organigramme" %}
@@ -22,6 +22,8 @@
     <ul class="space-y-1">
       {% url 'auth:admin-monitoring' as u_monitoring %}
       {% include "partials/_sidebar_item.html" with href=u_monitoring icon="activity" label="Monitoring" route="monitoring" %}
+      {% url 'auth:admin-audit-trail' as u_audit %}
+      {% include "partials/_sidebar_item.html" with href=u_audit icon="shield-check" label="Journal d'audit" route="audit-trail" %}
     </ul>
   </nav>
 

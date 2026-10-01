@@ -1,0 +1,65 @@
+{% load static %}
+{% comment %}
+  Partial HTMX — Écran de suivi pendant le traitement asynchrone de l'import
+  (Django-Q2). Contexte : batch (ImportBatch), is_historical (bool).
+  Polling avec backoff progressif : les 3 premiers rafraîchissements toutes
+  les 3s, puis toutes les 5s, puis toutes les 10s — bascule automatiquement
+  vers import_success.html ou import_error.html une fois le statut final
+  atteint (ces partials n'ont plus d'attribut hx-trigger, le polling s'arrête).
+{% endcomment %}
+{% with poll_count=poll_count|default:0 %}
+<div id="import-status"
+     class="bg-white rounded-xl border border-border-subtle shadow-sm p-8 text-center"
+     hx-get="{% url 'workflow:import-batch-status' batch.pk %}?poll={{ poll_count|add:1 }}"
+     hx-trigger="load delay:{% if poll_count >= 6 %}10s{% elif poll_count >= 3 %}5s{% else %}3s{% endif %}"
+     hx-swap="outerHTML"
+     x-init="$dispatch('step-update', { step: 4 })">
+
+  <div class="flex items-center justify-center mb-4">
+    <div class="flex h-16 w-16 items-center justify-center rounded-full bg-sentinel-orange/10">
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sentinel-orange animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+    </div>
+  </div>
+
+  <h2 class="text-xl font-bold text-text-primary mb-2">
+    {% if batch.status == "PENDING" %}Import en attente{% else %}Import en cours{% endif %}
+  </h2>
+  <p class="text-sm text-text-body mb-1">
+    Fichier : <span class="font-medium text-text-primary">{{ batch.file_name }}</span>
+  </p>
+
+  {% if batch.status == "PROCESSING" and batch.total_rows %}
+  <div class="max-w-xs mx-auto mt-4 mb-2">
+    <div class="flex items-center justify-between text-xs text-text-faint mb-1">
+      <span>{{ batch.processed_rows }} / {{ batch.total_rows }}</span>
+      <span>{% widthratio batch.processed_rows batch.total_rows 100 %} %</span>
+    </div>
+    <div class="h-2 rounded-full bg-surface-faint overflow-hidden">
+      <div class="h-full bg-sentinel-orange transition-all"
+           style="width: {% widthratio batch.processed_rows batch.total_rows 100 %}%;"></div>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-xs text-text-faint mb-6">
+    {{ batch.recommendation_count }} recommandation{{ batch.recommendation_count|pluralize }} à traiter — le traitement démarre sous peu.
+  </p>
+  {% endif %}
+
+  <p class="text-xs text-text-faint mt-6">
+    Cette page se met à jour automatiquement. Vous pouvez aussi quitter et consulter le résultat plus tard depuis vos notifications.
+  </p>
+
+  {% if batch.status == "PENDING" %}
+  <div class="mt-6">
+    <button type="button"
+            class="btn btn-secondary text-sm"
+            hx-post="{% url 'workflow:import-batch-cancel' batch.pk %}"
+            hx-confirm="Annuler cet import ? Le fichier ne sera pas traité."
+            hx-target="#import-status"
+            hx-swap="outerHTML">
+      Annuler cet import
+    </button>
+  </div>
+  {% endif %}
+</div>
+{% endwith %}

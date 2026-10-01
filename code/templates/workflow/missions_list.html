@@ -1,0 +1,206 @@
+{% extends "layouts/app_shell.html" %}
+{% load static %}
+
+{% block title %}Missions Externes — Sentinel{% endblock %}
+
+{% block content %}
+<div x-data="{ slideOverOpen: false }" class="space-y-6">
+
+  {# ── Header + Bouton Créer ── #}
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-text-primary tracking-tight">Missions Externes</h1>
+      <p class="text-sm text-text-body mt-1">Gestion des campagnes d'audit (COBAC, CAC, etc.)</p>
+    </div>
+    {% if user.role == 'AUDIT' or user.is_superuser %}
+    <div class="flex items-center gap-2">
+      <button
+        @click="slideOverOpen = true"
+        hx-get="{% url 'workflow:mission-create' %}"
+        hx-target="#stepper-container"
+        hx-swap="innerHTML"
+        class="btn btn-primary"
+      >
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nouvelle mission
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Filtres ── #}
+  <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+    <form method="get" class="flex flex-col sm:flex-row gap-4" hx-boost="true" hx-target="#missions-table" hx-select="#missions-table" hx-swap="outerHTML">
+      <div class="flex-1">
+        <label for="q" class="sr-only">Rechercher</label>
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <input type="text" name="q" id="q" value="{{ q }}" class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-sentinel-orange focus:border-sentinel-orange" placeholder="Nom, institution, type...">
+        </div>
+      </div>
+      <div class="w-full sm:w-48">
+        <select name="status" class="block w-full py-2 pl-3 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-sentinel-orange focus:border-sentinel-orange appearance-none bg-white">
+          <option value="">Tous les statuts</option>
+          {% for val, label in status_choices %}
+          <option value="{{ val }}" {% if status == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="w-full sm:w-auto">
+        <button type="submit" class="w-full sm:w-auto btn btn-secondary h-full">Filtrer</button>
+      </div>
+    </form>
+  </div>
+
+  {# ── Tableau ── #}
+  <div id="missions-table" class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Mission</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type / Org.</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Période</th>
+            <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Recommandations</th>
+            <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Statut</th>
+            <th scope="col" class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for mission in missions %}
+          <tr class="hover:bg-gray-50 transition-colors">
+            <td class="px-6 py-4">
+              <div class="text-sm font-medium text-gray-900">{{ mission.name }}</div>
+              <div class="text-xs text-gray-500 mt-1 line-clamp-1" title="{{ mission.scope_description }}">{{ mission.scope_description|default:"-" }}</div>
+            </td>
+            <td class="px-6 py-4">
+              <div class="text-sm text-gray-900">{{ mission.organisation|default:"-" }}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm text-gray-900">{{ mission.start_date|date:"d/m/Y" }}</div>
+              <div class="text-xs text-gray-500">au {{ mission.end_date|date:"d/m/Y" }}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-info-tint text-status-assigned">
+                {{ mission.recommendations.count }}
+              </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center">
+              {% include "components/mission_status_badge.html" with status=mission.status %}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+              <div class="flex items-center justify-end gap-2">
+                <button
+                  @click="slideOverOpen = true"
+                  hx-get="{% url 'workflow:mission-update' mission.pk %}"
+                  hx-target="#stepper-container"
+                  hx-swap="innerHTML"
+                  class="text-gray-400 hover:text-sentinel-orange transition-colors"
+                  title="Modifier la mission"
+                >
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                </button>
+
+                {% if mission.status == 'PREPARATION' %}
+                <button type="button"
+                  hx-post="{% url 'workflow:mission-toggle-status' mission.pk %}"
+                  hx-vals='{"status": "ACTIVE"}'
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-swap="none"
+                  class="text-status-closed-strong hover:text-white bg-status-closed-tint hover:bg-status-closed-strong px-2 py-1 rounded text-xs transition-colors">
+                  Activer
+                </button>
+                {% elif mission.status == 'ACTIVE' %}
+                <button type="button"
+                  hx-post="{% url 'workflow:mission-toggle-status' mission.pk %}"
+                  hx-vals='{"status": "CLOSED"}'
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-swap="none"
+                  hx-confirm="Clôturer cette mission coupera immédiatement l'accès aux auditeurs externes. Confirmer ?"
+                  class="text-danger hover:text-white bg-danger-tint hover:bg-danger px-2 py-1 rounded text-xs transition-colors">
+                  Clôturer
+                </button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-300 mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <p class="text-sm">Aucune mission d'audit trouvée.</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ── Pagination ── #}
+    {% if page_obj.has_other_pages %}
+    <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+      <div class="text-sm text-gray-500">
+        Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}
+      </div>
+      <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if status %}&status={{ status }}{% endif %}" class="btn btn-secondary text-xs px-3 py-1.5">Précédent</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if status %}&status={{ status }}{% endif %}" class="btn btn-secondary text-xs px-3 py-1.5">Suivant</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Slide-over HTMX (même pattern que Recommendation) ── #}
+  <div
+    x-show="slideOverOpen"
+    class="relative z-50"
+    aria-labelledby="slide-over-title"
+    role="dialog"
+    aria-modal="true"
+    style="display: none;"
+  >
+    <div
+      x-show="slideOverOpen"
+      x-transition:enter="ease-in-out duration-300"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="ease-in-out duration-300"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity"
+      @click="slideOverOpen = false"
+    ></div>
+
+    <div class="fixed inset-0 overflow-hidden pointer-events-none">
+      <div class="absolute inset-0 overflow-hidden">
+        <div class="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10 sm:pl-16">
+          <div
+            x-show="slideOverOpen"
+            x-transition:enter="transform transition ease-in-out duration-300 sm:duration-400"
+            x-transition:enter-start="translate-x-full"
+            x-transition:enter-end="translate-x-0"
+            x-transition:leave="transform transition ease-in-out duration-300 sm:duration-400"
+            x-transition:leave-start="translate-x-0"
+            x-transition:leave-end="translate-x-full"
+            class="pointer-events-auto w-screen max-w-2xl flex flex-col bg-white shadow-2xl"
+          >
+            <!-- Conteneur cible pour HTMX -->
+            <div id="stepper-container" class="h-full flex flex-col bg-gray-50">
+              <div class="flex-1 flex items-center justify-center">
+                <svg class="animate-spin h-8 w-8 text-sentinel-orange" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

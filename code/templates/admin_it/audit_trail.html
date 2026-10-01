@@ -1,0 +1,243 @@
+{% extends "layouts/app_shell.html" %}
+
+{% block title %}Sentinel — Journal d'audit{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+
+  {# ── En-tête ── #}
+  <div class="flex items-center justify-between flex-wrap gap-4">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <a href="{% url 'auth:admin-monitoring' %}" class="text-[12.5px] hover:underline text-text-faint">Surveillance</a>
+        <span class="text-border-strong">/</span>
+        <span class="text-[12.5px] text-text-body">Journal d'audit</span>
+      </div>
+      <h1 class="text-2xl font-bold tracking-tight text-text-primary">Journal d'audit</h1>
+      <p class="text-sm mt-0.5 text-text-body">
+        {{ paginator.count }} événement{{ paginator.count|pluralize }} enregistré{{ paginator.count|pluralize }}
+        {% if filters.action or filters.module or filters.user or filters.date_from or filters.date_to %}
+          <span class="text-text-faint">· filtrés</span>
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  {# ── Bandeau filtres ── #}
+  <form method="get" class="bg-white rounded-xl border border-border-subtle p-4">
+    <div class="flex flex-wrap gap-3 items-end">
+
+      {# Action #}
+      <div class="flex flex-col gap-1">
+        <label for="f-action" class="text-[11px] font-semibold uppercase tracking-wider text-text-faint">Action</label>
+        <select id="f-action" name="action"
+                class="rounded-lg px-3 py-1.5 text-[13px] border border-border-subtle text-text-primary bg-white focus:outline-none focus:ring-1 focus:ring-sentinel-orange min-w-[160px]">
+          <option value="">Toutes</option>
+          {% for value, label in action_choices %}
+          <option value="{{ value }}" {% if filters.action == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {# Module #}
+      <div class="flex flex-col gap-1">
+        <label for="f-module" class="text-[11px] font-semibold uppercase tracking-wider text-text-faint">Module</label>
+        <select id="f-module" name="module"
+                class="rounded-lg px-3 py-1.5 text-[13px] border border-border-subtle text-text-primary bg-white focus:outline-none focus:ring-1 focus:ring-sentinel-orange min-w-[200px]">
+          <option value="">Tous</option>
+          {% for key, label in module_choices.items %}
+          <option value="{{ key }}" {% if filters.module == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {# Utilisateur #}
+      <div class="flex flex-col gap-1">
+        <label for="f-user" class="text-[11px] font-semibold uppercase tracking-wider text-text-faint">Utilisateur</label>
+        <select id="f-user" name="user"
+                class="rounded-lg px-3 py-1.5 text-[13px] border border-border-subtle text-text-primary bg-white focus:outline-none focus:ring-1 focus:ring-sentinel-orange min-w-[180px]">
+          <option value="">Tous</option>
+          {% for u in users %}
+          <option value="{{ u.pk }}" {% if filters.user == u.pk|stringformat:"s" %}selected{% endif %}>
+            {{ u.get_full_name|default:u.username }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {# Date du #}
+      <div class="flex flex-col gap-1">
+        <label for="f-date-from" class="text-[11px] font-semibold uppercase tracking-wider text-text-faint">Du</label>
+        <input id="f-date-from" type="date" name="date_from" value="{{ filters.date_from }}"
+               class="rounded-lg px-3 py-1.5 text-[13px] border border-border-subtle text-text-primary bg-white focus:outline-none focus:ring-1 focus:ring-sentinel-orange">
+      </div>
+
+      {# Au #}
+      <div class="flex flex-col gap-1">
+        <label for="f-date-to" class="text-[11px] font-semibold uppercase tracking-wider text-text-faint">Au</label>
+        <input id="f-date-to" type="date" name="date_to" value="{{ filters.date_to }}"
+               class="rounded-lg px-3 py-1.5 text-[13px] border border-border-subtle text-text-primary bg-white focus:outline-none focus:ring-1 focus:ring-sentinel-orange">
+      </div>
+
+      {# Actions formulaire #}
+      <div class="flex items-center gap-2 pb-0.5">
+        <button type="submit"
+                class="inline-flex items-center gap-2 rounded-lg px-4 py-1.5 text-[13px] font-medium bg-sentinel-orange text-white hover:bg-sentinel-orange-darker transition-colors">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          Filtrer
+        </button>
+        {% if filters.action or filters.module or filters.user or filters.date_from or filters.date_to %}
+        <a href="{% url 'auth:admin-audit-trail' %}"
+           class="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[12.5px] font-medium border border-border-subtle text-text-body hover:bg-surface-warm transition-colors">
+          Réinitialiser
+        </a>
+        {% endif %}
+      </div>
+
+    </div>
+  </form>
+
+  {# ── Tableau ── #}
+  <div class="bg-white rounded-xl overflow-hidden shadow-sm border border-border-subtle">
+    {% if page_obj %}
+    <div class="overflow-x-auto">
+      <table class="w-full border-collapse text-sm">
+        <thead>
+          <tr class="bg-surface-sunken border-b border-border-subtle">
+            <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint whitespace-nowrap">Horodatage</th>
+            <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Acteur</th>
+            <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Action</th>
+            <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Module</th>
+            <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">Description</th>
+            <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-text-faint">IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in page_obj %}
+          <tr class="hover:bg-sentinel-orange-light transition-colors duration-100 border-b border-surface-warm">
+
+            {# Horodatage #}
+            <td class="px-4 py-3 whitespace-nowrap">
+              <span class="text-[12.5px] tabular-nums text-text-body">{{ log.created_at|date:"d/m/Y" }}</span>
+              <span class="block text-[11.5px] tabular-nums text-text-faint">{{ log.created_at|date:"H:i:s" }}</span>
+            </td>
+
+            {# Acteur #}
+            <td class="px-4 py-3">
+              {% if log.user %}
+              <p class="text-[13px] font-medium text-text-primary leading-tight">{{ log.user.get_full_name|default:log.user.username }}</p>
+              {% if log.user.role %}
+              <span class="text-[11px] text-text-faint">{{ log.user.get_role_display }}</span>
+              {% endif %}
+              {% elif log.action == 'TAMPER_DETECTED' %}
+              <span class="text-[12.5px] italic text-text-faint">Auteur inconnu</span>
+              {% else %}
+              <span class="text-[12.5px] italic text-text-faint">Système</span>
+              {% endif %}
+            </td>
+
+            {# Badge action #}
+            <td class="px-4 py-3 whitespace-nowrap">
+              <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold
+                {% if log.action == 'CREATE' %}bg-success-tint text-success-strong
+                {% elif log.action == 'UPDATE' %}bg-sentinel-teal-tint text-sentinel-teal
+                {% elif log.action == 'DELETE' %}bg-danger-tint text-danger
+                {% elif log.action == 'LOGIN' %}bg-surface-warm text-text-body
+                {% elif log.action == 'LOGIN_FAILED' %}bg-danger-tint text-danger
+                {% elif log.action == 'LOGOUT' %}bg-surface-warm text-text-faint
+                {% elif log.action == 'TRANSITION' %}bg-sentinel-teal-tint text-sentinel-teal
+                {% elif log.action == 'IMPORT' %}bg-sentinel-orange-light text-sentinel-orange-darker
+                {% elif log.action == 'EXPORT' %}bg-surface-warm text-text-faint
+                {% elif log.action == 'SYSTEM' %}bg-surface-warm text-text-faint
+                {% elif log.action == 'TAMPER_DETECTED' %}bg-danger-tint text-danger
+                {% elif log.action == 'PRIVILEGE_GRANT' %}bg-sentinel-orange-light text-sentinel-orange-darker
+                {% elif log.action == 'PRIVILEGE_REVOKE' %}bg-surface-warm text-text-faint
+                {% elif log.action|slice:":9" == 'EXTENSION' %}bg-sentinel-orange-light text-sentinel-orange-darker
+                {% else %}bg-surface-warm text-text-body
+                {% endif %}">
+                {{ log.get_action_display }}
+              </span>
+            </td>
+
+            {# Module #}
+            <td class="px-4 py-3">
+              <span class="text-[12.5px] text-text-body">{{ log.module_label }}</span>
+            </td>
+
+            {# Description #}
+            <td class="px-4 py-3 max-w-xs">
+              {% if log.description %}
+              <p class="text-[12.5px] text-text-body truncate" title="{{ log.description }}">{{ log.description }}</p>
+              {% else %}
+              <span class="text-[12.5px] text-text-faint">—</span>
+              {% endif %}
+            </td>
+
+            {# IP — pour TAMPER_DETECTED, l'IP est celle du détecteur (stockée dans changes) #}
+            <td class="px-4 py-3 whitespace-nowrap">
+              {% if log.action == 'TAMPER_DETECTED' %}
+              <span class="text-[12px] tabular-nums text-text-faint font-mono">IP inconnue</span>
+              {% else %}
+              <span class="text-[12px] tabular-nums text-text-faint font-mono">{{ log.ip_address|default:"—" }}</span>
+              {% endif %}
+            </td>
+
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ── Pagination ── #}
+    {% if is_paginated %}
+    <div class="flex items-center justify-between px-4 py-3 bg-surface-faint border-t border-border-subtle">
+      <p class="text-[12.5px] text-text-faint">
+        Page {{ page_obj.number }} sur {{ paginator.num_pages }}
+        ({{ paginator.count }} résultat{{ paginator.count|pluralize }})
+      </p>
+      <div class="flex items-center gap-1">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if filter_querystring %}&{{ filter_querystring }}{% endif %}"
+           class="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-surface-warm transition-colors text-text-body border border-border-subtle">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
+        {% endif %}
+        {% for num in paginator.page_range %}
+          {% if num == page_obj.number %}
+          <span class="h-8 w-8 rounded-lg flex items-center justify-center text-[12.5px] font-semibold bg-sentinel-orange text-white">{{ num }}</span>
+          {% elif num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+          <a href="?page={{ num }}{% if filter_querystring %}&{{ filter_querystring }}{% endif %}"
+             class="h-8 w-8 rounded-lg flex items-center justify-center text-[12.5px] hover:bg-surface-warm transition-colors text-text-body border border-border-subtle">{{ num }}</a>
+          {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if filter_querystring %}&{{ filter_querystring }}{% endif %}"
+           class="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-surface-warm transition-colors text-text-body border border-border-subtle">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    {# ── Empty state ── #}
+    <div class="flex flex-col items-center justify-center py-20 text-center">
+      <div class="h-14 w-14 rounded-full flex items-center justify-center mb-4 bg-surface-warm text-text-faint">
+        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <p class="text-[14px] font-medium mb-1 text-text-primary">Aucun événement trouvé</p>
+      <p class="text-[13px] text-text-faint">
+        {% if filters.action or filters.module or filters.user or filters.date_from or filters.date_to %}
+          Aucun événement ne correspond aux filtres sélectionnés.
+          <a href="{% url 'auth:admin-audit-trail' %}" class="text-sentinel-orange hover:underline ml-1">Réinitialiser</a>
+        {% else %}
+          Aucune entrée dans le journal d'audit pour le moment.
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

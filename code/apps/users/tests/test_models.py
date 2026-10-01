@@ -182,8 +182,9 @@ class DepartmentFullHierarchyTest(TestCase):
             Department.objects.create(
                 name=f"Test {t.name}", code=f"T{i}", type=t,
             )
+        # Exclut l'entité système seedée (« Support Applicatif », Story 7.2).
         self.assertEqual(
-            Department.objects.count(), len(types),
+            Department.objects.filter(is_system=False).count(), len(types),
         )
 
 

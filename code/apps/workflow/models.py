@@ -320,6 +320,15 @@ class Recommendation(models.Model):
         blank=True,
         help_text=_("Valeur 'IMPORTED' inaltérable si import historique (FR9)."),
     )
+    import_batch = models.ForeignKey(
+        "ImportBatch",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recommendations",
+        verbose_name=_("Lot d'import"),
+        help_text=_("Lot d'import auquel appartient cette recommandation (Story 6.5 — FR7)."),
+    )
 
     # ── Clôture définitive (Story 3.8 / FR20) ────────────────────────
 
@@ -1016,3 +1025,117 @@ class ExtensionRequest(models.Model):
             f"Report {self.recommendation.reference} — "
             f"{self.get_status_display()} — {self.created_at:%Y-%m-%d}"
         )
+
+
+# =============================================================================
+# Lot d'import Excel (Story 6.5 — FR7 : Import massif de recommandations en DRAFT)
+# =============================================================================
+
+
+class ImportBatch(models.Model):
+    """
+    Traçabilité réglementaire d'un lot d'import Excel de recommandations.
+
+    Chaque import massif crée un ImportBatch qui :
+    - Archive le fichier source (.xlsx) pour traçabilité COBAC (source_file).
+    - Lie toutes les recommandations créées via la FK import_batch.
+    - Produit une entrée AuditLog action=IMPORT pointant sur ce batch.
+
+    Ref. Architecture : Story 6.5 — FR7 (Bulk Create, import opérationnel DRAFT).
+    Ne pas confondre avec import_tag="IMPORTED" (réservé à l'import historique Story 6.8).
+
+    Traitement asynchrone (Django-Q2) : le batch existe en PENDING dès la
+    soumission par la vue, avant tout traitement — status/processed_rows/
+    total_rows permettent le suivi et l'annulation tant que rien n'a démarré.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("En attente")
+        PROCESSING = "PROCESSING", _("En cours")
+        DONE = "DONE", _("Terminé")
+        FAILED = "FAILED", _("Échoué")
+        CANCELLED = "CANCELLED", _("Annulé")
+
+    class Kind(models.TextChoices):
+        EXCEL = "EXCEL", _("Import Excel")
+        HISTORICAL = "HISTORICAL", _("Import historique")
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    source_file = models.FileField(
+        _("Fichier source"),
+        upload_to="imports/",
+        null=True,
+        blank=True,
+        help_text=_("Fichier Excel original archivé pour traçabilité réglementaire (COBAC)."),
+    )
+    file_name = models.CharField(
+        _("Nom du fichier"),
+        max_length=255,
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="import_batches",
+        verbose_name=_("Importé par"),
+    )
+    created_at = models.DateTimeField(
+        _("Importé le"),
+        auto_now_add=True,
+    )
+    recommendation_count = models.PositiveIntegerField(
+        _("Nombre de recommandations"),
+        default=0,
+    )
+    status = models.CharField(
+        _("Statut"),
+        max_length=10,
+        choices=Status.choices,
+        default=Status.DONE,
+        help_text=_("DONE par défaut pour les lots créés avant le traitement asynchrone."),
+    )
+    kind = models.CharField(
+        _("Type d'import"),
+        max_length=10,
+        choices=Kind.choices,
+        default=Kind.EXCEL,
+    )
+    error_message = models.TextField(
+        _("Message d'erreur"),
+        blank=True,
+        default="",
+    )
+    processed_rows = models.PositiveIntegerField(
+        _("Lignes traitées"),
+        default=0,
+    )
+    total_rows = models.PositiveIntegerField(
+        _("Total de lignes"),
+        default=0,
+    )
+    updated_at = models.DateTimeField(
+        _("Modifié le"),
+        auto_now=True,
+        help_text=_(
+            "Touché à chaque transition de statut et à chaque point de progression. "
+            "Sert à détecter un batch resté bloqué en PROCESSING après un crash du worker."
+        ),
+    )
+
+    class Meta:
+        verbose_name = _("Lot d'import")
+        verbose_name_plural = _("Lots d'import")
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["created_by"],
+                condition=models.Q(status__in=["PENDING", "PROCESSING"]),
+                name="uniq_active_import_batch_per_user",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Import {self.file_name} — {self.recommendation_count} reco(s) — {self.created_at:%Y-%m-%d}"

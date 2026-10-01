@@ -9,6 +9,7 @@ Vérifie :
     - Contexte DM contient les clés attendues (kpis, urgency_rows, etc.)
     - Isolation RBAC : DM dept B ne voit pas les KPIs du dept A
 """
+
 from datetime import timedelta
 
 from django.test import TestCase
@@ -37,25 +38,37 @@ class DashboardViewTestMixin:
         )
 
         cls.audit_user = User.objects.create_user(
-            username="audit_vtest", password="TestPass123!", role=User.Role.AUDIT,
+            username="audit_vtest",
+            password="TestPass123!",
+            role=User.Role.AUDIT,
         )
         cls.dm_a = User.objects.create_user(
-            username="dm_vtest_a", password="TestPass123!",
-            role=User.Role.DM, department=cls.dept_a,
+            username="dm_vtest_a",
+            password="TestPass123!",
+            role=User.Role.DM,
+            department=cls.dept_a,
         )
         cls.dm_b = User.objects.create_user(
-            username="dm_vtest_b", password="TestPass123!",
-            role=User.Role.DM, department=cls.dept_b,
+            username="dm_vtest_b",
+            password="TestPass123!",
+            role=User.Role.DM,
+            department=cls.dept_b,
         )
         cls.etp_user = User.objects.create_user(
-            username="etp_vtest", password="TestPass123!",
-            role=User.Role.ETP, department=cls.dept_a,
+            username="etp_vtest",
+            password="TestPass123!",
+            role=User.Role.ETP,
+            department=cls.dept_a,
         )
         cls.dg_user = User.objects.create_user(
-            username="dg_vtest", password="TestPass123!", role=User.Role.DG,
+            username="dg_vtest",
+            password="TestPass123!",
+            role=User.Role.DG,
         )
         cls.admin_user = User.objects.create_user(
-            username="admin_vtest", password="TestPass123!", role=User.Role.ADMIN,
+            username="admin_vtest",
+            password="TestPass123!",
+            role=User.Role.ADMIN,
         )
 
         cls.source, _ = RecommendationSource.objects.get_or_create(
@@ -66,6 +79,7 @@ class DashboardViewTestMixin:
 
     def _create_reco_for_dept(self, dept, dm_user=None):
         import uuid
+
         reco = create_recommendation(
             data={
                 "reference": f"VT-{uuid.uuid4().hex[:6].upper()}",
@@ -168,6 +182,7 @@ class DashboardDmContextTest(DashboardViewTestMixin, TestCase):
         response = self.client.get(self.dashboard_url)
         self.assertIn("donut_data_json", response.context)
         import json
+
         data = json.loads(response.context["donut_data_json"])
         self.assertIn("labels", data)
         self.assertIn("values", data)
@@ -253,10 +268,15 @@ class DashboardAuditContextTest(DashboardViewTestMixin, TestCase):
         self.client.force_login(self.audit_user)
         response = self.client.get(self.dashboard_url)
         for key in (
-            "kpis", "pending_review", "pending_review_count",
-            "pending_extensions", "pending_extensions_count",
-            "draft_unassigned", "draft_unassigned_count",
-            "dept_breakdown", "stacked_bar_json",
+            "kpis",
+            "pending_review",
+            "pending_review_count",
+            "pending_extensions",
+            "pending_extensions_count",
+            "draft_unassigned",
+            "draft_unassigned_count",
+            "dept_breakdown",
+            "stacked_bar_json",
         ):
             self.assertIn(key, response.context)
 

@@ -12,6 +12,7 @@ CSRF_COOKIE_SECURE = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "SAMEORIGIN"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
 # HSTS (Strict-Transport-Security)
 SECURE_HSTS_SECONDS = 31536000  # 1 an
@@ -20,9 +21,11 @@ SECURE_HSTS_PRELOAD = True
 
 # Domaines autorisés (ex: sentinel.intra.bicec.local)
 # Le HTTPS est forcé ici pour faire correspondre le referer du front TLS Nginx.
+# Ne PAS inclure localhost en production (origine CSRF de confiance exploitable
+# depuis un poste du réseau interne). Le dev local définit ses propres origines
+# dans dev.py.
 CSRF_TRUSTED_ORIGINS = [
     "https://sentinel.intra.bicec.local",
-    "https://localhost",
 ]
 
 # HTTPS redirect (géré par Nginx, mais safety net)

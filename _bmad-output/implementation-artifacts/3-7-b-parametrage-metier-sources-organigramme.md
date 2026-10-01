@@ -1,6 +1,6 @@
 # Story 3.7.b : Paramétrage métier (Sources des recommandations & Types d'unité organisationnelle)
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

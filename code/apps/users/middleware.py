@@ -35,7 +35,7 @@ class IdleTimeoutMiddleware:
         # Ne pas traiter les routes publiques ni les requêtes statiques/media
         if any(request.path.startswith(p) for p in self.PUBLIC_PATHS):
             return self.get_response(request)
-            
+
         # Utilisation des préfixes normalisés
         if request.path.startswith(self.static_prefix) or request.path.startswith(self.media_prefix):
             return self.get_response(request)
@@ -56,14 +56,14 @@ class IdleTimeoutMiddleware:
 
 class RoleRequiredMiddleware:
     """
-    Protection globale (ADR-10, FR37) bloquant l'accès aux comptes 
+    Protection globale (ADR-10, FR37) bloquant l'accès aux comptes
     « coquilles vides » (sans rôle).
-    
+
     Intercepte toutes les requêtes des utilisateurs authentifiés.
-    Si l'utilisateur n'a pas de rôle, il est redirigé vers la page 
+    Si l'utilisateur n'a pas de rôle, il est redirigé vers la page
     d'attente, sauf s'il essaie d'accéder aux routes publiques (login, logout, pending).
     """
-    
+
     # Routes accessibles même pour une coquille vide
     # Note : /admin/ retiré volontairement (M2) — les superusers sont déjà exclus
     ALLOWED_PATHS = (
@@ -110,11 +110,16 @@ class ExternalIsolationMiddleware:
     Ce middleware agit APRÈS l'authentification et le RoleRequiredMiddleware.
     """
 
-    # Seules les routes autorisées pour un utilisateur externe
+    # Seules les routes autorisées pour un utilisateur externe.
+    # Le portail EXT (Story 6.7) vit sous /audit/ : ces routes sont en lecture
+    # seule (les écritures restent bloquées par WRITE_METHODS) et le RBAC est
+    # déjà appliqué en profondeur par get_recommendations_for_user (FR28).
     EXTERNAL_ALLOWED_PATHS = (
         "/auth/login/",
         "/auth/logout/",
         "/auth/external/",
+        "/audit/recommandations/",   # liste + détail + export-zip par reco (GET)
+        "/audit/externe/",           # page d'attente + export-zip portail (GET)
     )
 
     # Méthodes HTTP en écriture
@@ -155,7 +160,7 @@ class ExternalIsolationMiddleware:
             # UX (M-05) : Redirection gracieuse si tentative d'accès au login admin
             if request.path.startswith("/admin/login"):
                 return redirect(reverse("auth:external-dashboard"))
-            
+
             raise PermissionDenied(
                 "Accès refusé : cette section est réservée aux "
                 "utilisateurs internes de la BICEC."

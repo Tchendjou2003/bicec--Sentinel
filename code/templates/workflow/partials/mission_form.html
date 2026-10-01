@@ -1,0 +1,116 @@
+<div class="flex h-full flex-col bg-white shadow-xl">
+  <div class="px-6 py-6 sm:px-8 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
+    <h2 class="text-xl font-bold text-gray-900" id="slide-over-title">
+      {{ title }}
+    </h2>
+    <div class="flex h-7 items-center">
+      <button
+        type="button"
+        class="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-sentinel-orange"
+        @click="slideOverOpen = false"
+      >
+        <span class="sr-only">Fermer le panneau</span>
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="relative flex-1 px-6 py-6 sm:px-8 overflow-y-auto">
+    <form id="missionForm" hx-post="{{ action_url }}" hx-target="#stepper-container" hx-swap="outerHTML" class="space-y-6">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+      <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 text-sm">
+        {{ form.non_field_errors }}
+      </div>
+      {% endif %}
+
+      {# Informations générales #}
+      <div class="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-4">
+        <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-2">Informations Générales</h3>
+
+        <div>
+          <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Nom de la mission *</label>
+          {{ form.name }}
+          {% if form.name.errors %}<p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+          <label for="{{ form.organisation.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Organisation *</label>
+          {{ form.organisation }}
+          {% if form.organisation.errors %}<p class="mt-1 text-sm text-red-600">{{ form.organisation.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="{{ form.start_date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Date de début *</label>
+            {{ form.start_date }}
+            {% if form.start_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.start_date.errors.0 }}</p>{% endif %}
+          </div>
+          <div>
+            <label for="{{ form.end_date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Date de fin</label>
+            {{ form.end_date }}
+            {% if form.end_date.errors %}<p class="mt-1 text-sm text-red-600">{{ form.end_date.errors.0 }}</p>{% endif %}
+          </div>
+        </div>
+
+        <div>
+          <label for="{{ form.scope_description.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">Description / Périmètre</label>
+          {{ form.scope_description }}
+          {% if form.scope_description.errors %}<p class="mt-1 text-sm text-red-600">{{ form.scope_description.errors.0 }}</p>{% endif %}
+        </div>
+      </div>
+
+      {# Relations #}
+      <div class="bg-sentinel-teal-tint p-5 rounded-xl border border-sentinel-teal/20 space-y-4">
+        <h3 class="text-sm font-semibold text-sentinel-teal-darker uppercase tracking-wider mb-2">Périmètre & Équipe</h3>
+
+        <div>
+          <label for="{{ form.auditors.id_for_label }}" class="block text-sm font-medium text-sentinel-teal-darker mb-1">Auditeurs externes affectés</label>
+          {{ form.auditors }}
+          <p class="mt-1 text-xs text-sentinel-teal">Seuls les comptes avec le rôle Externe (EXT) sont listés.</p>
+          {% if form.auditors.errors %}<p class="mt-1 text-sm text-red-600">{{ form.auditors.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+          <label for="{{ form.recommendations.id_for_label }}" class="block text-sm font-medium text-sentinel-teal-darker mb-1">Recommandations clôturées à auditer</label>
+          {{ form.recommendations }}
+          <p class="mt-1 text-xs text-sentinel-teal">Seules les recommandations au statut "Clôturée - Résolue" sont listées.</p>
+          {% if form.recommendations.errors %}<p class="mt-1 text-sm text-red-600">{{ form.recommendations.errors.0 }}</p>{% endif %}
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="flex-shrink-0 px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 rounded-b-xl">
+    <button
+      type="button"
+      class="btn btn-secondary"
+      @click="slideOverOpen = false"
+    >
+      Annuler
+    </button>
+    <button
+      type="submit"
+      form="missionForm"
+      class="btn btn-primary"
+    >
+      Enregistrer la mission
+    </button>
+  </div>
+
+  {# Initialisation TomSelect pour les champs multiples #}
+  <script>
+    if (typeof TomSelect !== 'undefined') {
+      document.querySelectorAll('.js-tomselect').forEach((el) => {
+        new TomSelect(el, {
+          plugins: ['remove_button'],
+          maxOptions: 50,
+          hidePlaceholder: true
+        });
+      });
+    }
+  </script>
+</div>

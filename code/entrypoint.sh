@@ -3,7 +3,7 @@ set -e
 
 echo "=== Sentinel Entrypoint ==="
 
-# Collect static files (required for Nginx volume sharing)
+# Collect static files (required for WhiteNoise — servi depuis STATIC_ROOT)
 # Le worker ne sert pas de fichiers statiques — seul le container web/nginx en a besoin.
 if [ "${SKIP_COLLECTSTATIC:-0}" != "1" ]; then
     echo "Collecting static files..."

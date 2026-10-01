@@ -1,6 +1,6 @@
 # Story 3.5: Validation DM et Envoi à l'Audit (Exemption PV)
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

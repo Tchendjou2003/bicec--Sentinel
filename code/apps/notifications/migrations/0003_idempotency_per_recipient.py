@@ -13,10 +13,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        # Sur la branche epic, 0003_add_provisioning_notification_types existe
-        # déjà : on chaîne derrière elle pour garder un graphe linéaire
-        # (une seule feuille). Sur la branche Epic 4, la dépendance était
-        # 0002 — au merge, conserver cette version-ci.
+       
         ('notifications', '0003_add_provisioning_notification_types'),
         ('workflow', '0016_repoint_nightly_schedule'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),

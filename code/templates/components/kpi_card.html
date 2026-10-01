@@ -4,7 +4,7 @@
 <div class="group relative overflow-hidden rounded-xl border bg-card p-5 shadow-premium-sm transition-smooth hover:shadow-premium-md hover:-translate-y-0.5
   {% if accent == 'primary' %}hover:shadow-glow{% endif %}">
   <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r
-    {% if accent == 'primary' %}from-primary to-primary/40
+    {% if accent == 'primary' %}from-sentinel-orange-darker to-sentinel-orange-darker/40
     {% elif accent == 'destructive' %}from-destructive to-destructive/40
     {% elif accent == 'success' %}from-success to-success/40
     {% elif accent == 'warning' %}from-warning to-warning/40
@@ -17,7 +17,7 @@
     </div>
     {% if icon_svg %}
     <div class="rounded-xl p-2.5 transition-smooth group-hover:scale-110
-      {% if accent == 'primary' %}bg-primary/10 text-primary
+      {% if accent == 'primary' %}bg-sentinel-orange-darker/10 text-sentinel-orange-darker
       {% elif accent == 'destructive' %}bg-destructive/10 text-destructive
       {% elif accent == 'success' %}bg-success/10 text-success
       {% elif accent == 'warning' %}bg-warning/10 text-warning

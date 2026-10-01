@@ -91,28 +91,8 @@ module.exports = {
         "text-secondary": "#8B7E74",
         "text-muted": "#B5A99E",
 
-        // Tokens Material/Stitch LEGACY — encore consommés (lockout.html,
-        // shells bg-background, kpi_card accent="primary", provisioning,
-        // audit_admin_members). À migrer vers les tokens Sentinel au fil du
-        // Lot 3.5 ; les 33 tokens sans consommateur ont été purgés (3.6).
-        // primary pointe désormais sur la variable CSS --primary (orange Sentinel)
-        // pour aligner kpi_card/footer sur la charte et supprimer la collision
-        // avec text-text-primary (#2D1F1E).
-        "background": "#F9FAFB",
-        "primary": "hsl(var(--primary) / <alpha-value>)",
-        "tertiary": "#006496",
-        "error": "#ba1a1a",
-        "error-container": "#ffdad6",
-        "on-error-container": "#93000a",
-        "on-surface": "#1c1b1b",
-        "on-surface-variant": "#594137",
-        "outline-variant": "#e1bfb2",
-        "surface": "#F9FAFB",
-        "surface-container": "#E4E6EA",
-        "surface-container-low": "#F3F4F6",
-        "surface-container-high": "#D9DBDF",
-        "surface-container-lowest": "#ffffff",
-
+        // Tokens Material/Stitch : intégralement purgés (lot 3.6 terminé) —
+        // tous les consommateurs ont été migrés vers les tokens Sentinel.
 
         // Tokens HSL du kit (Sentinel Export)
         "border": "hsl(var(--border))",

@@ -14,6 +14,9 @@
   </td>
   <td class="px-5 py-3 text-text-secondary">
     {{ req.get_requested_role_display }}
+    {% if req.requested_role == 'EXT' %}
+    <span class="ml-1 text-xs text-info">({{ req.mission_organization|default:"—" }})</span>
+    {% endif %}
   </td>
   <td class="px-5 py-3 text-text-secondary text-xs">
     {{ req.requested_department.name|default:"—" }}
@@ -41,11 +44,10 @@
       Rejetée
     </span>
     {% elif req.status == 'CANCELLED' %}
-    <span
-      class="inline-flex items-center gap-1 rounded-md bg-surface-container px-2 py-0.5 text-xs font-medium text-text-muted">
-      <span class="h-1.5 w-1.5 rounded-full bg-text-muted"></span>
-      Annulée
-    </span>
+      <span class="inline-flex items-center gap-1 rounded-md bg-surface-sunken px-2 py-0.5 text-xs font-medium text-text-muted">
+        <span class="h-1.5 w-1.5 rounded-full bg-text-muted"></span>
+        Annulée
+      </span>
     {% endif %}
   </td>
   <td class="px-5 py-3 text-xs text-text-muted tabular-nums">

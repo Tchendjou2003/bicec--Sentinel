@@ -1,0 +1,22 @@
+{# Overlay de modale centrée — standard Sentinel (lot 3.1). #}
+{# L'hôte expose un état Alpine `modal` (string|null) ; le contenu est injecté #}
+{# par HTMX dans #container_id. Fermeture : clic backdrop ou `modal = null` #}
+{# depuis le contenu ; l'hôte gère Escape globalement (@keydown.escape.window). #}
+{# Paramètres : #}
+{#   name         — valeur de `modal` qui ouvre cette modale (ex. 'assign') #}
+{#   container_id — id du conteneur cible HTMX (ex. 'assign-modal-container') #}
+{#   label        — aria-label du dialogue #}
+{#   max_w        — 'md' (défaut) ou 'lg' #}
+<template x-teleport="body">
+  <div x-show="modal === '{{ name }}'" x-transition class="fixed inset-0 z-[100] flex items-center justify-center"
+    style="display:none">
+    {# Backdrop — style inline pour contourner la purge Tailwind JIT #}
+    <div class="absolute inset-0"
+      style="background-color: rgba(17, 24, 39, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+      @click="modal = null"></div>
+    <div class="relative w-full {% if max_w == 'lg' %}max-w-lg{% else %}max-w-md{% endif %} mx-4"
+      id="{{ container_id }}" role="dialog" aria-modal="true" aria-label="{{ label }}">
+      {# Contenu injecté par HTMX #}
+    </div>
+  </div>
+</template>

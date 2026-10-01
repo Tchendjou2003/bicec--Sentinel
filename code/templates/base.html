@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
 
     <!-- Tailwind CSS compilé -->
-    <link rel="stylesheet" href="{% static 'css/output.css' %}?v=24">
+    <link rel="stylesheet" href="{% static 'css/output.css' %}?v=26">
 
     <!-- TomSelect — vendorisé local (Story 6.2.0 / aucun CDN) -->
     <link rel="stylesheet" href="{% static 'vendor/tom-select/tom-select.min.css' %}">
@@ -44,7 +44,7 @@
     {% block extra_css %}{% endblock %}
 </head>
 
-<body class="bg-background text-foreground font-sans antialiased min-h-screen flex flex-col" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body class="bg-surface-base text-foreground font-sans antialiased min-h-screen flex flex-col" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
     {% block body %}
     {% block main %}
